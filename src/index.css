@@ -1,0 +1,99 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 226 73% 47%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 214 32% 91%;
+    --secondary-foreground: 222 47% 11%;
+    --muted: 214 32% 96%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 214 32% 91%;
+    --accent-foreground: 222 47% 11%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 226 73% 47%;
+    --radius: 0.5rem;
+
+    /* Clock system */
+    --clock-employee: 160 84% 39%;
+    --clock-client: 38 92% 50%;
+    --clock-authority: 217 91% 60%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-[#F8FAFC] text-foreground font-sans;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3, h4 {
+    @apply font-display font-semibold;
+  }
+
+  code {
+    @apply font-mono;
+  }
+}
+
+@layer components {
+  /* Clock indicators */
+  .clock-dot {
+    @apply w-2 h-2 rounded-full inline-block animate-pulse-clock;
+  }
+  .clock-dot-employee  { @apply bg-clock-employee; }
+  .clock-dot-client    { @apply bg-clock-client; }
+  .clock-dot-authority { @apply bg-clock-authority; }
+
+  /* Expiry badges */
+  .expiry-safe   { @apply bg-green-50 text-green-700 border border-green-200; }
+  .expiry-warn   { @apply bg-amber-50 text-amber-700 border border-amber-200; }
+  .expiry-urgent { @apply bg-red-50 text-red-700 border border-red-200; }
+
+  /* Page header */
+  .page-header {
+    @apply mb-6;
+  }
+  .page-title {
+    @apply text-2xl font-display font-semibold text-brand-950;
+  }
+  .page-subtitle {
+    @apply text-sm text-muted-foreground mt-0.5;
+  }
+
+  /* Stat card */
+  .stat-card {
+    @apply bg-white rounded-xl border border-border p-4 shadow-card;
+  }
+  .stat-value {
+    @apply text-2xl font-display font-bold text-brand-950 mt-1;
+  }
+  .stat-label {
+    @apply text-xs font-medium text-muted-foreground uppercase tracking-wide;
+  }
+
+  /* Timeline stage connector */
+  .stage-connector {
+    @apply w-0.5 bg-border flex-1 min-h-[20px] ml-4 -mt-1 mb-0;
+  }
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { @apply bg-border rounded-full; }
+::-webkit-scrollbar-thumb:hover { @apply bg-muted-foreground/30; }

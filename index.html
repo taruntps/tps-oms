@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex" />
+    <title>TPS Operations — portal.tpsxpert.com</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="root"></div>
+    <!-- GitHub Pages SPA: restore deep-link path saved by 404.html -->
+    <script>
+      (function() {
+        var r = sessionStorage.getItem('spa_redirect');
+        if (r) {
+          sessionStorage.removeItem('spa_redirect');
+          var q = r.split('&');
+          var p = q.shift();
+          history.replaceState(null, null,
+            '/' + p + (q.length ? '?' + q.join('&') : '') +
+            (window.location.hash || '')
+          );
+        }
+      })();
+    </script>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
