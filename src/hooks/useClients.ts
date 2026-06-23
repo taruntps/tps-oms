@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/contexts/AuthContext'
 import type { Tables, TablesInsert, TablesUpdate } from '@/types/database'
 
 export type Client = Tables<'clients'>
@@ -61,4 +62,14 @@ export function useUpdateClient() {
       qc.invalidateQueries({ queryKey: ['clients', v.id] })
     },
   })
+}
+
+/**
+ * Returns true if the current user may edit client records.
+ * super_admin always can; others need can_edit_clients = true on their profile.
+ */
+export function useCanEditClient(): boolean {
+  const { profile } = useAuth()
+  if (!profile) return false
+  return profile.role === 'super_admin' || profile.can_edit_clients === true
 }
