@@ -88,7 +88,7 @@ export default function ClientsPage() {
                       <span className="text-[10px] text-red-600 bg-red-50 border border-red-100 px-1.5 py-0.5 rounded">Inactive</span>
                     )}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-0.5 truncate">{client.contact_person} · {client.city ?? client.state}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5 truncate capitalize">{client.contact_person} · {client.city ?? client.state}</p>
                 </div>
 
                 {/* Contact */}

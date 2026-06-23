@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Plus, Pencil, Phone, Mail, MapPin, Hash, FileText, AlertTriangle, CheckCircle2, Clock } from 'lucide-react'
+import { ArrowLeft, Plus, Pencil, Phone, Mail, MapPin, Hash, FileText, AlertTriangle, CheckCircle2, Clock, Lock } from 'lucide-react'
 import { TopBar } from '@/components/layout/TopBar'
 import { RoleGuard } from '@/components/shared/ProtectedRoute'
-import { useClient } from '@/hooks/useClients'
+import { useClient, useCanEditClient } from '@/hooks/useClients'
 import { useLicenses } from '@/hooks/useLicenses'
 import { ClientForm } from './ClientForm'
 import { LicenseForm } from './LicenseForm'
@@ -22,6 +22,7 @@ export default function ClientDetailPage() {
   const navigate = useNavigate()
   const { data: client, isLoading } = useClient(id!)
   const { data: licenses = [] } = useLicenses(id!)
+  const canEdit = useCanEditClient()
   const [editClient, setEditClient] = useState(false)
   const [addLicense, setAddLicense] = useState(false)
   const [editLicense, setEditLicense] = useState<string | null>(null)
@@ -51,12 +52,17 @@ export default function ClientDetailPage() {
             <ArrowLeft size={14} />
             Back to Clients
           </button>
-          <RoleGuard roles={['super_admin','director','manager']}>
+          {canEdit ? (
             <button onClick={() => setEditClient(true)} className="flex items-center gap-2 text-sm px-3 py-1.5 border border-border rounded-lg hover:bg-[#F8FAFC]">
               <Pencil size={12} />
               Edit
             </button>
-          </RoleGuard>
+          ) : (
+            <span className="flex items-center gap-1.5 text-xs text-muted-foreground px-3 py-1.5 border border-border rounded-lg bg-[#F8FAFC]">
+              <Lock size={11} />
+              Locked
+            </span>
+          )}
         </div>
 
         {/* Client card */}
@@ -72,8 +78,20 @@ export default function ClientDetailPage() {
                 <h2 className="text-xl font-display font-bold text-brand-950">{client.company_name}</h2>
                 {client.trade_name && <span className="text-xs text-muted-foreground bg-[#F8FAFC] border border-border px-2 py-0.5 rounded">{client.trade_name}</span>}
                 {!client.is_active && <span className="text-xs text-red-600 bg-red-50 border border-red-100 px-2 py-0.5 rounded">Inactive</span>}
+                {(client as any).gstin_is_placeholder && (
+                  <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded border bg-amber-50 border-amber-200 text-amber-700">
+                    <AlertTriangle size={10} />
+                    No GSTIN
+                  </span>
+                )}
+                {!canEdit && (
+                  <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+                    <Lock size={9} />
+                    Locked
+                  </span>
+                )}
               </div>
-              <p className="text-sm text-muted-foreground mt-0.5">{client.contact_person}</p>
+              <p className="text-sm text-muted-foreground mt-0.5 capitalize">{client.contact_person}</p>
               {client.contact_email && (
                 <a href={`mailto:${client.contact_email}`}
                   className="inline-flex items-center gap-1.5 text-xs text-brand-600 hover:text-brand-700 mt-1 font-medium">
@@ -87,7 +105,21 @@ export default function ClientDetailPage() {
             <Detail icon={Phone} label="Phone" value={client.contact_phone} />
             <Detail icon={Mail} label="Email" value={client.contact_email} />
             <Detail icon={MapPin} label="Location" value={[client.city, client.state].filter(Boolean).join(', ')} />
-            <Detail icon={Hash} label="GSTIN" value={client.gstin} />
+            {/* GSTIN — show amber badge if placeholder */}
+            <div>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">GSTIN</p>
+              <p className="text-xs font-medium text-brand-950 flex items-center gap-1.5">
+                <Hash size={10} className="text-muted-foreground shrink-0" />
+                {(client as any).gstin_is_placeholder ? (
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-amber-50 border border-amber-200 text-amber-700 rounded text-[10px] font-semibold">
+                    <AlertTriangle size={9} />
+                    No GSTIN
+                  </span>
+                ) : (
+                  client.gstin ?? '—'
+                )}
+              </p>
+            </div>
           </div>
 
           {client.notes && (
