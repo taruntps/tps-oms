@@ -4,7 +4,7 @@ import { TopBar } from '@/components/layout/TopBar'
 import { supabase } from '@/lib/supabase'
 import { toast } from '@/components/shared/Toast'
 import { useAuth } from '@/contexts/AuthContext'
-import { UserPlus, Edit2, ToggleLeft, ToggleRight, Shield } from 'lucide-react'
+import { UserPlus, Edit2, ToggleLeft, ToggleRight, Shield, Mail, KeyRound } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const ROLES = ['executive', 'manager', 'director', 'accounts', 'super_admin'] as const
@@ -42,6 +42,8 @@ interface InviteForm {
   role: Role
   phone: string
   whatsapp_number: string
+  mode: 'invite' | 'create'
+  password: string
 }
 
 export default function UserManagementPage() {
@@ -173,8 +175,11 @@ export default function UserManagementPage() {
           <div className="flex items-start gap-2">
             <Shield size={14} className="mt-0.5 shrink-0" />
             <div>
-              <p className="font-medium mb-1">Inviting New Users</p>
-              <p className="text-xs text-blue-700">Click "Invite User" to send an email invitation. The user will receive a link to set their password. You can set their role here after they accept.</p>
+              <p className="font-medium mb-1">Adding New Users</p>
+              <p className="text-xs text-blue-700">
+                <strong>Invite via Email</strong> — user receives a link to set their own password.
+                <strong> Create with Password</strong> — you set the password directly; user can log in immediately without any email.
+              </p>
             </div>
           </div>
         </div>
@@ -199,8 +204,11 @@ function UserForm({ user, onClose, onSaved }: { user: UserRow | null; onClose: (
     role:  user?.role ?? 'executive',
     phone: user?.phone ?? '',
     whatsapp_number: user?.whatsapp_number ?? '',
+    mode: 'invite',
+    password: '',
   })
   const [loading, setLoading] = useState(false)
+  const [showPass, setShowPass] = useState(false)
   const isEdit = !!user
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -208,7 +216,7 @@ function UserForm({ user, onClose, onSaved }: { user: UserRow | null; onClose: (
     setLoading(true)
     try {
       if (isEdit) {
-        // Update profile details
+        // Update profile details only
         const { error } = await supabase.from('profiles').update({
           name: form.name,
           role: form.role,
@@ -218,12 +226,24 @@ function UserForm({ user, onClose, onSaved }: { user: UserRow | null; onClose: (
         if (error) throw error
         toast.success('User updated')
       } else {
-        // Invite via Supabase Admin API (requires service role — use Edge Function)
+        // Create or invite via Edge Function
         const { error } = await supabase.functions.invoke('invite-user', {
-          body: { email: form.email, name: form.name, role: form.role, phone: form.phone, whatsapp_number: form.whatsapp_number },
+          body: {
+            email: form.email,
+            name: form.name,
+            role: form.role,
+            phone: form.phone,
+            whatsapp_number: form.whatsapp_number,
+            mode: form.mode,
+            password: form.mode === 'create' ? form.password : undefined,
+          },
         })
         if (error) throw error
-        toast.success('Invitation sent', `${form.email} will receive an invite link`)
+        if (form.mode === 'create') {
+          toast.success('User created', `${form.email} can now log in with the provided password`)
+        } else {
+          toast.success('Invitation sent', `${form.email} will receive an invite link`)
+        }
       }
       onSaved()
     } catch (err: any) {
@@ -237,10 +257,50 @@ function UserForm({ user, onClose, onSaved }: { user: UserRow | null; onClose: (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl">
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-          <h2 className="font-display font-semibold text-brand-950">{isEdit ? 'Edit User' : 'Invite New User'}</h2>
-          <button onClick={onClose}><Shield size={14} className="text-muted-foreground" /></button>
+          <h2 className="font-display font-semibold text-brand-950">{isEdit ? 'Edit User' : 'Add New User'}</h2>
+          <button onClick={onClose} className="text-muted-foreground hover:text-brand-950">✕</button>
         </div>
         <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
+
+          {/* Mode toggle — only for new user creation */}
+          {!isEdit && (
+            <div className="flex rounded-lg border border-border overflow-hidden text-sm">
+              <button
+                type="button"
+                onClick={() => setForm({ ...form, mode: 'invite' })}
+                className={cn(
+                  'flex-1 flex items-center justify-center gap-2 py-2.5 font-medium transition-colors',
+                  form.mode === 'invite'
+                    ? 'bg-brand-600 text-white'
+                    : 'bg-white text-muted-foreground hover:bg-[#F8FAFC]'
+                )}
+              >
+                <Mail size={13} /> Invite via Email
+              </button>
+              <button
+                type="button"
+                onClick={() => setForm({ ...form, mode: 'create' })}
+                className={cn(
+                  'flex-1 flex items-center justify-center gap-2 py-2.5 font-medium transition-colors',
+                  form.mode === 'create'
+                    ? 'bg-brand-600 text-white'
+                    : 'bg-white text-muted-foreground hover:bg-[#F8FAFC]'
+                )}
+              >
+                <KeyRound size={13} /> Create with Password
+              </button>
+            </div>
+          )}
+
+          {/* Mode description */}
+          {!isEdit && (
+            <p className="text-xs text-muted-foreground -mt-1">
+              {form.mode === 'invite'
+                ? 'User gets an email with a link to set their own password.'
+                : 'User is created immediately with the password you set. No email is sent.'}
+            </p>
+          )}
+
           {!isEdit && (
             <div>
               <label className="block text-xs font-medium text-brand-950 mb-1">Email *</label>
@@ -249,6 +309,7 @@ function UserForm({ user, onClose, onSaved }: { user: UserRow | null; onClose: (
                 placeholder="employee@tpsxperts.com" />
             </div>
           )}
+
           <div>
             <label className="block text-xs font-medium text-brand-950 mb-1">Full Name *</label>
             <input required value={form.name} onChange={e => setForm({...form, name: e.target.value})}
@@ -276,10 +337,36 @@ function UserForm({ user, onClose, onSaved }: { user: UserRow | null; onClose: (
               className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none"
               placeholder="91XXXXXXXXXX" />
           </div>
+
+          {/* Password field — only in create mode */}
+          {!isEdit && form.mode === 'create' && (
+            <div>
+              <label className="block text-xs font-medium text-brand-950 mb-1">Password *</label>
+              <div className="relative">
+                <input
+                  type={showPass ? 'text' : 'password'}
+                  required
+                  minLength={6}
+                  value={form.password}
+                  onChange={e => setForm({...form, password: e.target.value})}
+                  className="w-full px-3 py-2 pr-16 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-600/20"
+                  placeholder="Min 6 characters"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPass(p => !p)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground hover:text-brand-600"
+                >
+                  {showPass ? 'Hide' : 'Show'}
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="flex justify-end gap-3 pt-2">
             <button type="button" onClick={onClose} className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-[#F8FAFC]">Cancel</button>
             <button type="submit" disabled={loading} className="px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 disabled:opacity-50">
-              {loading ? 'Saving…' : isEdit ? 'Update' : 'Send Invite'}
+              {loading ? 'Saving…' : isEdit ? 'Update' : form.mode === 'create' ? 'Create User' : 'Send Invite'}
             </button>
           </div>
         </form>
