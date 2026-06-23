@@ -20,13 +20,16 @@ function generatePlaceholderGstin(): string {
 }
 
 function findSimilarClient(newName: string, clients: Client[], skipId?: string): Client | undefined {
-  const words = newName.trim().toUpperCase().split(/\s+/)
-  if (words.length < 6) return undefined
-  const first6 = words.slice(0, 6).join(' ')
+  const newWords = newName.trim().toUpperCase().split(/\s+/)
+  if (newWords.length < 2) return undefined // single-word names are too vague to match
+
   return clients.find(c => {
     if (skipId && c.id === skipId) return false
-    const existing = c.company_name.trim().toUpperCase().split(/\s+/).slice(0, 6).join(' ')
-    return existing === first6
+    const existingWords = c.company_name.trim().toUpperCase().split(/\s+/)
+    if (existingWords.length < 2) return false
+    // Compare using the first N words where N = min of both names' word counts (min 2)
+    const compareLen = Math.min(newWords.length, existingWords.length)
+    return newWords.slice(0, compareLen).join(' ') === existingWords.slice(0, compareLen).join(' ')
   })
 }
 

@@ -10,10 +10,10 @@ import { STATE_NAMES, getCitiesForState, FBO_CATEGORIES } from '@/data/india'
 
 const schema = z.object({
   license_type:        z.string().min(1, 'Required'),
-  license_number: z.union([
-    z.string().length(0),
-    z.string().regex(/^\d{14}$/, 'FSSAI number must be exactly 14 digits'),
-  ]).optional(),
+  license_number: z.string().optional().refine(
+    val => !val || val.length === 0 || /^\d{14}$/.test(val),
+    { message: 'FSSAI number must be exactly 14 digits (numbers only)' }
+  ),
   status:              z.string().min(1, 'Required'),
   state_name:          z.string().min(1, 'Select state'),
   city:                z.string().min(1, 'Enter city/district'),

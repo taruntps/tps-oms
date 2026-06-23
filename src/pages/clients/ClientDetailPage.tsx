@@ -1,6 +1,9 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Plus, Pencil, Phone, Mail, MapPin, Hash, FileText, AlertTriangle, CheckCircle2, Clock, Lock } from 'lucide-react'
+
+const toTitleCase = (s: string) =>
+  s.toLowerCase().replace(/\b\w/g, c => c.toUpperCase())
 import { TopBar } from '@/components/layout/TopBar'
 import { RoleGuard } from '@/components/shared/ProtectedRoute'
 import { useClient, useCanEditClient } from '@/hooks/useClients'
@@ -91,7 +94,7 @@ export default function ClientDetailPage() {
                   </span>
                 )}
               </div>
-              <p className="text-sm text-muted-foreground mt-0.5 capitalize">{client.contact_person}</p>
+              <p className="text-sm text-muted-foreground mt-0.5">{toTitleCase(client.contact_person)}</p>
               {client.contact_email && (
                 <a href={`mailto:${client.contact_email}`}
                   className="inline-flex items-center gap-1.5 text-xs text-brand-600 hover:text-brand-700 mt-1 font-medium">

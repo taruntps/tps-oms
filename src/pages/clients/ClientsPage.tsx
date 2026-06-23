@@ -1,5 +1,8 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+
+const toTitleCase = (s: string) =>
+  s.toLowerCase().replace(/\b\w/g, c => c.toUpperCase())
 import { Plus, Search, Building2, Phone, Mail, ChevronRight } from 'lucide-react'
 import { TopBar } from '@/components/layout/TopBar'
 import { RoleGuard } from '@/components/shared/ProtectedRoute'
@@ -88,7 +91,7 @@ export default function ClientsPage() {
                       <span className="text-[10px] text-red-600 bg-red-50 border border-red-100 px-1.5 py-0.5 rounded">Inactive</span>
                     )}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-0.5 truncate capitalize">{client.contact_person} · {client.city ?? client.state}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5 truncate">{toTitleCase(client.contact_person)} · {client.city ?? client.state}</p>
                 </div>
 
                 {/* Contact */}
