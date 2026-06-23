@@ -8,13 +8,14 @@ import { useAuth } from '@/contexts/AuthContext'
 import { toast } from '@/components/shared/Toast'
 import { supabase } from '@/lib/supabase'
 import { useQuery } from '@tanstack/react-query'
+import { SERVICE_TYPES } from '@/data/india'
 
 const schema = z.object({
   client_id:    z.string().min(1, 'Select a client'),
   project_name: z.string().min(2, 'Required'),
   service_type: z.string().min(1, 'Required'),
-  assigned_to:  z.string().optional(),
-  manager_id:   z.string().optional(),
+  assigned_to:  z.string().min(1, 'Assign an executive'),
+  manager_id:   z.string().min(1, 'Assign a manager'),
   quoted_amount: z.coerce.number().min(0),
   target_date:  z.string().optional(),
   notes:        z.string().optional(),
@@ -22,11 +23,7 @@ const schema = z.object({
 
 type FormData = z.infer<typeof schema>
 
-interface Props {
-  onClose: () => void
-}
-
-const SERVICE_TYPES = ['New Application', 'Renewal', 'Modification', 'Duplicate Copy', 'Surrender', 'Other']
+interface Props { onClose: () => void }
 
 export function ProjectForm({ onClose }: Props) {
   const { profile } = useAuth()
@@ -37,10 +34,7 @@ export function ProjectForm({ onClose }: Props) {
     queryKey: ['profiles', 'staff'],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('profiles')
-        .select('id, name, role')
-        .eq('is_active', true)
-        .order('name')
+        .from('profiles').select('id, name, role').eq('is_active', true).order('name')
       if (error) throw error
       return data
     },
@@ -58,11 +52,9 @@ export function ProjectForm({ onClose }: Props) {
     try {
       await create.mutateAsync({
         ...data,
-        assigned_to:   data.assigned_to  || null,
-        manager_id:    data.manager_id   || null,
         target_date:   data.target_date  || null,
         notes:         data.notes        || null,
-        quoted_amount: Math.round(data.quoted_amount * 100), // convert ₹ to paise
+        quoted_amount: Math.round(data.quoted_amount * 100),
         created_by:    profile?.id,
       })
       toast.success('Project created', 'Stages auto-generated from template')
@@ -82,6 +74,7 @@ export function ProjectForm({ onClose }: Props) {
 
         <form className="overflow-y-auto flex-1 px-6 py-5">
           <div className="grid grid-cols-2 gap-4">
+
             <Field label="Client *" error={errors.client_id?.message} className="col-span-2">
               <select {...register('client_id')} className={ic(!!errors.client_id)}>
                 <option value="">Select client…</option>
@@ -90,7 +83,7 @@ export function ProjectForm({ onClose }: Props) {
             </Field>
 
             <Field label="Project Name *" error={errors.project_name?.message} className="col-span-2">
-              <input {...register('project_name')} className={ic(!!errors.project_name)} placeholder="e.g. FSSAI Central Licence – New" />
+              <input {...register('project_name')} className={ic(!!errors.project_name)} placeholder="e.g. Form II – Magnesium Glycinate" />
             </Field>
 
             <Field label="Service Type *" error={errors.service_type?.message}>
@@ -103,16 +96,16 @@ export function ProjectForm({ onClose }: Props) {
               <input type="number" {...register('quoted_amount')} className={ic(false)} placeholder="0" />
             </Field>
 
-            <Field label="Assigned Executive" error={errors.assigned_to?.message}>
-              <select {...register('assigned_to')} className={ic(false)}>
-                <option value="">Unassigned</option>
+            <Field label="Assigned Executive *" error={errors.assigned_to?.message}>
+              <select {...register('assigned_to')} className={ic(!!errors.assigned_to)}>
+                <option value="">Select executive…</option>
                 {executives.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
               </select>
             </Field>
 
-            <Field label="Manager" error={errors.manager_id?.message}>
-              <select {...register('manager_id')} className={ic(false)}>
-                <option value="">None</option>
+            <Field label="Manager *" error={errors.manager_id?.message}>
+              <select {...register('manager_id')} className={ic(!!errors.manager_id)}>
+                <option value="">Select manager…</option>
                 {managers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
               </select>
             </Field>
@@ -124,16 +117,14 @@ export function ProjectForm({ onClose }: Props) {
             <Field label="Notes" error={errors.notes?.message} className="col-span-2">
               <textarea {...register('notes')} rows={2} className={ic(false)} />
             </Field>
+
           </div>
         </form>
 
         <div className="px-6 py-4 border-t border-border flex justify-end gap-3">
           <button onClick={onClose} type="button" className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-[#F8FAFC]">Cancel</button>
-          <button
-            onClick={handleSubmit(onSubmit)}
-            disabled={isSubmitting}
-            className="px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 disabled:opacity-50"
-          >
+          <button onClick={handleSubmit(onSubmit)} disabled={isSubmitting}
+            className="px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 disabled:opacity-50">
             {isSubmitting ? 'Creating…' : 'Create Project'}
           </button>
         </div>

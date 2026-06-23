@@ -1,21 +1,24 @@
+import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { X } from 'lucide-react'
+import { X, Plus } from 'lucide-react'
 import { useCreateLicense, useUpdateLicense, type License } from '@/hooks/useLicenses'
 import { useAuth } from '@/contexts/AuthContext'
 import { toast } from '@/components/shared/Toast'
+import { STATE_NAMES, getCitiesForState, FBO_CATEGORIES } from '@/data/india'
 
 const schema = z.object({
-  license_type:     z.string().min(1, 'Required'),
-  license_number:   z.string().optional(),
-  category:         z.string().optional(),
-  state_code:       z.string().optional(),
-  authority_office: z.string().optional(),
-  issue_date:       z.string().optional(),
-  expiry_date:      z.string().optional(),
+  license_type:        z.string().min(1, 'Required'),
+  license_number:      z.string().optional(),
+  status:              z.string().min(1, 'Required'),
+  state_name:          z.string().min(1, 'Select state'),
+  city:                z.string().min(1, 'Enter city/district'),
+  authorised_premises: z.string().optional(),
+  issue_date:          z.string().optional(),
+  expiry_date:         z.string().optional(),
   credential_username: z.string().optional(),
-  notes:            z.string().optional(),
+  notes:               z.string().optional(),
 })
 
 type FormData = z.infer<typeof schema>
@@ -27,6 +30,13 @@ interface Props {
 }
 
 const LICENSE_TYPES = ['Central Licence', 'State Licence', 'Registration Certificate']
+const LICENSE_STATUSES = [
+  { value: 'active',            label: 'Active' },
+  { value: 'pending_approval',  label: 'Pending Approval' },
+  { value: 'expired',           label: 'Expired' },
+  { value: 'suspended',         label: 'Suspended' },
+  { value: 'cancelled',         label: 'Cancelled' },
+]
 
 export function LicenseForm({ clientId, license, onClose }: Props) {
   const { profile } = useAuth()
@@ -34,32 +44,62 @@ export function LicenseForm({ clientId, license, onClose }: Props) {
   const update = useUpdateLicense()
   const isEdit = !!license
 
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormData>({
+  // Multi-select FBO categories
+  const [categories, setCategories] = useState<string[]>(
+    (license as any)?.categories?.length ? (license as any).categories : license?.category ? [license.category] : []
+  )
+  const [catInput, setCatInput] = useState('')
+  const [cities, setCities] = useState<string[]>([])
+
+  const { register, handleSubmit, watch, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
-      license_type:     license?.license_type ?? 'Central Licence',
-      license_number:   license?.license_number ?? '',
-      category:         license?.category ?? '',
-      state_code:       license?.state_code ?? '',
-      authority_office: license?.authority_office ?? '',
-      issue_date:       license?.issue_date ?? '',
-      expiry_date:      license?.expiry_date ?? '',
+      license_type:        license?.license_type ?? 'Central Licence',
+      license_number:      license?.license_number ?? '',
+      status:              (license as any)?.status ?? 'active',
+      state_name:          (license as any)?.state_name ?? license?.state_code ?? '',
+      city:                (license as any)?.city ?? license?.authority_office ?? '',
+      authorised_premises: (license as any)?.authorised_premises ?? '',
+      issue_date:          license?.issue_date ?? '',
+      expiry_date:         license?.expiry_date ?? '',
       credential_username: license?.credential_username ?? '',
-      notes:            license?.notes ?? '',
+      notes:               license?.notes ?? '',
     },
   })
 
-  const onSubmit = async (data: FormData) => {
-    const clean = Object.fromEntries(
-      Object.entries(data).map(([k, v]) => [k, v === '' ? null : v])
-    ) as FormData
+  const selectedState = watch('state_name')
 
+  useEffect(() => {
+    const list = getCitiesForState(selectedState)
+    setCities(list)
+  }, [selectedState])
+
+  useEffect(() => {
+    setCities(getCitiesForState(selectedState))
+  }, [])
+
+  const addCategory = (cat: string) => {
+    if (cat && !categories.includes(cat)) setCategories([...categories, cat])
+    setCatInput('')
+  }
+  const removeCategory = (cat: string) => setCategories(categories.filter(c => c !== cat))
+
+  const onSubmit = async (data: FormData) => {
+    if (categories.length === 0) { toast.error('Add at least one FBO Category'); return }
+    const payload = {
+      ...data,
+      categories,
+      category: categories[0], // backward compat
+      issue_date:  data.issue_date  || null,
+      expiry_date: data.expiry_date || null,
+      credential_username: data.credential_username || null,
+    }
     try {
       if (isEdit) {
-        await update.mutateAsync({ id: license.id, ...clean })
+        await update.mutateAsync({ id: license.id, ...payload })
         toast.success('Licence updated')
       } else {
-        await create.mutateAsync({ client_id: clientId, created_by: profile?.id, ...clean })
+        await create.mutateAsync({ client_id: clientId, created_by: profile?.id, ...payload })
         toast.success('Licence added')
       }
       onClose()
@@ -78,46 +118,98 @@ export function LicenseForm({ clientId, license, onClose }: Props) {
 
         <form onSubmit={handleSubmit(onSubmit)} className="overflow-y-auto flex-1 px-6 py-5 space-y-4">
           <div className="grid grid-cols-2 gap-4">
-            <Field label="Licence Type *" error={errors.license_type?.message} className="col-span-2">
-              <select {...register('license_type')} className={inputCls(!!errors.license_type)}>
+
+            <Field label="Licence Type *" error={errors.license_type?.message}>
+              <select {...register('license_type')} className={ic(!!errors.license_type)}>
                 {LICENSE_TYPES.map(t => <option key={t}>{t}</option>)}
               </select>
             </Field>
-            <Field label="Licence Number" error={errors.license_number?.message}>
-              <input {...register('license_number')} className={inputCls(false)} placeholder="Leave blank if pending" />
+
+            <Field label="Status *" error={errors.status?.message}>
+              <select {...register('status')} className={ic(!!errors.status)}>
+                {LICENSE_STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+              </select>
             </Field>
-            <Field label="FBO Category" error={errors.category?.message}>
-              <input {...register('category')} className={inputCls(false)} placeholder="e.g. Manufacturer" />
+
+            <Field label="Licence Number" error={undefined}>
+              <input {...register('license_number')} className={ic(false)} placeholder="Leave blank if pending approval" />
             </Field>
-            <Field label="State Code" error={errors.state_code?.message}>
-              <input {...register('state_code')} className={inputCls(false)} placeholder="e.g. PB" />
+
+            <Field label="FSSAI Portal Username" error={undefined}>
+              <input {...register('credential_username')} className={ic(false)} placeholder="App Ref No. or Licence No." />
+              <p className="text-[10px] text-muted-foreground mt-1">Used as login ID. Password stored encrypted.</p>
             </Field>
-            <Field label="Authority Office" error={errors.authority_office?.message}>
-              <input {...register('authority_office')} className={inputCls(false)} placeholder="e.g. DO Mohali" />
+
+            {/* FBO Categories — multi-select */}
+            <div className="col-span-2">
+              <label className="block text-xs font-medium text-brand-950 mb-1">FBO Categories *</label>
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {categories.map(cat => (
+                  <span key={cat} className="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-brand-100 text-brand-800 rounded-full">
+                    {cat}
+                    <button type="button" onClick={() => removeCategory(cat)} className="text-brand-600 hover:text-red-600 ml-0.5">×</button>
+                  </span>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <select
+                  value={catInput}
+                  onChange={e => setCatInput(e.target.value)}
+                  className={ic(false)}
+                >
+                  <option value="">Select category…</option>
+                  {FBO_CATEGORIES.filter(c => !categories.includes(c)).map(c => <option key={c}>{c}</option>)}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => addCategory(catInput)}
+                  disabled={!catInput}
+                  className="px-3 py-2 bg-brand-600 text-white text-sm rounded-lg hover:bg-brand-700 disabled:opacity-40 flex items-center gap-1"
+                >
+                  <Plus size={13} />
+                </button>
+              </div>
+              {categories.length === 0 && <p className="text-[11px] text-red-600 mt-1">Add at least one category</p>}
+            </div>
+
+            {/* State + City */}
+            <Field label="State *" error={errors.state_name?.message}>
+              <select {...register('state_name')} className={ic(!!errors.state_name)}>
+                <option value="">Select state…</option>
+                {STATE_NAMES.map(s => <option key={s}>{s}</option>)}
+              </select>
             </Field>
+
+            <Field label="City / District *" error={errors.city?.message}>
+              <select {...register('city')} className={ic(!!errors.city)}>
+                <option value="">Select city…</option>
+                {cities.map(c => <option key={c}>{c}</option>)}
+                <option value="__other">Other (type below)</option>
+              </select>
+            </Field>
+
+            <Field label="Authorised Premises Address" error={errors.authorised_premises?.message} className="col-span-2">
+              <textarea {...register('authorised_premises')} rows={2} className={ic(false)} placeholder="Full address of licensed premises" />
+            </Field>
+
             <Field label="Issue Date" error={errors.issue_date?.message}>
-              <input type="date" {...register('issue_date')} className={inputCls(false)} />
+              <input type="date" {...register('issue_date')} className={ic(false)} />
             </Field>
+
             <Field label="Expiry Date" error={errors.expiry_date?.message}>
-              <input type="date" {...register('expiry_date')} className={inputCls(false)} />
+              <input type="date" {...register('expiry_date')} className={ic(false)} />
             </Field>
-            <Field label="FSSAI Portal Username" error={errors.credential_username?.message} className="col-span-2">
-              <input {...register('credential_username')} className={inputCls(false)} placeholder="Login ID (not password)" />
-              <p className="text-[10px] text-muted-foreground mt-1">Password is stored encrypted via Supabase Vault — set it separately after saving.</p>
-            </Field>
+
             <Field label="Notes" error={errors.notes?.message} className="col-span-2">
-              <textarea {...register('notes')} rows={2} className={inputCls(false)} />
+              <textarea {...register('notes')} rows={2} className={ic(false)} />
             </Field>
+
           </div>
         </form>
 
         <div className="px-6 py-4 border-t border-border flex justify-end gap-3">
           <button onClick={onClose} type="button" className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-[#F8FAFC]">Cancel</button>
-          <button
-            onClick={handleSubmit(onSubmit)}
-            disabled={isSubmitting}
-            className="px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 disabled:opacity-50 transition-colors"
-          >
+          <button onClick={handleSubmit(onSubmit)} disabled={isSubmitting} className="px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 disabled:opacity-50">
             {isSubmitting ? 'Saving…' : isEdit ? 'Update Licence' : 'Add Licence'}
           </button>
         </div>
@@ -136,6 +228,5 @@ function Field({ label, error, children, className }: { label: string; error?: s
   )
 }
 
-function inputCls(hasError: boolean) {
-  return `w-full px-3 py-2 text-sm border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-600/20 focus:border-brand-600 ${hasError ? 'border-red-400' : 'border-border'}`
-}
+const ic = (err: boolean) =>
+  `w-full px-3 py-2 text-sm border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-600/20 focus:border-brand-600 ${err ? 'border-red-400' : 'border-border'}`

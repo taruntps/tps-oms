@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -5,19 +6,19 @@ import { X } from 'lucide-react'
 import { useCreateClient, useUpdateClient, type Client } from '@/hooks/useClients'
 import { useAuth } from '@/contexts/AuthContext'
 import { toast } from '@/components/shared/Toast'
+import { STATE_NAMES, getCitiesForState } from '@/data/india'
 
 const schema = z.object({
-  company_name:  z.string().min(2, 'Required'),
-  trade_name:    z.string().optional(),
+  company_name:   z.string().min(2, 'Required'),
   contact_person: z.string().min(2, 'Required'),
-  contact_phone: z.string().min(10, 'Enter valid phone'),
-  contact_email: z.string().email('Invalid email').optional().or(z.literal('')),
-  address:       z.string().optional(),
-  city:          z.string().optional(),
-  state:         z.string().min(1, 'Required'),
-  gstin:         z.string().optional(),
-  pan:           z.string().optional(),
-  notes:         z.string().optional(),
+  contact_phone:  z.string().min(10, 'Enter valid phone'),
+  contact_email:  z.string().email('Invalid email'),
+  city:           z.string().min(1, 'Select city'),
+  state:          z.string().min(1, 'Select state'),
+  gstin:          z.string().min(15, 'Enter valid 15-digit GSTIN').max(15, 'GSTIN must be 15 characters'),
+  pan:            z.string().optional(),
+  whatsapp_number:z.string().optional(),
+  notes:          z.string().optional(),
 })
 
 type FormData = z.infer<typeof schema>
@@ -27,30 +28,43 @@ interface Props {
   onClose: () => void
 }
 
-const STATES = ['Punjab','Haryana','Himachal Pradesh','Uttarakhand','Delhi','Uttar Pradesh','Rajasthan','Maharashtra','Karnataka','Tamil Nadu','Gujarat','West Bengal','Telangana','Andhra Pradesh','Kerala','Madhya Pradesh','Bihar','Odisha','Jharkhand','Assam','Other']
-
 export function ClientForm({ client, onClose }: Props) {
   const { profile } = useAuth()
   const create = useCreateClient()
   const update = useUpdateClient()
   const isEdit = !!client
 
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormData>({
+  const { register, handleSubmit, watch, setValue, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
-      company_name:   client?.company_name ?? '',
-      trade_name:     client?.trade_name ?? '',
-      contact_person: client?.contact_person ?? '',
-      contact_phone:  client?.contact_phone ?? '',
-      contact_email:  client?.contact_email ?? '',
-      address:        client?.address ?? '',
-      city:           client?.city ?? '',
-      state:          client?.state ?? 'Punjab',
-      gstin:          client?.gstin ?? '',
-      pan:            client?.pan ?? '',
-      notes:          client?.notes ?? '',
+      company_name:    client?.company_name ?? '',
+      contact_person:  client?.contact_person ?? '',
+      contact_phone:   client?.contact_phone ?? '',
+      contact_email:   client?.contact_email ?? '',
+      city:            client?.city ?? '',
+      state:           client?.state ?? 'Punjab',
+      gstin:           client?.gstin ?? '',
+      pan:             client?.pan ?? '',
+      whatsapp_number: (client as any)?.whatsapp_number ?? '',
+      notes:           client?.notes ?? '',
     },
   })
+
+  const selectedState = watch('state')
+  const [cities, setCities] = useState<string[]>([])
+
+  useEffect(() => {
+    const list = getCitiesForState(selectedState)
+    setCities(list)
+    // Reset city if not in new list
+    const currentCity = watch('city')
+    if (currentCity && !list.includes(currentCity)) setValue('city', '')
+  }, [selectedState])
+
+  // Init cities on load
+  useEffect(() => {
+    setCities(getCitiesForState(selectedState))
+  }, [])
 
   const onSubmit = async (data: FormData) => {
     try {
@@ -63,68 +77,78 @@ export function ClientForm({ client, onClose }: Props) {
       }
       onClose()
     } catch (err: any) {
-      toast.error('Failed to save client', err.message)
+      if (err.message?.includes('idx_clients_gstin')) {
+        toast.error('GSTIN already exists', 'This GSTIN is already registered with another client')
+      } else {
+        toast.error('Failed to save client', err.message)
+      }
     }
   }
 
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl max-h-[90vh] flex flex-col">
-        {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <h2 className="font-display font-semibold text-brand-950">{isEdit ? 'Edit Client' : 'Add Client'}</h2>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X size={16} /></button>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit(onSubmit)} className="overflow-y-auto flex-1 px-6 py-5 space-y-4">
+        <form onSubmit={handleSubmit(onSubmit)} className="overflow-y-auto flex-1 px-6 py-5">
           <div className="grid grid-cols-2 gap-4">
+
             <Field label="Company Name *" error={errors.company_name?.message} className="col-span-2">
-              <input {...register('company_name')} className={inputCls(!!errors.company_name)} placeholder="e.g. Chimak Healthcare Pvt Ltd" />
+              <input {...register('company_name')} className={ic(!!errors.company_name)} placeholder="e.g. Walpar Nutritions Limited" />
             </Field>
-            <Field label="Trade Name" error={errors.trade_name?.message}>
-              <input {...register('trade_name')} className={inputCls(false)} placeholder="Brand / trading name" />
-            </Field>
+
+            {/* State + City side by side */}
             <Field label="State *" error={errors.state?.message}>
-              <select {...register('state')} className={inputCls(!!errors.state)}>
-                {STATES.map(s => <option key={s}>{s}</option>)}
+              <select {...register('state')} className={ic(!!errors.state)}>
+                <option value="">Select state…</option>
+                {STATE_NAMES.map(s => <option key={s}>{s}</option>)}
               </select>
             </Field>
+
+            <Field label="City *" error={errors.city?.message}>
+              <select {...register('city')} className={ic(!!errors.city)} disabled={!selectedState}>
+                <option value="">Select city…</option>
+                {cities.map(c => <option key={c}>{c}</option>)}
+              </select>
+            </Field>
+
             <Field label="Contact Person *" error={errors.contact_person?.message}>
-              <input {...register('contact_person')} className={inputCls(!!errors.contact_person)} placeholder="Full name" />
+              <input {...register('contact_person')} className={ic(!!errors.contact_person)} placeholder="Full name" />
             </Field>
+
             <Field label="Phone *" error={errors.contact_phone?.message}>
-              <input {...register('contact_phone')} className={inputCls(!!errors.contact_phone)} placeholder="10-digit mobile" />
+              <input {...register('contact_phone')} className={ic(!!errors.contact_phone)} placeholder="10-digit mobile" />
             </Field>
-            <Field label="Email" error={errors.contact_email?.message} className="col-span-2">
-              <input {...register('contact_email')} className={inputCls(!!errors.contact_email)} placeholder="optional" />
+
+            <Field label="Email *" error={errors.contact_email?.message} className="col-span-2">
+              <input {...register('contact_email')} className={ic(!!errors.contact_email)} placeholder="client@company.com" />
             </Field>
-            <Field label="City" error={errors.city?.message}>
-              <input {...register('city')} className={inputCls(false)} />
+
+            <Field label="GSTIN *" error={errors.gstin?.message}>
+              <input {...register('gstin')} className={ic(!!errors.gstin)} placeholder="15-digit GSTIN" maxLength={15} />
             </Field>
-            <Field label="GSTIN" error={errors.gstin?.message}>
-              <input {...register('gstin')} className={inputCls(false)} placeholder="15-digit GSTIN" />
-            </Field>
+
             <Field label="PAN" error={errors.pan?.message}>
-              <input {...register('pan')} className={inputCls(false)} placeholder="10-char PAN" />
+              <input {...register('pan')} className={ic(false)} placeholder="10-char PAN" />
             </Field>
-            <Field label="Address" error={errors.address?.message} className="col-span-2">
-              <textarea {...register('address')} rows={2} className={inputCls(false)} />
+
+            <Field label="WhatsApp Number" error={errors.whatsapp_number?.message} className="col-span-2">
+              <input {...register('whatsapp_number')} className={ic(false)} placeholder="91XXXXXXXXXX (with country code)" />
             </Field>
+
             <Field label="Notes" error={errors.notes?.message} className="col-span-2">
-              <textarea {...register('notes')} rows={2} className={inputCls(false)} />
+              <textarea {...register('notes')} rows={2} className={ic(false)} />
             </Field>
+
           </div>
         </form>
 
-        {/* Footer */}
         <div className="px-6 py-4 border-t border-border flex justify-end gap-3">
           <button onClick={onClose} type="button" className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-[#F8FAFC]">Cancel</button>
-          <button
-            onClick={handleSubmit(onSubmit)}
-            disabled={isSubmitting}
-            className="px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 disabled:opacity-50 transition-colors"
-          >
+          <button onClick={handleSubmit(onSubmit)} disabled={isSubmitting} className="px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 disabled:opacity-50">
             {isSubmitting ? 'Saving…' : isEdit ? 'Update Client' : 'Add Client'}
           </button>
         </div>
@@ -143,6 +167,5 @@ function Field({ label, error, children, className }: { label: string; error?: s
   )
 }
 
-function inputCls(hasError: boolean) {
-  return `w-full px-3 py-2 text-sm border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-600/20 focus:border-brand-600 ${hasError ? 'border-red-400' : 'border-border'}`
-}
+const ic = (err: boolean) =>
+  `w-full px-3 py-2 text-sm border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-600/20 focus:border-brand-600 ${err ? 'border-red-400' : 'border-border'}`

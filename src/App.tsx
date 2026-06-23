@@ -16,6 +16,7 @@ import DirectorPage from '@/pages/director/DirectorPage'
 import SettingsPage from '@/pages/settings/SettingsPage'
 import PerformancePage from '@/pages/reports/PerformancePage'
 import KnowledgePage from '@/pages/knowledge/KnowledgePage'
+import UserManagementPage from '@/pages/admin/UserManagementPage'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -79,6 +80,11 @@ export default function App() {
               <Route path="settings"            element={
                 <ProtectedRoute allowedRoles={['super_admin','director']}>
                   <SettingsPage />
+                </ProtectedRoute>
+              } />
+              <Route path="admin/users"         element={
+                <ProtectedRoute allowedRoles={['super_admin','director']}>
+                  <UserManagementPage />
                 </ProtectedRoute>
               } />
             </Route>

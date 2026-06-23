@@ -24,6 +24,7 @@ const NAV: NavItem[] = [
   { href: '/knowledge',          label: 'Knowledge Base', icon: BookOpen,        roles: ['super_admin','director','manager','executive','auditor'] },
   { href: '/reports/performance',label: 'Reports',        icon: BarChart3,       roles: ['super_admin','director','manager'] },
   { href: '/settings',           label: 'Settings',       icon: Settings,        roles: ['super_admin'] },
+  { href: '/admin/users',        label: 'User Management',icon: Users,           roles: ['super_admin','director'] },
 ]
 
 export function Sidebar() {
