@@ -22,7 +22,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function loadProfile(userId: string) {
     try {
       const p = await getProfile(userId)
-      setProfile(p as UserProfile)
+      setProfile(p as unknown as UserProfile)
     } catch {
       setProfile(null)
     }

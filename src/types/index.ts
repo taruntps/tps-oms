@@ -28,6 +28,7 @@ export interface UserProfile {
   email: string
   role: UserRole
   is_active: boolean
+  can_edit_clients: boolean
   department?: string
   phone?: string
   joining_date?: string
