@@ -31,6 +31,7 @@ interface UserRow {
   name: string
   role: Role
   is_active: boolean
+  can_edit_clients: boolean
   email?: string
   phone?: string
   whatsapp_number?: string
@@ -57,10 +58,10 @@ export default function UserManagementPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, name, role, is_active, phone, whatsapp_number')
+        .select('id, name, role, is_active, can_edit_clients, phone, whatsapp_number')
         .order('name')
       if (error) throw error
-      return data as UserRow[]
+      return data as unknown as UserRow[]
     },
   })
 
@@ -79,6 +80,15 @@ export default function UserManagementPage() {
       if (error) throw error
     },
     onSuccess: () => { toast.success('Role updated'); qc.invalidateQueries({ queryKey: ['profiles'] }) },
+    onError: (e: Error) => toast.error('Failed', e.message),
+  })
+
+  const updateCanEditClients = useMutation({
+    mutationFn: async ({ id, can_edit_clients }: { id: string; can_edit_clients: boolean }) => {
+      const { error } = await supabase.from('profiles').update({ can_edit_clients } as any).eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => { toast.success('Permission updated'); qc.invalidateQueries({ queryKey: ['profiles'] }) },
     onError: (e: Error) => toast.error('Failed', e.message),
   })
 
@@ -105,7 +115,7 @@ export default function UserManagementPage() {
             <table className="w-full text-sm">
               <thead className="bg-[#F8FAFC] border-b border-border">
                 <tr>
-                  {['Name','Role','Status','Actions'].map(h => (
+                  {['Name','Role','Status','Edit Clients','Actions'].map(h => (
                     <th key={h} className="px-5 py-3 text-left text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">{h}</th>
                   ))}
                 </tr>
@@ -143,6 +153,27 @@ export default function UserManagementPage() {
                       )}>
                         {u.is_active ? 'Active' : 'Inactive'}
                       </span>
+                    </td>
+                    {/* Edit Clients permission toggle — super_admin only */}
+                    <td className="px-5 py-3">
+                      {profile?.role === 'super_admin' && u.id !== profile?.id ? (
+                        <button
+                          onClick={() => updateCanEditClients.mutate({ id: u.id, can_edit_clients: !u.can_edit_clients })}
+                          title={u.can_edit_clients ? 'Revoke client edit access' : 'Grant client edit access'}
+                          className={cn(
+                            'p-1.5 rounded-lg transition-colors',
+                            u.can_edit_clients
+                              ? 'text-green-600 hover:bg-red-50 hover:text-red-600'
+                              : 'text-gray-300 hover:bg-green-50 hover:text-green-600'
+                          )}
+                        >
+                          {u.can_edit_clients ? <ToggleRight size={16} /> : <ToggleLeft size={16} />}
+                        </button>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">
+                          {u.can_edit_clients ? '✓' : '—'}
+                        </span>
+                      )}
                     </td>
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-2">
