@@ -1,51 +1,57 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Pencil, Phone, User, Users, Calendar, AlertTriangle, CheckCircle, Clock, RefreshCw } from 'lucide-react'
-import { TopBar } from '@/components/layout/TopBar'
-import { RoleGuard } from '@/components/shared/ProtectedRoute'
-import { ClockBadge } from '@/components/shared/ClockBadge'
-import { StagesTab }   from './tabs/StagesTab'
-import { PaymentsTab } from './tabs/PaymentsTab'
-import { DocumentsTab } from './tabs/DocumentsTab'
-import { QueriesTab }  from './tabs/QueriesTab'
-import { SoiTab }      from './tabs/SoiTab'
+import {
+  ArrowLeft, Pencil, Phone, User, Users, Calendar,
+  AlertTriangle, CheckCircle, Clock, RefreshCw, XCircle, Hash,
+} from 'lucide-react'
+import { TopBar }          from '@/components/layout/TopBar'
+import { RoleGuard }       from '@/components/shared/ProtectedRoute'
+import { ClockBadge }      from '@/components/shared/ClockBadge'
+import { StagesTab }       from './tabs/StagesTab'
+import { PaymentsTab }     from './tabs/PaymentsTab'
+import { DocumentsTab }    from './tabs/DocumentsTab'
+import { QueriesTab }      from './tabs/QueriesTab'
+import { SoiTab }          from './tabs/SoiTab'
 import { BlockRequestForm } from './BlockRequestForm'
-import { useProject, useUpdateProject, useApproveBlockRequest, useUnblockProject, usePendingBlockRequests } from '@/hooks/useProjects'
-import { useAuth } from '@/contexts/AuthContext'
-import { toast } from '@/components/shared/Toast'
+import {
+  useProject, useUpdateProject, useApproveBlockRequest,
+  useUnblockProject, usePendingBlockRequests,
+} from '@/hooks/useProjects'
+import { useAuth }   from '@/contexts/AuthContext'
+import { supabase }  from '@/lib/supabase'
+import { toast }     from '@/components/shared/Toast'
 import { formatDate, formatRupees, cn } from '@/lib/utils'
 import type { Database } from '@/types/database'
 
 type ClockType = Database['public']['Enums']['clock_type']
 
-const CLOCK_OPTIONS: { value: ClockType; label: string }[] = [
-  { value: 'employee',  label: '🟢 Employee' },
-  { value: 'client',    label: '🟡 Client' },
-  { value: 'authority', label: '🔵 FSSAI' },
-]
-
 const TABS = [
-  { key: 'overview',   label: 'Overview' },
-  { key: 'stages',     label: 'Stages' },
-  { key: 'payments',   label: 'Payments' },
-  { key: 'documents',  label: 'Documents' },
-  { key: 'queries',    label: 'Queries' },
+  { key: 'overview',   label: 'Overview'    },
+  { key: 'stages',     label: 'Stages'      },
+  { key: 'payments',   label: 'Payments'    },
+  { key: 'documents',  label: 'Documents'   },
+  { key: 'queries',    label: 'Queries'     },
   { key: 'soi',        label: 'SOI Archive' },
 ] as const
-
 type TabKey = (typeof TABS)[number]['key']
 
 export default function ProjectDetailPage() {
-  const { id } = useParams<{ id: string }>()
-  const navigate = useNavigate()
+  const { id }      = useParams<{ id: string }>()
+  const navigate    = useNavigate()
   const { profile } = useAuth()
   const { data: project, isLoading } = useProject(id!)
-  const updateProject = useUpdateProject()
-  const approveBlock  = useApproveBlockRequest()
-  const unblock       = useUnblockProject()
+  const updateProject  = useUpdateProject()
+  const approveBlock   = useApproveBlockRequest()
+  const unblock        = useUnblockProject()
   const { data: pendingRequests = [] } = usePendingBlockRequests()
-  const [showBlockForm, setShowBlockForm] = useState(false)
-  const [activeTab, setActiveTab] = useState<TabKey>('overview')
+
+  const [showBlockForm,   setShowBlockForm]   = useState(false)
+  const [showEditProject, setShowEditProject] = useState(false)
+  const [showCancelModal, setShowCancelModal] = useState(false)
+  const [showAppRefEdit,  setShowAppRefEdit]  = useState(false)
+  const [cancelReason,    setCancelReason]    = useState('')
+  const [appRefDraft,     setAppRefDraft]     = useState('')
+  const [activeTab,       setActiveTab]       = useState<TabKey>('overview')
 
   if (isLoading) {
     return (
@@ -58,70 +64,130 @@ export default function ProjectDetailPage() {
       </div>
     )
   }
-
   if (!project) return null
 
   const myPendingRequest = pendingRequests.find(r => r.project_id === id)
-  const stages = (project as any).stages ?? []
-  const clientId = project.client_id
+  const stages           = (project as any).stages ?? []
+  const clientId         = project.client_id
+  const activeClock      = (project.active_clock ?? 'employee') as ClockType
+  const appRefNo         = (project as any).app_ref_no as string | null | undefined
 
   const canBlock   = ['executive','manager','director','super_admin'].includes(profile?.role ?? '')
   const canApprove = ['manager','director','super_admin'].includes(profile?.role ?? '')
+  const canCancel  = ['manager','director','super_admin'].includes(profile?.role ?? '')
+  const isCancelled = project.status === 'cancelled'
 
-  const switchClock = async (clock: ClockType) => {
-    if (clock === project.active_clock) return
+  // ── Clock change (called by StageCard) ──────────────────────────────────
+  const handleClockChange = async (clock: ClockType, extra?: Record<string, any>) => {
     try {
-      await updateProject.mutateAsync({ id: project.id, active_clock: clock, clock_switched_at: new Date().toISOString() })
-      toast.success('Clock switched', `Now on ${clock.toUpperCase()} time`)
-    } catch (err: any) {
-      toast.error('Failed', err.message)
-    }
+      await updateProject.mutateAsync({
+        id: project.id,
+        active_clock: clock,
+        clock_switched_at: new Date().toISOString(),
+        ...(extra ?? {}),
+      })
+      toast.success(
+        clock === 'employee'  ? '🟢 Back to Employee' :
+        clock === 'client'    ? '🟡 Moved to Client'  : '🔵 Submitted to FSSAI'
+      )
+    } catch (err: any) { toast.error('Clock update failed', err.message) }
   }
 
+  // ── Block / Unblock ──────────────────────────────────────────────────────
   const handleApprove = async (requestId: string, approved: boolean) => {
     try {
       await approveBlock.mutateAsync({ requestId, approved, projectId: id! })
       toast.success(approved ? 'Block approved' : 'Request rejected')
-    } catch (err: any) {
-      toast.error('Failed', err.message)
-    }
+    } catch (err: any) { toast.error('Failed', err.message) }
   }
-
   const handleUnblock = async () => {
     try {
       await unblock.mutateAsync(id!)
       toast.success('Unblocked', 'Project back to employee clock.')
-    } catch (err: any) {
-      toast.error('Failed', err.message)
-    }
+    } catch (err: any) { toast.error('Failed', err.message) }
+  }
+
+  // ── Cancel project ───────────────────────────────────────────────────────
+  const handleCancel = async () => {
+    if (!cancelReason.trim()) { toast.error('Reason is mandatory'); return }
+    try {
+      // Save to cancel_requests table for audit trail (cast as any — new table not in generated types)
+      await (supabase as any).from('cancel_requests').insert({
+        project_id:    id,
+        requested_by:  profile!.id,
+        reason:        cancelReason,
+        status:        'approved',
+        approved_by:   profile!.id,
+        approved_at:   new Date().toISOString(),
+      })
+      await updateProject.mutateAsync({
+        id:            project.id,
+        status:        'cancelled' as any,
+        ...({ cancel_reason: cancelReason, cancelled_at: new Date().toISOString(), cancelled_by: profile!.id } as any),
+      })
+      toast.success('Project cancelled')
+      setShowCancelModal(false)
+      setCancelReason('')
+    } catch (err: any) { toast.error('Failed to cancel', err.message) }
+  }
+
+  // ── Save App Ref No ──────────────────────────────────────────────────────
+  const saveAppRef = async () => {
+    if (!appRefDraft.trim()) { toast.error('Enter a valid App Ref No.'); return }
+    try {
+      await updateProject.mutateAsync({ id: project.id, app_ref_no: appRefDraft } as any)
+      toast.success('App Ref No. saved')
+      setShowAppRefEdit(false)
+    } catch (err: any) { toast.error('Failed', err.message) }
   }
 
   return (
     <div>
       <TopBar title={project.project_code ?? 'Project'} subtitle={project.project_name} />
-
       <div className="p-6 animate-fade-up space-y-4">
 
-        {/* Back + edit */}
-        <div className="flex items-center justify-between">
+        {/* Back + actions row */}
+        <div className="flex items-center justify-between flex-wrap gap-2">
           <button onClick={() => navigate('/projects')} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-brand-950">
             <ArrowLeft size={14} /> Back to Projects
           </button>
-          <RoleGuard roles={['super_admin','director','manager']}>
-            <button className="flex items-center gap-1.5 text-sm px-3 py-1.5 border border-border rounded-lg hover:bg-[#F8FAFC]">
-              <Pencil size={12} /> Edit
-            </button>
-          </RoleGuard>
+          <div className="flex items-center gap-2">
+            {/* Edit */}
+            <RoleGuard roles={['super_admin','director','manager']}>
+              <button onClick={() => setShowEditProject(true)} className="flex items-center gap-1.5 text-sm px-3 py-1.5 border border-border rounded-lg hover:bg-[#F8FAFC]">
+                <Pencil size={12} /> Edit
+              </button>
+            </RoleGuard>
+            {/* Cancel */}
+            {canCancel && !isCancelled && (
+              <button onClick={() => setShowCancelModal(true)}
+                className="flex items-center gap-1.5 text-sm px-3 py-1.5 border border-red-300 text-red-700 rounded-lg hover:bg-red-50">
+                <XCircle size={12} /> Cancel Project
+              </button>
+            )}
+          </div>
         </div>
 
-        {/* Manager block approval card */}
+        {/* Cancelled banner */}
+        {isCancelled && (
+          <div className="bg-red-50 border border-red-300 rounded-xl px-5 py-3 flex items-center gap-3">
+            <XCircle size={15} className="text-red-600 shrink-0" />
+            <div>
+              <p className="text-sm font-semibold text-red-900">Project Cancelled</p>
+              {(project as any).cancel_reason && <p className="text-xs text-red-700">{(project as any).cancel_reason}</p>}
+            </div>
+          </div>
+        )}
+
+        {/* Block approval card */}
         {canApprove && myPendingRequest && (
           <div className="bg-amber-50 border border-amber-300 rounded-xl p-4 flex items-start gap-3">
             <AlertTriangle size={16} className="text-amber-600 mt-0.5 shrink-0" />
             <div className="flex-1">
-              <p className="text-sm font-semibold text-amber-900">Block Request Pending Your Approval</p>
+              <p className="text-sm font-semibold text-amber-900">Block Request Pending Approval</p>
               <p className="text-xs text-amber-700 mt-0.5">
-                <strong>{(myPendingRequest as any).profiles?.name}</strong> — {myPendingRequest.block_type.replace(/_/g, ' ')}: {myPendingRequest.reason}
+                <strong>{(myPendingRequest as any).profiles?.name}</strong> —{' '}
+                {myPendingRequest.block_type.replace(/_/g, ' ')}: {myPendingRequest.reason}
               </p>
             </div>
             <div className="flex gap-2">
@@ -164,13 +230,19 @@ export default function ProjectDetailPage() {
                 <span className="font-mono text-xs text-muted-foreground">{project.project_code}</span>
                 <span className={cn(
                   'text-[10px] px-2 py-0.5 rounded-full font-medium capitalize',
-                  project.status === 'active'    ? 'bg-green-100 text-green-700' :
-                  project.status === 'on_hold'   ? 'bg-amber-100 text-amber-700' :
-                  project.status === 'completed' ? 'bg-blue-100 text-blue-700' :
+                  project.status === 'active'     ? 'bg-green-100 text-green-700' :
+                  project.status === 'on_hold'    ? 'bg-amber-100 text-amber-700' :
+                  project.status === 'completed'  ? 'bg-blue-100 text-blue-700'  :
+                  project.status === 'cancelled'  ? 'bg-red-100 text-red-700'    :
                   'bg-gray-100 text-gray-600'
                 )}>{project.status?.replace('_', ' ')}</span>
                 {project.service_type && (
                   <span className="text-[10px] bg-[#F8FAFC] border border-border px-2 py-0.5 rounded">{project.service_type}</span>
+                )}
+                {(project as any).awaiting_client_flag && (
+                  <span className="text-[10px] bg-amber-100 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full font-medium">
+                    🟡 Awaiting Client
+                  </span>
                 )}
               </div>
               <h2 className="text-lg font-display font-bold text-brand-950 mt-1">{project.project_name}</h2>
@@ -181,12 +253,12 @@ export default function ProjectDetailPage() {
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 pt-4 border-t border-border">
-            <Detail icon={User}      label="Client"     value={(project as any).clients?.company_name} />
-            <Detail icon={Phone}     label="Phone"      value={(project as any).clients?.contact_phone} />
-            <Detail icon={Users}     label="Executive"  value={(project as any).profiles_assigned?.name} />
-            <Detail icon={Users}     label="Manager"    value={(project as any).profiles_manager?.name} />
-            <Detail icon={Calendar}  label="Target Date" value={formatDate(project.target_date)} />
-            <Detail icon={Clock}     label="Created"    value={formatDate(project.created_at)} />
+            <Detail icon={User}     label="Client"     value={(project as any).clients?.company_name} />
+            <Detail icon={Phone}    label="Phone"      value={(project as any).clients?.contact_phone} />
+            <Detail icon={Users}    label="Executive"  value={(project as any).profiles_assigned?.name} />
+            <Detail icon={Users}    label="Manager"    value={(project as any).profiles_manager?.name} />
+            <Detail icon={Calendar} label="Target"     value={formatDate(project.target_date)} />
+            <Detail icon={Clock}    label="Created"    value={formatDate(project.created_at)} />
             {project.quoted_amount > 0 && (
               <Detail icon={CheckCircle} label="Quoted" value={formatRupees(project.quoted_amount)} />
             )}
@@ -195,54 +267,77 @@ export default function ProjectDetailPage() {
             )}
           </div>
 
+          {/* App Ref No field */}
+          <div className="mt-4 pt-4 border-t border-border flex items-center gap-3">
+            <div className="flex items-center gap-2 flex-1">
+              <Hash size={12} className="text-muted-foreground" />
+              <span className="text-[11px] text-muted-foreground uppercase tracking-wide">App Ref No.</span>
+              {appRefNo ? (
+                <span className="font-mono text-sm text-brand-950 font-medium">{appRefNo}</span>
+              ) : (
+                <span className="text-xs text-muted-foreground/60 italic">Not set</span>
+              )}
+            </div>
+            <RoleGuard roles={['super_admin','director','manager','executive']}>
+              {!showAppRefEdit ? (
+                <button onClick={() => { setAppRefDraft(appRefNo ?? ''); setShowAppRefEdit(true) }}
+                  className="text-xs text-brand-600 hover:text-brand-700 font-medium">
+                  {appRefNo ? 'Edit' : '+ Add'}
+                </button>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <input
+                    value={appRefDraft}
+                    onChange={e => setAppRefDraft(e.target.value)}
+                    placeholder="FSSAI App Ref / Login ID"
+                    className="px-2 py-1 text-xs border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-600/20 w-44"
+                  />
+                  <button onClick={saveAppRef} className="px-2 py-1 bg-brand-600 text-white text-xs rounded-lg">Save</button>
+                  <button onClick={() => setShowAppRefEdit(false)} className="text-xs text-muted-foreground hover:text-brand-950">✕</button>
+                </div>
+              )}
+            </RoleGuard>
+          </div>
+
           {project.notes && (
             <p className="mt-3 pt-3 border-t border-border text-xs text-muted-foreground">{project.notes}</p>
           )}
         </div>
 
-        {/* Clock control bar */}
-        <RoleGuard roles={['super_admin','director','manager','executive']}>
-          <div className="bg-white rounded-xl border border-border px-5 py-4 flex items-center gap-3 flex-wrap">
-            <span className="text-xs font-medium text-muted-foreground mr-1">Clock:</span>
-            {CLOCK_OPTIONS.map(opt => (
-              <button
-                key={opt.value}
-                disabled={project.is_blocked || updateProject.isPending}
-                onClick={() => switchClock(opt.value)}
-                className={cn(
-                  'px-4 py-1.5 text-sm rounded-lg border font-medium transition-all',
-                  project.active_clock === opt.value
-                    ? 'bg-brand-600 text-white border-brand-700'
-                    : 'bg-white text-muted-foreground border-border hover:border-brand-300',
-                  (project.is_blocked || updateProject.isPending) && 'opacity-50 cursor-not-allowed'
-                )}
-              >{opt.label}</button>
-            ))}
-            {canBlock && !project.is_blocked && !myPendingRequest && (
+        {/* Current clock status bar — info only, changed by stage actions */}
+        <div className={cn(
+          'rounded-xl border px-5 py-3 flex items-center justify-between flex-wrap gap-3',
+          activeClock === 'employee'  ? 'bg-green-50 border-green-200' :
+          activeClock === 'client'    ? 'bg-amber-50 border-amber-200' :
+          'bg-blue-50 border-blue-200'
+        )}>
+          <div className="flex items-center gap-3">
+            <span className="text-lg">{activeClock === 'employee' ? '🟢' : activeClock === 'client' ? '🟡' : '🔵'}</span>
+            <div>
+              <p className="text-xs font-semibold text-brand-950">
+                {activeClock === 'employee' ? 'Currently with Employee' :
+                 activeClock === 'client'   ? 'Currently with Client' : 'Currently with FSSAI Authority'}
+              </p>
+              <p className="text-[11px] text-muted-foreground">Clock changes via stage action buttons in the Stages tab</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {canBlock && !project.is_blocked && !myPendingRequest && !isCancelled && (
               <button onClick={() => setShowBlockForm(true)}
-                className="ml-auto px-4 py-1.5 text-sm rounded-lg border border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100 font-medium">
+                className="px-3 py-1.5 text-xs rounded-lg border border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100 font-medium">
                 Request Block
               </button>
             )}
-            {myPendingRequest && (
-              <span className="ml-auto px-3 py-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg">
-                Block request pending
-              </span>
-            )}
           </div>
-        </RoleGuard>
+        </div>
 
         {/* Tab bar */}
         <div className="flex gap-0.5 bg-[#F8FAFC] p-1 rounded-xl border border-border overflow-x-auto">
           {TABS.map(t => (
-            <button
-              key={t.key}
-              onClick={() => setActiveTab(t.key)}
+            <button key={t.key} onClick={() => setActiveTab(t.key)}
               className={cn(
                 'px-4 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap transition-all',
-                activeTab === t.key
-                  ? 'bg-white text-brand-950 shadow-sm'
-                  : 'text-muted-foreground hover:text-brand-950'
+                activeTab === t.key ? 'bg-white text-brand-950 shadow-sm' : 'text-muted-foreground hover:text-brand-950'
               )}
             >{t.label}</button>
           ))}
@@ -253,28 +348,89 @@ export default function ProjectDetailPage() {
           <div className="bg-white rounded-xl border border-border p-5">
             <h3 className="font-display font-semibold text-brand-950 text-sm mb-4">Project Summary</h3>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-              <Stat label="Stages Total"    value={stages.length} />
-              <Stat label="Completed"       value={stages.filter((s: any) => s.status === 'completed').length} />
-              <Stat label="In Progress"     value={stages.filter((s: any) => s.status === 'in_progress').length} />
-              <Stat label="Payment Status"  value={project.payment_status?.replace('_', ' ') ?? '—'} capitalize />
-              <Stat label="Quoted"          value={project.quoted_amount > 0 ? formatRupees(project.quoted_amount) : '—'} />
-              <Stat label="Paid"            value={project.paid_amount > 0 ? formatRupees(project.paid_amount) : '—'} />
+              <Stat label="Stages Total"   value={stages.length} />
+              <Stat label="Completed"      value={stages.filter((s: any) => s.status === 'completed').length} />
+              <Stat label="In Progress"    value={stages.filter((s: any) => s.status === 'in_progress').length} />
+              <Stat label="Payment Status" value={project.payment_status?.replace('_', ' ') ?? '—'} capitalize />
+              <Stat label="Quoted"         value={project.quoted_amount > 0 ? formatRupees(project.quoted_amount) : '—'} />
+              <Stat label="Paid"           value={project.paid_amount   > 0 ? formatRupees(project.paid_amount)   : '—'} />
             </div>
           </div>
         )}
-        {activeTab === 'stages'    && <StagesTab   stages={stages} projectId={id!} isBlocked={project.is_blocked ?? false} />}
+        {activeTab === 'stages' && (
+          <StagesTab
+            stages={stages}
+            projectId={id!}
+            isBlocked={project.is_blocked ?? false}
+            activeClock={activeClock}
+            serviceType={project.service_type ?? undefined}
+            appRefNo={appRefNo}
+            clientId={clientId}
+            onClockChange={handleClockChange}
+          />
+        )}
         {activeTab === 'payments'  && <PaymentsTab  projectId={id!} clientId={clientId} />}
         {activeTab === 'documents' && <DocumentsTab projectId={id!} clientId={clientId} />}
-        {activeTab === 'queries'   && <QueriesTab   projectId={id!} />}
+        {activeTab === 'queries'   && <QueriesTab   projectId={id!} projectCode={project.project_code ?? ''} />}
         {activeTab === 'soi'       && <SoiTab       projectId={id!} clientId={clientId} />}
       </div>
 
+      {/* Modals */}
       {showBlockForm && (
         <BlockRequestForm projectId={id!} projectCode={project.project_code ?? ''} onClose={() => setShowBlockForm(false)} />
+      )}
+
+      {showEditProject && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-display font-semibold text-brand-950">Edit Project</h2>
+              <button onClick={() => setShowEditProject(false)} className="text-muted-foreground">✕</button>
+            </div>
+            <p className="text-sm text-muted-foreground">Edit functionality coming — use inline fields above for now.</p>
+            <button onClick={() => setShowEditProject(false)} className="mt-4 px-4 py-2 bg-brand-600 text-white text-sm rounded-lg">Close</button>
+          </div>
+        </div>
+      )}
+
+      {/* Cancel Project modal */}
+      {showCancelModal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+                <XCircle size={18} className="text-red-600" />
+              </div>
+              <div>
+                <h2 className="font-display font-semibold text-brand-950">Cancel Project</h2>
+                <p className="text-xs text-muted-foreground">{project.project_code} · {project.project_name}</p>
+              </div>
+            </div>
+            <p className="text-sm text-muted-foreground mb-3">This will mark the project as cancelled. A reason is mandatory for audit trail.</p>
+            <label className="block text-xs font-medium text-brand-950 mb-1">Reason for cancellation *</label>
+            <textarea
+              value={cancelReason}
+              onChange={e => setCancelReason(e.target.value)}
+              rows={3}
+              placeholder="e.g. Client withdrew application, business closed, etc."
+              className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-600/20 mb-4"
+            />
+            <div className="flex justify-end gap-3">
+              <button onClick={() => { setShowCancelModal(false); setCancelReason('') }}
+                className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-[#F8FAFC]">Cancel</button>
+              <button onClick={handleCancel} disabled={!cancelReason.trim() || updateProject.isPending}
+                className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:opacity-50">
+                {updateProject.isPending ? 'Cancelling…' : 'Confirm Cancel'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
 }
+
+// ─── Sub-components ──────────────────────────────────────────────────────────
 
 function Detail({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value?: string | null }) {
   if (!value) return null

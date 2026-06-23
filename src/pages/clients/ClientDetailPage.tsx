@@ -73,7 +73,13 @@ export default function ClientDetailPage() {
                 {client.trade_name && <span className="text-xs text-muted-foreground bg-[#F8FAFC] border border-border px-2 py-0.5 rounded">{client.trade_name}</span>}
                 {!client.is_active && <span className="text-xs text-red-600 bg-red-50 border border-red-100 px-2 py-0.5 rounded">Inactive</span>}
               </div>
-              <p className="text-sm text-muted-foreground mt-1">{client.contact_person}</p>
+              <p className="text-sm text-muted-foreground mt-0.5">{client.contact_person}</p>
+              {client.contact_email && (
+                <a href={`mailto:${client.contact_email}`}
+                  className="inline-flex items-center gap-1.5 text-xs text-brand-600 hover:text-brand-700 mt-1 font-medium">
+                  <Mail size={11} />{client.contact_email}
+                </a>
+              )}
             </div>
           </div>
 

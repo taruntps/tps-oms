@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, MessageSquareWarning, CheckCircle2 } from 'lucide-react'
+import { Plus, MessageSquareWarning, CheckCircle2, Hash, Clock, ChevronDown, ChevronRight } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -7,17 +7,18 @@ import { useAuthorityQueries, useCreateAuthorityQuery, useRespondToQuery } from 
 import { RoleGuard } from '@/components/shared/ProtectedRoute'
 import { useAuth } from '@/contexts/AuthContext'
 import { toast } from '@/components/shared/Toast'
+import { supabase } from '@/lib/supabase'
 import { formatDate, cn } from '@/lib/utils'
 import type { Database } from '@/types/database'
 
 type QueryType = Database['public']['Enums']['query_type']
 
 const QUERY_TYPES: { value: QueryType; label: string; color: string }[] = [
-  { value: 'deficiency_letter',  label: 'Deficiency Letter',  color: 'bg-amber-50 text-amber-700 border-amber-200' },
-  { value: 'additional_info',    label: 'Additional Info',    color: 'bg-blue-50 text-blue-700 border-blue-200' },
-  { value: 'inspection_notice',  label: 'Inspection Notice',  color: 'bg-orange-50 text-orange-700 border-orange-200' },
-  { value: 'show_cause',         label: 'Show Cause Notice',  color: 'bg-red-50 text-red-700 border-red-200' },
-  { value: 'other',              label: 'Other',              color: 'bg-gray-50 text-gray-600 border-gray-200' },
+  { value: 'deficiency_letter', label: 'Deficiency Letter', color: 'bg-amber-50 text-amber-700 border-amber-200' },
+  { value: 'additional_info',   label: 'Additional Info',   color: 'bg-blue-50 text-blue-700 border-blue-200' },
+  { value: 'inspection_notice', label: 'Inspection Notice', color: 'bg-orange-50 text-orange-700 border-orange-200' },
+  { value: 'show_cause',        label: 'Show Cause Notice', color: 'bg-red-50 text-red-700 border-red-200' },
+  { value: 'other',             label: 'Other',             color: 'bg-gray-50 text-gray-600 border-gray-200' },
 ]
 
 const schema = z.object({
@@ -25,20 +26,25 @@ const schema = z.object({
   subject:       z.string().min(2, 'Subject required'),
   received_date: z.string().min(1, 'Date required'),
   response_due:  z.string().optional(),
+  response_days: z.coerce.number().optional(),
   description:   z.string().optional(),
 })
 type FormData = z.infer<typeof schema>
 
-interface Props { projectId: string }
+interface Props { projectId: string; projectCode: string }
 
-export function QueriesTab({ projectId }: Props) {
+export function QueriesTab({ projectId, projectCode }: Props) {
   const { profile } = useAuth()
   const { data: queries = [], isLoading } = useAuthorityQueries(projectId)
   const createQuery = useCreateAuthorityQuery()
-  const respond = useRespondToQuery()
-  const [showForm, setShowForm] = useState(false)
-  const [respondingId, setRespondingId] = useState<string | null>(null)
-  const [responseNote, setResponseNote] = useState('')
+  const respond     = useRespondToQuery()
+  const [showForm,       setShowForm]       = useState(false)
+  const [respondingId,   setRespondingId]   = useState<string | null>(null)
+  const [responseNote,   setResponseNote]   = useState('')
+  const [expandedId,     setExpandedId]     = useState<string | null>(null)
+  const [queryPoints,    setQueryPoints]    = useState<Record<string, any[]>>({})
+  const [newPoint,       setNewPoint]       = useState('')
+  const [addingPointFor, setAddingPointFor] = useState<string | null>(null)
 
   const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -49,17 +55,16 @@ export function QueriesTab({ projectId }: Props) {
     try {
       await createQuery.mutateAsync({
         ...data,
-        project_id:   projectId,
-        created_by:   profile!.id,
-        response_due: data.response_due || null,
-        description:  data.description  || null,
+        project_id:    projectId,
+        created_by:    profile!.id,
+        response_due:  data.response_due || null,
+        description:   data.description  || null,
+        ...(data.response_days ? ({ response_days: data.response_days } as any) : {}),
       })
       toast.success('Query recorded')
       reset()
       setShowForm(false)
-    } catch (err: any) {
-      toast.error('Failed', err.message)
-    }
+    } catch (err: any) { toast.error('Failed', err.message) }
   }
 
   const submitResponse = async (queryId: string) => {
@@ -69,8 +74,48 @@ export function QueriesTab({ projectId }: Props) {
       toast.success('Response recorded')
       setRespondingId(null)
       setResponseNote('')
-    } catch (err: any) {
-      toast.error('Failed', err.message)
+    } catch (err: any) { toast.error('Failed', err.message) }
+  }
+
+  // Load query points for a query
+  const loadPoints = async (queryId: string) => {
+    if (queryPoints[queryId]) return
+    const { data, error } = await (supabase as any).from('query_points').select('*').eq('query_id', queryId).order('point_no')
+    if (!error) setQueryPoints(prev => ({ ...prev, [queryId]: data ?? [] }))
+  }
+
+  const toggleExpand = async (queryId: string) => {
+    const next = expandedId === queryId ? null : queryId
+    setExpandedId(next)
+    if (next) await loadPoints(next)
+  }
+
+  const addPoint = async (queryId: string) => {
+    if (!newPoint.trim()) return
+    const points = queryPoints[queryId] ?? []
+    const { data, error } = await (supabase as any).from('query_points').insert({
+      query_id:    queryId,
+      point_no:    points.length + 1,
+      description: newPoint,
+      created_by:  profile!.id,
+    }).select().single()
+    if (!error && data) {
+      setQueryPoints(prev => ({ ...prev, [queryId]: [...(prev[queryId] ?? []), data] }))
+      setNewPoint('')
+      setAddingPointFor(null)
+      toast.success('Point added')
+    }
+  }
+
+  const markPointResolved = async (queryId: string, pointId: string) => {
+    const { error } = await (supabase as any).from('query_points').update({
+      resolved: true, resolved_at: new Date().toISOString(),
+    }).eq('id', pointId)
+    if (!error) {
+      setQueryPoints(prev => ({
+        ...prev,
+        [queryId]: (prev[queryId] ?? []).map(p => p.id === pointId ? { ...p, resolved: true } : p),
+      }))
     }
   }
 
@@ -83,14 +128,13 @@ export function QueriesTab({ projectId }: Props) {
         <div className="flex items-center gap-2">
           {pending.length > 0 && (
             <span className="text-[11px] bg-red-100 text-red-700 border border-red-200 px-2 py-0.5 rounded-full font-medium">
-              {pending.length} pending response{pending.length > 1 ? 's' : ''}
+              {pending.length} pending
             </span>
           )}
         </div>
         <RoleGuard roles={['super_admin','director','manager','executive']}>
           <button onClick={() => setShowForm(s => !s)} className="flex items-center gap-1.5 text-sm text-brand-600 font-medium hover:text-brand-700">
-            <Plus size={13} />
-            Record Query
+            <Plus size={13} /> Record Query
           </button>
         </RoleGuard>
       </div>
@@ -112,6 +156,9 @@ export function QueriesTab({ projectId }: Props) {
             </Field>
             <Field label="Response Due" error={errors.response_due?.message}>
               <input type="date" {...register('response_due')} className={ic(false)} />
+            </Field>
+            <Field label="Response Days Allowed" error={undefined}>
+              <input type="number" {...register('response_days')} className={ic(false)} placeholder="e.g. 15" />
             </Field>
             <Field label="Description" error={errors.description?.message} className="col-span-2">
               <textarea {...register('description')} rows={2} className={ic(false)} placeholder="Details about the query…" />
@@ -137,65 +184,131 @@ export function QueriesTab({ projectId }: Props) {
       ) : (
         <div className="space-y-2">
           {[...pending, ...responded].map(q => {
-            const typeInfo = QUERY_TYPES.find(t => t.value === q.query_type)
+            const typeInfo  = QUERY_TYPES.find(t => t.value === q.query_type)
             const isOverdue = !q.responded_at && q.response_due && new Date(q.response_due) < new Date()
+            const qCode     = (q as any).query_code ?? `${projectCode}-Q?`
+            const points    = queryPoints[q.id] ?? []
+            const isOpen    = expandedId === q.id
+
             return (
-              <div key={q.id} className={cn('bg-white rounded-xl border p-4', isOverdue ? 'border-red-300' : 'border-border')}>
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1">
+              <div key={q.id} className={cn('bg-white rounded-xl border', isOverdue ? 'border-red-300' : 'border-border')}>
+                {/* Header row */}
+                <div className="flex items-start gap-3 p-4">
+                  <button onClick={() => toggleExpand(q.id)} className="text-muted-foreground hover:text-brand-950 mt-0.5 shrink-0">
+                    {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                  </button>
+                  <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
+                      {/* Query code */}
+                      <span className="flex items-center gap-1 font-mono text-[11px] bg-[#F8FAFC] border border-border px-2 py-0.5 rounded text-brand-950 font-semibold">
+                        <Hash size={9} />{qCode}
+                      </span>
                       <span className={cn('text-[10px] px-2 py-0.5 rounded border font-medium', typeInfo?.color)}>
                         {typeInfo?.label}
                       </span>
                       {q.responded_at ? (
                         <span className="flex items-center gap-1 text-[10px] text-green-600"><CheckCircle2 size={10} />Responded</span>
                       ) : isOverdue ? (
-                        <span className="text-[10px] text-red-600 font-medium">⚠ Response Overdue</span>
+                        <span className="text-[10px] text-red-600 font-medium">⚠ Overdue</span>
                       ) : q.response_due ? (
                         <span className="text-[10px] text-amber-600">Due {formatDate(q.response_due)}</span>
                       ) : null}
+                      {(q as any).response_days && (
+                        <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                          <Clock size={9} />{(q as any).response_days}d window
+                        </span>
+                      )}
                     </div>
-                    <p className="text-sm font-medium text-brand-950 mt-1">{q.subject}</p>
-                    {q.description && <p className="text-xs text-muted-foreground mt-0.5">{q.description}</p>}
-                    <p className="text-[11px] text-muted-foreground mt-1">Received {formatDate(q.received_date)}</p>
-                    {q.responded_at && q.response_note && (
-                      <div className="mt-2 pt-2 border-t border-border">
-                        <p className="text-[11px] text-green-700 font-medium">Response: {q.response_note}</p>
-                      </div>
-                    )}
+                    <p className="text-sm font-medium text-brand-950 mt-1 truncate">{q.subject}</p>
+                    <p className="text-[11px] text-muted-foreground">Received {formatDate(q.received_date)}</p>
                   </div>
                   {!q.responded_at && (
                     <RoleGuard roles={['super_admin','director','manager','executive']}>
-                      <button
-                        onClick={() => setRespondingId(q.id)}
-                        className="text-xs text-brand-600 hover:text-brand-700 font-medium shrink-0"
-                      >
+                      <button onClick={() => setRespondingId(q.id)}
+                        className="text-xs text-brand-600 hover:text-brand-700 font-medium shrink-0">
                         Mark Responded
                       </button>
                     </RoleGuard>
                   )}
                 </div>
 
-                {/* Inline response form */}
-                {respondingId === q.id && (
-                  <div className="mt-3 pt-3 border-t border-border">
-                    <textarea
-                      value={responseNote}
-                      onChange={e => setResponseNote(e.target.value)}
-                      rows={2}
-                      placeholder="Brief note on how the query was responded to…"
-                      className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-600/20 focus:border-brand-600"
-                    />
-                    <div className="flex gap-2 mt-2">
-                      <button onClick={() => submitResponse(q.id)} disabled={respond.isPending}
-                        className="px-3 py-1.5 bg-green-600 text-white text-xs font-medium rounded-lg hover:bg-green-700 disabled:opacity-50">
-                        {respond.isPending ? 'Saving…' : 'Save Response'}
-                      </button>
-                      <button onClick={() => { setRespondingId(null); setResponseNote('') }}
-                        className="px-3 py-1.5 border border-border text-xs rounded-lg hover:bg-[#F8FAFC]">
-                        Cancel
-                      </button>
+                {/* Expanded detail */}
+                {isOpen && (
+                  <div className="px-4 pb-4 space-y-3 border-t border-border pt-3">
+                    {q.description && <p className="text-xs text-muted-foreground">{q.description}</p>}
+
+                    {q.responded_at && q.response_note && (
+                      <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                        <p className="text-[11px] text-green-700 font-medium">Response: {q.response_note}</p>
+                        <p className="text-[10px] text-green-600 mt-0.5">on {formatDate(q.responded_at)}</p>
+                      </div>
+                    )}
+
+                    {/* Query Points */}
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-[11px] font-semibold text-brand-950 uppercase tracking-wide">
+                          Query Points ({points.length})
+                        </p>
+                        <RoleGuard roles={['super_admin','director','manager','executive']}>
+                          <button onClick={() => setAddingPointFor(q.id)}
+                            className="text-[11px] text-brand-600 hover:text-brand-700 font-medium">
+                            + Add Point
+                          </button>
+                        </RoleGuard>
+                      </div>
+                      {points.length > 0 && (
+                        <div className="space-y-1.5">
+                          {points.map((pt: any) => (
+                            <div key={pt.id} className={cn(
+                              'flex items-start gap-2 px-3 py-2 rounded-lg text-xs',
+                              pt.resolved ? 'bg-green-50 text-green-800' : 'bg-[#F8FAFC] text-brand-950'
+                            )}>
+                              <span className="font-mono text-muted-foreground shrink-0">{pt.point_no}.</span>
+                              <span className="flex-1">{pt.description}</span>
+                              {!pt.resolved && (
+                                <button onClick={() => markPointResolved(q.id, pt.id)}
+                                  className="text-[10px] text-green-600 hover:text-green-700 shrink-0 font-medium">✓</button>
+                              )}
+                              {pt.resolved && <span className="text-[10px] text-green-600 shrink-0">✓ Done</span>}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {addingPointFor === q.id && (
+                        <div className="mt-2 flex gap-2">
+                          <input
+                            value={newPoint}
+                            onChange={e => setNewPoint(e.target.value)}
+                            placeholder="Describe the query point…"
+                            className="flex-1 px-3 py-1.5 text-xs border border-border rounded-lg focus:outline-none"
+                          />
+                          <button onClick={() => addPoint(q.id)} className="px-3 py-1.5 bg-brand-600 text-white text-xs rounded-lg">Add</button>
+                          <button onClick={() => { setAddingPointFor(null); setNewPoint('') }} className="text-xs text-muted-foreground">✕</button>
+                        </div>
+                      )}
                     </div>
+
+                    {/* Response form */}
+                    {respondingId === q.id && (
+                      <div className="pt-2 border-t border-border">
+                        <textarea
+                          value={responseNote}
+                          onChange={e => setResponseNote(e.target.value)}
+                          rows={2}
+                          placeholder="Brief note on how the query was responded to…"
+                          className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-600/20"
+                        />
+                        <div className="flex gap-2 mt-2">
+                          <button onClick={() => submitResponse(q.id)} disabled={respond.isPending}
+                            className="px-3 py-1.5 bg-green-600 text-white text-xs font-medium rounded-lg hover:bg-green-700 disabled:opacity-50">
+                            {respond.isPending ? 'Saving…' : 'Save Response'}
+                          </button>
+                          <button onClick={() => { setRespondingId(null); setResponseNote('') }}
+                            className="px-3 py-1.5 border border-border text-xs rounded-lg hover:bg-[#F8FAFC]">Cancel</button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
