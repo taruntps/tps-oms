@@ -1,0 +1,17 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>TPS Operations</title>
+  <script>
+    // GitHub Pages SPA redirect: preserve path + query in sessionStorage,
+    // redirect to / so index.html loads, then React Router takes over.
+    var l = window.location;
+    sessionStorage.setItem('spa_redirect',
+      l.pathname.slice(1) + (l.search ? '&' + l.search.slice(1) : '') + l.hash
+    );
+    l.replace(l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') + '/');
+  </script>
+</head>
+<body></body>
+</html>
