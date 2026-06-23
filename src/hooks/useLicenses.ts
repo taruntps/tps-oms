@@ -46,6 +46,20 @@ export function useUpdateLicense() {
   })
 }
 
+export function useStoreCredential() {
+  return useMutation({
+    mutationFn: async ({ licenseId, username, password }: { licenseId: string; username: string; password: string }) => {
+      const { error } = await supabase.rpc('store_fssai_credential', {
+        p_license_id: licenseId,
+        p_username:   username,
+        p_password:   password,
+        p_reason:     'Set via portal',
+      })
+      if (error) throw error
+    },
+  })
+}
+
 export function useRevealCredential() {
   return useMutation({
     mutationFn: async ({ licenseId, reason }: { licenseId: string; reason: string }) => {

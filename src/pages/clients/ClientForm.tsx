@@ -45,7 +45,6 @@ const schema = z.object({
   gstin:           z.string().optional(),
   pan:             z.string().optional(),
   whatsapp_number: z.string().optional(),
-  notes:           z.string().optional(),
 })
 
 type FormData = z.infer<typeof schema>
@@ -77,15 +76,14 @@ export function ClientForm({ client, onClose }: Props) {
     defaultValues: {
       company_name:    client?.company_name ?? '',
       contact_person:  client?.contact_person ?? '',
-      contact_phone:   client?.contact_phone ?? '',
+      contact_phone:   (client?.contact_phone ?? '').replace(/^\+91/, ''),
       contact_email:   client?.contact_email ?? '',
       city:            client?.city ?? '',
       state:           client?.state ?? 'Punjab',
       // Show blank in GSTIN field when editing a placeholder client
       gstin:           (client as any)?.gstin_is_placeholder ? '' : (client?.gstin ?? ''),
       pan:             client?.pan ?? '',
-      whatsapp_number: (client as any)?.whatsapp_number ?? '',
-      notes:           client?.notes ?? '',
+      whatsapp_number: ((client as any)?.whatsapp_number ?? '').replace(/^\+91/, ''),
     },
   })
 
@@ -113,15 +111,16 @@ export function ClientForm({ client, onClose }: Props) {
     const payload = {
       company_name:         data.company_name.toUpperCase(),
       contact_person:       data.contact_person,
-      contact_phone:        data.contact_phone,
+      contact_phone:        '+91' + data.contact_phone.replace(/^\+91/, '').replace(/^0/, ''),
       contact_email:        data.contact_email,
       city:                 data.city,
       state:                data.state,
       gstin:                finalGstin,
       gstin_is_placeholder: !gstinAvailable,
       pan:                  data.pan || null,
-      whatsapp_number:      data.whatsapp_number || null,
-      notes:                data.notes || null,
+      whatsapp_number:      data.whatsapp_number
+        ? '+91' + data.whatsapp_number.replace(/^\+91/, '').replace(/^0/, '')
+        : null,
     }
 
     try {
@@ -225,7 +224,7 @@ export function ClientForm({ client, onClose }: Props) {
             </Field>
 
             <Field label="Phone *" error={errors.contact_phone?.message}>
-              <input {...register('contact_phone')} className={ic(!!errors.contact_phone)} placeholder="10-digit mobile" />
+              <PhoneInput register={register('contact_phone')} error={!!errors.contact_phone} placeholder="10-digit number" />
             </Field>
 
             <Field label="Email *" error={errors.contact_email?.message} className="col-span-2">
@@ -283,11 +282,7 @@ export function ClientForm({ client, onClose }: Props) {
             </Field>
 
             <Field label="WhatsApp Number" error={errors.whatsapp_number?.message}>
-              <input {...register('whatsapp_number')} className={ic(false)} placeholder="91XXXXXXXXXX" />
-            </Field>
-
-            <Field label="Notes" error={errors.notes?.message} className="col-span-2">
-              <textarea {...register('notes')} rows={2} className={ic(false)} />
+              <PhoneInput register={register('whatsapp_number')} error={false} placeholder="10-digit number" />
             </Field>
 
           </div>
@@ -338,6 +333,24 @@ export function ClientForm({ client, onClose }: Props) {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+function PhoneInput({ register, error, placeholder }: { register: any; error: boolean; placeholder: string }) {
+  return (
+    <div className={`flex rounded-lg border overflow-hidden ${error ? 'border-red-400' : 'border-border'}`}>
+      <span className="px-3 py-2 text-sm bg-[#F8FAFC] text-muted-foreground border-r border-border shrink-0 flex items-center">
+        🇮🇳 +91
+      </span>
+      <input
+        {...register}
+        type="tel"
+        inputMode="numeric"
+        maxLength={10}
+        placeholder={placeholder}
+        className="flex-1 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-600/20"
+      />
+    </div>
+  )
+}
 
 function Field({ label, error, children, className }: {
   label: string; error?: string; children: React.ReactNode; className?: string

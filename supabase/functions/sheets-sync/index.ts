@@ -36,14 +36,43 @@ serve(async (req) => {
   const action = new URL(req.url).searchParams.get('action')
 
   try {
-    // ── PULL: return all clients ────────────────────────────────────────────
+    // ── PULL: return all clients with full FSSAI licence details ───────────
     if (req.method === 'GET' && action === 'pull') {
       const { data, error } = await supabase
         .from('clients')
-        .select('company_name,gstin,gstin_is_placeholder,contact_person,contact_phone,contact_email,state,city,notes')
+        .select(`
+          company_name, gstin, gstin_is_placeholder,
+          pan, contact_person, contact_phone, whatsapp_number, contact_email,
+          state, city, notes,
+          licenses(
+            license_type, license_number, status, credential_username,
+            categories, state_name, city, authorised_premises,
+            issue_date, expiry_date
+          )
+        `)
         .order('company_name')
       if (error) throw error
-      return new Response(JSON.stringify(data), {
+
+      // Attach primary licence fields (active first, else first available)
+      const enriched = (data ?? []).map((c: any) => {
+        const lics: any[] = c.licenses ?? []
+        const primary = lics.find((l: any) => l.status === 'active') ?? lics[0] ?? null
+        return {
+          ...c,
+          lic_type:       primary?.license_type ?? '',
+          lic_number:     primary?.license_number ?? '',
+          lic_status:     primary?.status ?? '',
+          lic_username:   primary?.credential_username ?? '',
+          lic_categories: primary?.categories ? (Array.isArray(primary.categories) ? primary.categories.join(', ') : primary.categories) : '',
+          lic_state:      primary?.state_name ?? '',
+          lic_city:       primary?.city ?? '',
+          lic_premises:   primary?.authorised_premises ?? '',
+          lic_issue_date: primary?.issue_date ?? '',
+          lic_expiry_date:primary?.expiry_date ?? '',
+        }
+      })
+
+      return new Response(JSON.stringify(enriched), {
         headers: { ...CORS, 'Content-Type': 'application/json' },
       })
     }

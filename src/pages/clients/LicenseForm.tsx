@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { X, Plus } from 'lucide-react'
-import { useCreateLicense, useUpdateLicense, type License } from '@/hooks/useLicenses'
+import { X, Plus, Eye, EyeOff } from 'lucide-react'
+import { useCreateLicense, useUpdateLicense, useStoreCredential, type License } from '@/hooks/useLicenses'
 import { useAuth } from '@/contexts/AuthContext'
 import { toast } from '@/components/shared/Toast'
 import { STATE_NAMES, getCitiesForState, FBO_CATEGORIES } from '@/data/india'
@@ -45,7 +45,10 @@ export function LicenseForm({ clientId, license, onClose }: Props) {
   const { profile } = useAuth()
   const create = useCreateLicense()
   const update = useUpdateLicense()
+  const storeCredential = useStoreCredential()
   const isEdit = !!license
+  const [credentialPassword, setCredentialPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
 
   // Multi-select FBO categories
   const [categories, setCategories] = useState<string[]>(
@@ -98,12 +101,22 @@ export function LicenseForm({ clientId, license, onClose }: Props) {
       credential_username: data.credential_username || null,
     }
     try {
+      let savedId = license?.id
       if (isEdit) {
         await update.mutateAsync({ id: license.id, ...payload })
         toast.success('Licence updated')
       } else {
-        await create.mutateAsync({ client_id: clientId, created_by: profile?.id, ...payload })
+        const saved = await create.mutateAsync({ client_id: clientId, created_by: profile?.id, ...payload })
+        savedId = saved.id
         toast.success('Licence added')
+      }
+      // Store credential password in Vault if provided
+      if (credentialPassword && savedId && data.credential_username) {
+        await storeCredential.mutateAsync({
+          licenseId: savedId,
+          username:  data.credential_username,
+          password:  credentialPassword,
+        })
       }
       onClose()
     } catch (err: any) {
@@ -140,7 +153,27 @@ export function LicenseForm({ clientId, license, onClose }: Props) {
 
             <Field label="FSSAI Portal Username" error={undefined}>
               <input {...register('credential_username')} className={ic(false)} placeholder="App Ref No. or Licence No." />
-              <p className="text-[10px] text-muted-foreground mt-1">Used as login ID. Password stored encrypted.</p>
+            </Field>
+
+            <Field label={isEdit ? 'Portal Password (leave blank to keep)' : 'FSSAI Portal Password'} error={undefined}>
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={credentialPassword}
+                  onChange={e => setCredentialPassword(e.target.value)}
+                  className={ic(false) + ' pr-10'}
+                  placeholder={isEdit ? '••••••••' : 'Enter portal password'}
+                  autoComplete="new-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(p => !p)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-brand-600"
+                >
+                  {showPassword ? <EyeOff size={13} /> : <Eye size={13} />}
+                </button>
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-1">🔒 Encrypted and stored in Vault — never visible in plain text.</p>
             </Field>
 
             {/* FBO Categories — multi-select */}
