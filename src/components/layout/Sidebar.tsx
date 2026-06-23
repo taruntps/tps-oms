@@ -35,8 +35,8 @@ export function Sidebar() {
       {/* Logo */}
       <div className="px-4 py-5 border-b border-white/10">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-brand-600 flex items-center justify-center shrink-0 shadow-lg">
-            <img src="/logo.svg" alt="TPS" className="w-6 h-6" />
+          <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center shrink-0 shadow-lg overflow-hidden p-0.5">
+            <img src="/logo.png" alt="TPS" className="w-full h-full object-contain" />
           </div>
           <div>
             <p className="text-white font-display font-semibold text-sm leading-tight">TPS Operations</p>

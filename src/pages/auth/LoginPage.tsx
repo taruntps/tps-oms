@@ -40,8 +40,8 @@ export default function LoginPage() {
           {/* Header strip */}
           <div className="bg-gradient-to-r from-brand-900 to-brand-600 px-8 pt-8 pb-6 text-center">
             <div className="flex justify-center mb-4">
-              <div className="w-16 h-16 rounded-2xl bg-white/10 backdrop-blur flex items-center justify-center border border-white/20">
-                <img src="/logo.svg" alt="TPS" className="w-10 h-10" />
+              <div className="w-16 h-16 rounded-2xl bg-white/10 backdrop-blur flex items-center justify-center border border-white/20 overflow-hidden p-1">
+                <img src="/logo.png" alt="TPS Xperts Group" className="w-full h-full object-contain" />
               </div>
             </div>
             <h1 className="text-white font-display font-bold text-xl tracking-tight">TPS Operations</h1>
