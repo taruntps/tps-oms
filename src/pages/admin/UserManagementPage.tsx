@@ -32,10 +32,22 @@ interface UserRow {
   role: Role
   is_active: boolean
   can_edit_clients: boolean
+  can_be_assigned: boolean
+  can_assign: boolean
+  can_view_all_projects: boolean
   email?: string
   phone?: string
   whatsapp_number?: string
 }
+
+// Per-user permission flags shown as toggle chips (super_admin manages others).
+type PermField = 'can_edit_clients' | 'can_be_assigned' | 'can_assign' | 'can_view_all_projects'
+const PERMISSIONS: { field: PermField; label: string; title: string }[] = [
+  { field: 'can_be_assigned',       label: 'Doer',       title: 'Can be assigned projects/tasks' },
+  { field: 'can_assign',            label: 'Assigner',   title: 'Can create & assign projects to others' },
+  { field: 'can_view_all_projects', label: 'Overall',    title: 'Can view ALL projects (not just their own)' },
+  { field: 'can_edit_clients',      label: 'Edit Clients', title: 'Can edit client records & upload documents' },
+]
 
 interface InviteForm {
   email: string
@@ -58,7 +70,7 @@ export default function UserManagementPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, name, role, is_active, can_edit_clients, phone, whatsapp_number')
+        .select('id, name, role, is_active, can_edit_clients, can_be_assigned, can_assign, can_view_all_projects, phone, whatsapp_number')
         .order('name')
       if (error) throw error
       return data as unknown as UserRow[]
@@ -83,9 +95,9 @@ export default function UserManagementPage() {
     onError: (e: Error) => toast.error('Failed', e.message),
   })
 
-  const updateCanEditClients = useMutation({
-    mutationFn: async ({ id, can_edit_clients }: { id: string; can_edit_clients: boolean }) => {
-      const { error } = await supabase.from('profiles').update({ can_edit_clients } as any).eq('id', id)
+  const updatePermission = useMutation({
+    mutationFn: async ({ id, field, value }: { id: string; field: PermField; value: boolean }) => {
+      const { error } = await supabase.from('profiles').update({ [field]: value } as any).eq('id', id)
       if (error) throw error
     },
     onSuccess: () => { toast.success('Permission updated'); qc.invalidateQueries({ queryKey: ['profiles'] }) },
@@ -115,7 +127,7 @@ export default function UserManagementPage() {
             <table className="w-full text-sm">
               <thead className="bg-[#F8FAFC] border-b border-border">
                 <tr>
-                  {['Name','Role','Status','Edit Clients','Actions'].map(h => (
+                  {['Name','Role','Status','Permissions','Actions'].map(h => (
                     <th key={h} className="px-5 py-3 text-left text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">{h}</th>
                   ))}
                 </tr>
@@ -154,26 +166,32 @@ export default function UserManagementPage() {
                         {u.is_active ? 'Active' : 'Inactive'}
                       </span>
                     </td>
-                    {/* Edit Clients permission toggle — super_admin only */}
+                    {/* Per-user permission chips — super_admin toggles; others read-only */}
                     <td className="px-5 py-3">
-                      {profile?.role === 'super_admin' && u.id !== profile?.id ? (
-                        <button
-                          onClick={() => updateCanEditClients.mutate({ id: u.id, can_edit_clients: !u.can_edit_clients })}
-                          title={u.can_edit_clients ? 'Revoke client edit access' : 'Grant client edit access'}
-                          className={cn(
-                            'p-1.5 rounded-lg transition-colors',
-                            u.can_edit_clients
-                              ? 'text-green-600 hover:bg-red-50 hover:text-red-600'
-                              : 'text-gray-300 hover:bg-green-50 hover:text-green-600'
-                          )}
-                        >
-                          {u.can_edit_clients ? <ToggleRight size={16} /> : <ToggleLeft size={16} />}
-                        </button>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">
-                          {u.can_edit_clients ? '✓' : '—'}
-                        </span>
-                      )}
+                      <div className="flex flex-wrap gap-1.5 max-w-[280px]">
+                        {PERMISSIONS.map(p => {
+                          const on = !!u[p.field]
+                          const canToggle = profile?.role === 'super_admin' && u.id !== profile?.id
+                          return (
+                            <button
+                              key={p.field}
+                              type="button"
+                              disabled={!canToggle || updatePermission.isPending}
+                              onClick={() => updatePermission.mutate({ id: u.id, field: p.field, value: !on })}
+                              title={p.title + (canToggle ? '' : ' (admin only)')}
+                              className={cn(
+                                'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-full border transition-colors',
+                                on ? 'bg-green-50 border-green-200 text-green-700'
+                                   : 'bg-gray-50 border-gray-200 text-gray-400',
+                                canToggle ? 'cursor-pointer hover:opacity-75' : 'cursor-default'
+                              )}
+                            >
+                              {on ? <ToggleRight size={11} /> : <ToggleLeft size={11} />}
+                              {p.label}
+                            </button>
+                          )
+                        })}
+                      </div>
                     </td>
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-2">

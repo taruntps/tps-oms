@@ -405,6 +405,21 @@ export type Database = {
           },
         ]
       }
+      code_counters: {
+        Row: {
+          last_value: number
+          scope: string
+        }
+        Insert: {
+          last_value?: number
+          scope: string
+        }
+        Update: {
+          last_value?: number
+          scope?: string
+        }
+        Relationships: []
+      }
       credential_access_log: {
         Row: {
           accessed_at: string
@@ -865,7 +880,10 @@ export type Database = {
       profiles: {
         Row: {
           avatar_url: string | null
+          can_assign: boolean
+          can_be_assigned: boolean
           can_edit_clients: boolean
+          can_view_all_projects: boolean
           created_at: string
           email: string
           id: string
@@ -878,7 +896,10 @@ export type Database = {
         }
         Insert: {
           avatar_url?: string | null
+          can_assign?: boolean
+          can_be_assigned?: boolean
           can_edit_clients?: boolean
+          can_view_all_projects?: boolean
           created_at?: string
           email: string
           id: string
@@ -891,7 +912,10 @@ export type Database = {
         }
         Update: {
           avatar_url?: string | null
+          can_assign?: boolean
+          can_be_assigned?: boolean
           can_edit_clients?: boolean
+          can_view_all_projects?: boolean
           created_at?: string
           email?: string
           id?: string
@@ -1407,7 +1431,9 @@ export type Database = {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
       }
+      fn_can_assign: { Args: never; Returns: boolean }
       fn_can_edit_clients: { Args: never; Returns: boolean }
+      fn_can_view_all_projects: { Args: never; Returns: boolean }
       has_role: {
         Args: { roles: Database["public"]["Enums"]["user_role"][] }
         Returns: boolean
