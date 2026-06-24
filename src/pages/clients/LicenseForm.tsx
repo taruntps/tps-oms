@@ -104,20 +104,20 @@ export function LicenseForm({ clientId, license, onClose }: Props) {
       let savedId = license?.id
       if (isEdit) {
         await update.mutateAsync({ id: license.id, ...payload })
-        toast.success('Licence updated')
       } else {
         const saved = await create.mutateAsync({ client_id: clientId, created_by: profile?.id, ...payload })
         savedId = saved.id
-        toast.success('Licence added')
       }
-      // Store credential password in Vault if provided
-      if (credentialPassword && savedId && data.credential_username) {
+      // Store credential password in Vault if provided. Username is optional —
+      // default it to the licence number so the portal login still has one.
+      if (credentialPassword && savedId) {
         await storeCredential.mutateAsync({
           licenseId: savedId,
-          username:  data.credential_username,
+          username:  data.credential_username || data.license_number || '',
           password:  credentialPassword,
         })
       }
+      toast.success(isEdit ? 'Licence updated' : 'Licence added')
       onClose()
     } catch (err: any) {
       toast.error('Failed to save licence', err.message)
