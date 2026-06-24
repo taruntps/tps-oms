@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -43,10 +44,20 @@ export function ProjectForm({ onClose }: Props) {
   const executives = staff.filter(s => ['executive', 'manager', 'director', 'super_admin'].includes(s.role))
   const managers   = staff.filter(s => ['manager', 'director', 'super_admin'].includes(s.role))
 
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormData>({
+  const { register, handleSubmit, setValue, watch, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: { service_type: 'New Application', quoted_amount: 0 },
   })
+
+  // Default the manager to the admin (super_admin) once staff loads, so creation
+  // isn't blocked waiting for a manual pick. Editable afterwards.
+  const managerValue = watch('manager_id')
+  useEffect(() => {
+    if (!managerValue && managers.length) {
+      const admin = managers.find(m => m.role === 'super_admin') ?? managers[0]
+      if (admin) setValue('manager_id', admin.id)
+    }
+  }, [managers, managerValue])
 
   const onSubmit = async (data: FormData) => {
     try {
