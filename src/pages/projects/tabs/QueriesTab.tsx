@@ -80,7 +80,7 @@ export function QueriesTab({ projectId, projectCode }: Props) {
   // Load query points for a query
   const loadPoints = async (queryId: string) => {
     if (queryPoints[queryId]) return
-    const { data, error } = await (supabase as any).from('query_points').select('*').eq('query_id', queryId).order('point_no')
+    const { data, error } = await (supabase as any).from('query_points').select('*').eq('query_id', queryId).order('point_order')
     if (!error) setQueryPoints(prev => ({ ...prev, [queryId]: data ?? [] }))
   }
 
@@ -95,27 +95,30 @@ export function QueriesTab({ projectId, projectCode }: Props) {
     const points = queryPoints[queryId] ?? []
     const { data, error } = await (supabase as any).from('query_points').insert({
       query_id:    queryId,
-      point_no:    points.length + 1,
+      point_order: points.length + 1,
       description: newPoint,
-      created_by:  profile!.id,
     }).select().single()
     if (!error && data) {
       setQueryPoints(prev => ({ ...prev, [queryId]: [...(prev[queryId] ?? []), data] }))
       setNewPoint('')
       setAddingPointFor(null)
       toast.success('Point added')
+    } else if (error) {
+      toast.error('Failed to add point', error.message)
     }
   }
 
   const markPointResolved = async (queryId: string, pointId: string) => {
     const { error } = await (supabase as any).from('query_points').update({
-      resolved: true, resolved_at: new Date().toISOString(),
+      responded_at: new Date().toISOString(), responded_by: profile!.id,
     }).eq('id', pointId)
     if (!error) {
       setQueryPoints(prev => ({
         ...prev,
-        [queryId]: (prev[queryId] ?? []).map(p => p.id === pointId ? { ...p, resolved: true } : p),
+        [queryId]: (prev[queryId] ?? []).map(p => p.id === pointId ? { ...p, responded_at: new Date().toISOString() } : p),
       }))
+    } else {
+      toast.error('Failed', error.message)
     }
   }
 
@@ -262,15 +265,15 @@ export function QueriesTab({ projectId, projectCode }: Props) {
                           {points.map((pt: any) => (
                             <div key={pt.id} className={cn(
                               'flex items-start gap-2 px-3 py-2 rounded-lg text-xs',
-                              pt.resolved ? 'bg-green-50 text-green-800' : 'bg-[#F8FAFC] text-brand-950'
+                              pt.responded_at ? 'bg-green-50 text-green-800' : 'bg-[#F8FAFC] text-brand-950'
                             )}>
-                              <span className="font-mono text-muted-foreground shrink-0">{pt.point_no}.</span>
+                              <span className="font-mono text-muted-foreground shrink-0">{pt.point_order}.</span>
                               <span className="flex-1">{pt.description}</span>
-                              {!pt.resolved && (
+                              {!pt.responded_at && (
                                 <button onClick={() => markPointResolved(q.id, pt.id)}
                                   className="text-[10px] text-green-600 hover:text-green-700 shrink-0 font-medium">✓</button>
                               )}
-                              {pt.resolved && <span className="text-[10px] text-green-600 shrink-0">✓ Done</span>}
+                              {pt.responded_at && <span className="text-[10px] text-green-600 shrink-0">✓ Done</span>}
                             </div>
                           ))}
                         </div>
