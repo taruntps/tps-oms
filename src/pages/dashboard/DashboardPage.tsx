@@ -4,6 +4,7 @@ import { TopBar } from '@/components/layout/TopBar'
 import { ClockBadge } from '@/components/shared/ClockBadge'
 import { useMyProjects, useRecentNotifications } from '@/hooks/useDashboard'
 import { useAuth } from '@/contexts/AuthContext'
+import { IncomingTransfers } from '@/pages/projects/ProjectTransfer'
 import { formatDate, daysUntil, cn } from '@/lib/utils'
 
 export default function DashboardPage() {
@@ -20,6 +21,9 @@ export default function DashboardPage() {
       <TopBar title={`Welcome, ${profile?.name?.split(' ')[0] ?? 'there'}`} subtitle="Your workspace" />
 
       <div className="p-6 space-y-6 animate-fade-up">
+
+        {/* Incoming project transfer requests awaiting my acceptance */}
+        <IncomingTransfers />
 
         {/* Alert strip */}
         {overdue.length > 0 && (

@@ -928,6 +928,84 @@ export type Database = {
         }
         Relationships: []
       }
+      project_transfers: {
+        Row: {
+          created_at: string
+          forced: boolean
+          from_user: string | null
+          id: string
+          initiated_by: string
+          project_id: string
+          reason: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          status: Database["public"]["Enums"]["project_transfer_status"]
+          to_user: string
+        }
+        Insert: {
+          created_at?: string
+          forced?: boolean
+          from_user?: string | null
+          id?: string
+          initiated_by: string
+          project_id: string
+          reason?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: Database["public"]["Enums"]["project_transfer_status"]
+          to_user: string
+        }
+        Update: {
+          created_at?: string
+          forced?: boolean
+          from_user?: string | null
+          id?: string
+          initiated_by?: string
+          project_id?: string
+          reason?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: Database["public"]["Enums"]["project_transfer_status"]
+          to_user?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_transfers_from_user_fkey"
+            columns: ["from_user"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_transfers_initiated_by_fkey"
+            columns: ["initiated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_transfers_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_transfers_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_transfers_to_user_fkey"
+            columns: ["to_user"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       projects: {
         Row: {
           active_clock: Database["public"]["Enums"]["clock_type"]
@@ -1431,12 +1509,24 @@ export type Database = {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
       }
+      cancel_project_transfer: {
+        Args: { p_transfer_id: string }
+        Returns: undefined
+      }
       fn_can_assign: { Args: never; Returns: boolean }
       fn_can_edit_clients: { Args: never; Returns: boolean }
       fn_can_view_all_projects: { Args: never; Returns: boolean }
       has_role: {
         Args: { roles: Database["public"]["Enums"]["user_role"][] }
         Returns: boolean
+      }
+      initiate_project_transfer: {
+        Args: { p_project_id: string; p_reason?: string; p_to_user: string }
+        Returns: string
+      }
+      respond_project_transfer: {
+        Args: { p_accept: boolean; p_transfer_id: string }
+        Returns: string
       }
       reveal_fssai_credential: {
         Args: { p_license_id: string; p_reason?: string }
@@ -1486,6 +1576,7 @@ export type Database = {
         | "completed"
         | "cancelled"
         | "archived"
+      project_transfer_status: "pending" | "accepted" | "rejected" | "cancelled"
       query_type:
         | "deficiency_letter"
         | "additional_info"
@@ -1669,6 +1760,7 @@ export const Constants = {
         "cancelled",
         "archived",
       ],
+      project_transfer_status: ["pending", "accepted", "rejected", "cancelled"],
       query_type: [
         "deficiency_letter",
         "additional_info",

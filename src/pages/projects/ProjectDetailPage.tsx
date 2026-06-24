@@ -13,6 +13,7 @@ import { DocumentsTab }    from './tabs/DocumentsTab'
 import { QueriesTab }      from './tabs/QueriesTab'
 import { SoiTab }          from './tabs/SoiTab'
 import { BlockRequestForm } from './BlockRequestForm'
+import { TransferProjectButton } from './ProjectTransfer'
 import {
   useProject, useUpdateProject, useApproveBlockRequest,
   useUnblockProject, usePendingBlockRequests,
@@ -76,6 +77,10 @@ export default function ProjectDetailPage() {
   const canApprove = ['manager','director','super_admin'].includes(profile?.role ?? '')
   const canCancel  = ['manager','director','super_admin'].includes(profile?.role ?? '')
   const isCancelled = project.status === 'cancelled'
+  // Transfer: assignee of this project, an Assigner, or admin.
+  const canTransfer = profile?.role === 'super_admin'
+    || (project as any).assigned_to === profile?.id
+    || (profile as any)?.can_assign === true
 
   // ── Clock change (called by StageCard) ──────────────────────────────────
   const handleClockChange = async (clock: ClockType, extra?: Record<string, any>) => {
@@ -152,6 +157,14 @@ export default function ProjectDetailPage() {
             <ArrowLeft size={14} /> Back to Projects
           </button>
           <div className="flex items-center gap-2">
+            {/* Transfer (shows pending badge if a transfer is awaiting acceptance) */}
+            {!isCancelled && (
+              <TransferProjectButton
+                projectId={id!}
+                assignedTo={(project as any).assigned_to ?? null}
+                canTransfer={canTransfer}
+              />
+            )}
             {/* Edit */}
             <RoleGuard roles={['super_admin','director','manager']}>
               <button onClick={() => setShowEditProject(true)} className="flex items-center gap-1.5 text-sm px-3 py-1.5 border border-border rounded-lg hover:bg-[#F8FAFC]">
