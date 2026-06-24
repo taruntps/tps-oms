@@ -10,7 +10,7 @@
     --card-foreground: 222 47% 11%;
     --popover: 0 0% 100%;
     --popover-foreground: 222 47% 11%;
-    --primary: 226 73% 47%;
+    --primary: 199 100% 22%;
     --primary-foreground: 0 0% 100%;
     --secondary: 214 32% 91%;
     --secondary-foreground: 222 47% 11%;
@@ -22,7 +22,7 @@
     --destructive-foreground: 0 0% 100%;
     --border: 214 32% 91%;
     --input: 214 32% 91%;
-    --ring: 226 73% 47%;
+    --ring: 199 100% 22%;
     --radius: 0.5rem;
 
     /* Clock system */
@@ -36,7 +36,16 @@
   }
 
   body {
-    @apply bg-[#F8FAFC] text-foreground font-sans;
+    @apply text-foreground font-sans;
+    /* Arctic Precision mesh-gradient backdrop (fixed so it covers the viewport) */
+    background-color: #004c6e;
+    background-image:
+      radial-gradient(at 0% 0%, #006591 0px, transparent 50%),
+      radial-gradient(at 100% 0%, #10B981 0px, transparent 50%),
+      radial-gradient(at 100% 100%, #004c6e 0px, transparent 50%),
+      radial-gradient(at 0% 100%, #6366F1 0px, transparent 50%);
+    background-attachment: fixed;
+    background-size: cover;
     font-feature-settings: "rlig" 1, "calt" 1;
     -webkit-font-smoothing: antialiased;
   }
@@ -47,6 +56,51 @@
 
   code {
     @apply font-mono;
+  }
+
+  /* Material Symbols icon base */
+  .material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+  }
+}
+
+@layer components {
+  /* ── Arctic Precision glass surfaces ───────────────────────────── */
+  .glass-panel {
+    background: rgba(255, 255, 255, 0.12);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+  }
+  .glass-panel-heavy {
+    background: rgba(255, 255, 255, 0.18);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+  }
+  /* Readable surface for forms / dropdowns / dense tables (dark text) */
+  .glass-readable {
+    background: rgba(255, 255, 255, 0.96);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    box-shadow: 0 8px 30px rgba(15, 23, 42, 0.18);
+    color: #131b2e;
+  }
+  @keyframes pulse-glow {
+    0%, 100% { opacity: 0.6; transform: scale(1); }
+    50%      { opacity: 1;   transform: scale(1.05); }
+  }
+  .glow-accent {
+    filter: blur(20px);
+    animation: pulse-glow 4s ease-in-out infinite;
   }
 }
 

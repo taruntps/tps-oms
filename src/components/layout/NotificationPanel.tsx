@@ -1,8 +1,8 @@
-import { Bell, Check, CheckCheck, X } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 import { useNotifications } from '@/hooks/useNotifications'
 import { formatDate } from '@/lib/utils'
+import { Sym } from '@/components/shared/Sym'
 
 const TYPE_COLOR: Record<string, string> = {
   stage_overdue:    'bg-red-100 text-red-700',
@@ -32,12 +32,12 @@ export function NotificationPanel() {
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(o => !o)}
-        className="relative w-8 h-8 rounded-lg bg-[#F8FAFC] border border-border flex items-center justify-center hover:bg-brand-50 transition-colors"
+        className="relative w-9 h-9 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center hover:bg-white/20 transition-colors"
         aria-label="Notifications"
       >
-        <Bell size={14} className="text-muted-foreground" />
+        <Sym name="notifications" size={18} className="text-white/85" />
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-0.5 rounded-full bg-brand-600 text-white text-[9px] font-bold flex items-center justify-center">
+          <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-0.5 rounded-full bg-arctic-error text-white text-[9px] font-bold flex items-center justify-center">
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
@@ -54,12 +54,12 @@ export function NotificationPanel() {
                   onClick={markAllRead}
                   className="text-[11px] text-brand-600 hover:text-brand-700 flex items-center gap-1"
                 >
-                  <CheckCheck size={11} />
+                  <Sym name="done_all" size={12} />
                   Mark all read
                 </button>
               )}
               <button onClick={() => setOpen(false)} className="text-muted-foreground hover:text-foreground">
-                <X size={13} />
+                <Sym name="close" size={14} />
               </button>
             </div>
           </div>
@@ -88,7 +88,7 @@ export function NotificationPanel() {
                       <span className="w-1.5 h-1.5 rounded-full bg-brand-600 shrink-0 mt-1.5" />
                     )}
                     {n.is_read && (
-                      <Check size={11} className="text-green-500 shrink-0 mt-1" />
+                      <Sym name="check" size={12} className="text-green-500 shrink-0 mt-1" />
                     )}
                   </div>
                   <p className="text-xs font-medium text-brand-950 mt-1.5 leading-snug">{n.title}</p>

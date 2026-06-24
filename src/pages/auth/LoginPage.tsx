@@ -23,22 +23,18 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-brand-950 flex items-center justify-center p-4">
-      {/* Background pattern */}
+    <div className="min-h-screen flex items-center justify-center p-4">
+      {/* Soft glow accents over the mesh-gradient backdrop */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-96 h-96 rounded-full bg-brand-600/10 blur-3xl" />
-        <div className="absolute -bottom-40 -left-40 w-96 h-96 rounded-full bg-brand-600/10 blur-3xl" />
-        <div
-          className="absolute inset-0 opacity-[0.03]"
-          style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 0)', backgroundSize: '32px 32px' }}
-        />
+        <div className="absolute -top-40 -right-40 w-96 h-96 rounded-full bg-white/10 blur-3xl glow-accent" />
+        <div className="absolute -bottom-40 -left-40 w-96 h-96 rounded-full bg-indigo-insight/20 blur-3xl glow-accent" />
       </div>
 
       <div className="relative w-full max-w-[420px] animate-fade-up">
-        {/* Card */}
-        <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
+        {/* Card (readable glass) */}
+        <div className="glass-readable rounded-2xl overflow-hidden">
           {/* Header strip */}
-          <div className="bg-gradient-to-r from-brand-900 to-brand-600 px-8 pt-8 pb-6 text-center">
+          <div className="bg-gradient-to-r from-brand-900 to-primary-container px-8 pt-8 pb-6 text-center">
             <div className="flex justify-center mb-4">
               <div className="w-16 h-16 rounded-2xl bg-white/10 backdrop-blur flex items-center justify-center border border-white/20 overflow-hidden p-1">
                 <img src="/logo.png" alt="TPS Xperts Group" className="w-full h-full object-contain" />
@@ -110,7 +106,7 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <p className="text-center text-xs text-brand-400 mt-4">
+        <p className="text-center text-xs text-white/70 mt-4">
           TPS Xperts Group © {new Date().getFullYear()}
         </p>
       </div>

@@ -1,13 +1,13 @@
 import { useState } from 'react'
 import { Outlet } from 'react-router-dom'
-import { Menu, X } from 'lucide-react'
 import { Sidebar } from './Sidebar'
+import { Sym } from '@/components/shared/Sym'
 
 export function AppShell() {
   const [mobileOpen, setMobileOpen] = useState(false)
 
   return (
-    <div className="flex min-h-screen bg-[#F8FAFC]">
+    <div className="flex min-h-screen">
       {/* Desktop sidebar */}
       <div className="hidden md:block">
         <Sidebar />
@@ -24,23 +24,23 @@ export function AppShell() {
             <Sidebar />
             <button
               onClick={() => setMobileOpen(false)}
-              className="absolute top-4 right-3 text-brand-300 hover:text-white z-10"
+              className="absolute top-4 right-3 text-white/70 hover:text-white z-10"
             >
-              <X size={16} />
+              <Sym name="close" size={18} />
             </button>
           </div>
         </div>
       )}
 
-      {/* Main content */}
+      {/* Main content (transparent so the mesh-gradient body shows through) */}
       <main className="flex-1 min-w-0 overflow-auto">
         {/* Mobile top strip with hamburger */}
-        <div className="md:hidden flex items-center gap-3 px-4 py-3 bg-brand-950 sticky top-0 z-30">
+        <div className="md:hidden flex items-center gap-3 px-4 py-3 glass-panel sticky top-0 z-30">
           <button
             onClick={() => setMobileOpen(true)}
             className="text-white"
           >
-            <Menu size={20} />
+            <Sym name="menu" size={22} />
           </button>
           <span className="text-white font-display font-semibold text-sm">TPS Operations</span>
         </div>

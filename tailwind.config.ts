@@ -10,8 +10,9 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
-        display: ['Syne', 'sans-serif'],
-        sans: ['Plus Jakarta Sans', 'sans-serif'],
+        // Arctic Precision: Manrope headlines, Inter body, JetBrains Mono labels
+        display: ['Manrope', 'sans-serif'],
+        sans: ['Inter', 'sans-serif'],
         mono: ['JetBrains Mono', 'monospace'],
       },
       colors: {
@@ -25,32 +26,49 @@ const config: Config = {
           DEFAULT:    'hsl(var(--muted))',
           foreground: 'hsl(var(--muted-foreground))',
         },
-        // TPS Brand
+        // TPS Brand — Arctic Precision navy scale (remapped so existing
+        // brand-* classes adopt the new theme automatically)
         brand: {
-          50:  '#eef2ff',
-          100: '#e0e7ff',
-          200: '#c7d2fe',
-          300: '#a5b4fc',
-          400: '#818cf8',
-          500: '#6366f1',
-          600: '#1B4FD8',
-          700: '#1640b0',
-          800: '#1332a0',
-          900: '#0f2580',
-          950: '#0F1629',
+          50:  '#eef6fb',
+          100: '#c8e6ff',   // primary-fixed
+          200: '#b5deff',   // on-primary-container
+          300: '#89ceff',   // primary-fixed-dim
+          400: '#4ba6cc',
+          500: '#007aa6',
+          600: '#006591',   // primary-container (main action)
+          700: '#004c6e',   // primary
+          800: '#003c57',
+          900: '#002c41',
+          950: '#131b2e',   // on-surface / dark text
         },
+        // Arctic Precision named tokens (for re-skinned components)
+        primary:              '#004c6e',
+        'primary-container':  '#006591',
+        'on-primary':         '#ffffff',
+        'on-primary-container':'#b5deff',
+        'primary-fixed':      '#c8e6ff',
+        'primary-fixed-dim':  '#89ceff',
+        'success-emerald':    '#10B981',
+        'warning-amber':      '#EAB308',
+        'indigo-insight':     '#6366F1',
+        'arctic-error':       '#ba1a1a',
+        'surface-ice':        '#faf8ff',
+        'surface-container':  '#eaedff',
+        'on-surface':         '#131b2e',
+        'on-surface-variant': '#40484e',
+        'outline-soft':       '#c0c7cf',
         // Clock system colours
         clock: {
           employee: '#10B981',   // green  — employee working
-          client:   '#F59E0B',   // amber  — waiting on client
-          authority:'#3B82F6',   // blue   — waiting on FSSAI
+          client:   '#EAB308',   // amber  — waiting on client
+          authority:'#6366F1',   // indigo — waiting on FSSAI
         },
         // Status
-        overdue: '#EF4444',
+        overdue: '#ba1a1a',
         expiry: {
           safe:  '#10B981',
-          warn:  '#F59E0B',
-          urgent:'#EF4444',
+          warn:  '#EAB308',
+          urgent:'#ba1a1a',
         },
       },
       borderRadius: {
