@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 
 const toTitleCase = (s: string) =>
   s.toLowerCase().replace(/\b\w/g, c => c.toUpperCase())
-import { Plus, Search, Building2, Phone, Mail, ChevronRight } from 'lucide-react'
+import { Sym } from '@/components/shared/Sym'
 import { TopBar } from '@/components/layout/TopBar'
 import { RoleGuard } from '@/components/shared/ProtectedRoute'
 import { useClients } from '@/hooks/useClients'
@@ -30,7 +30,7 @@ export default function ClientsPage() {
         {/* Toolbar */}
         <div className="flex items-center gap-3 mb-6">
           <div className="relative flex-1 max-w-sm">
-            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Sym name="search" size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
@@ -43,7 +43,7 @@ export default function ClientsPage() {
               onClick={() => setShowForm(true)}
               className="flex items-center gap-2 px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 transition-colors"
             >
-              <Plus size={14} />
+              <Sym name="add" size={16} />
               Add Client
             </button>
           </RoleGuard>
@@ -58,7 +58,7 @@ export default function ClientsPage() {
           </div>
         ) : filtered.length === 0 ? (
           <div className="bg-white rounded-xl border border-dashed border-border p-12 text-center">
-            <Building2 size={32} className="mx-auto text-muted-foreground/40 mb-3" />
+            <Sym name="apartment" size={34} className="mx-auto text-muted-foreground/40 mb-3" />
             <p className="text-sm text-muted-foreground">
               {search ? 'No clients match your search.' : 'No clients yet. Add your first client.'}
             </p>
@@ -97,18 +97,18 @@ export default function ClientsPage() {
                 {/* Contact */}
                 <div className="hidden md:flex flex-col items-end gap-1 shrink-0">
                   <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <Phone size={10} />
+                    <Sym name="call" size={12} />
                     {client.contact_phone}
                   </span>
                   {client.contact_email && (
                     <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <Mail size={10} />
+                      <Sym name="mail" size={12} />
                       {client.contact_email}
                     </span>
                   )}
                 </div>
 
-                <ChevronRight size={14} className="text-muted-foreground/40 group-hover:text-brand-600 transition-colors shrink-0" />
+                <Sym name="chevron_right" size={16} className="text-muted-foreground/40 group-hover:text-brand-600 transition-colors shrink-0" />
               </div>
             ))}
           </div>
