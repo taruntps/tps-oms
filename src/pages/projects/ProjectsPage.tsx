@@ -2,10 +2,10 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Search, FolderOpen } from 'lucide-react'
 import { TopBar } from '@/components/layout/TopBar'
-import { RoleGuard } from '@/components/shared/ProtectedRoute'
 import { ClockBadge } from '@/components/shared/ClockBadge'
 import { ProjectForm } from './ProjectForm'
 import { useProjects } from '@/hooks/useProjects'
+import { useAuth } from '@/contexts/AuthContext'
 import { formatDate, formatRupees, cn } from '@/lib/utils'
 import type { Database } from '@/types/database'
 
@@ -29,12 +29,32 @@ const STATUS_BADGE: Record<ProjectStatus, string> = {
 
 export default function ProjectsPage() {
   const navigate = useNavigate()
+  const { profile } = useAuth()
   const { data: projects = [], isLoading } = useProjects()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<ProjectStatus | 'all'>('all')
+  const [scope, setScope] = useState<'mine' | 'all'>('mine')
   const [showForm, setShowForm] = useState(false)
 
-  const filtered = projects.filter(p => {
+  // Visibility flag gates the "Overall" view; everyone has "My Projects".
+  const canViewAll = profile?.role === 'super_admin'
+    || profile?.role === 'director'
+    || (profile as any)?.can_view_all_projects === true
+
+  const canAssign = profile?.role === 'super_admin'
+    || profile?.role === 'director'
+    || (profile as any)?.can_assign === true
+
+  const isMine = (p: typeof projects[number]) =>
+    p.assigned_to === profile?.id || p.manager_id === profile?.id
+
+  const mineCount = projects.filter(isMine).length
+  // Without the Visibility flag, RLS only returns own projects anyway — so "all"
+  // collapses to "mine". Force scope to 'mine' when the user can't view all.
+  const effectiveScope = canViewAll ? scope : 'mine'
+  const scoped = effectiveScope === 'mine' ? projects.filter(isMine) : projects
+
+  const filtered = scoped.filter(p => {
     const matchStatus = statusFilter === 'all' || p.status === statusFilter
     const q = search.toLowerCase()
     const matchSearch = !q ||
@@ -47,9 +67,42 @@ export default function ProjectsPage() {
 
   return (
     <div>
-      <TopBar title="Projects" subtitle={`${projects.length} total`} />
+      <TopBar
+        title="Projects"
+        subtitle={effectiveScope === 'mine' ? `${mineCount} assigned to you` : `${projects.length} total`}
+      />
 
       <div className="p-6 animate-fade-up space-y-5">
+        {/* Scope: My Projects vs Overall (Overall only if Visibility flag) */}
+        <div className="inline-flex rounded-lg border border-border bg-[#F8FAFC] p-1 text-sm">
+          <button
+            onClick={() => setScope('mine')}
+            className={cn(
+              'px-4 py-1.5 rounded-md font-medium transition-all',
+              effectiveScope === 'mine' ? 'bg-white text-brand-950 shadow-sm' : 'text-muted-foreground hover:text-brand-950'
+            )}
+          >
+            My Projects <span className="text-xs text-muted-foreground">({mineCount})</span>
+          </button>
+          {canViewAll && (
+            <button
+              onClick={() => setScope('all')}
+              className={cn(
+                'px-4 py-1.5 rounded-md font-medium transition-all',
+                effectiveScope === 'all' ? 'bg-white text-brand-950 shadow-sm' : 'text-muted-foreground hover:text-brand-950'
+              )}
+            >
+              Overall <span className="text-xs text-muted-foreground">({projects.length})</span>
+            </button>
+          )}
+        </div>
+
+        {effectiveScope === 'all' && (
+          <p className="text-[11px] text-muted-foreground -mt-2">
+            Viewing all projects (read-only) — you can only edit projects assigned to you.
+          </p>
+        )}
+
         {/* Search + filter + new */}
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
@@ -77,7 +130,7 @@ export default function ProjectsPage() {
             ))}
           </div>
 
-          <RoleGuard roles={['super_admin','director','manager']}>
+          {canAssign && (
             <button
               onClick={() => setShowForm(true)}
               className="flex items-center gap-2 px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700"
@@ -85,7 +138,7 @@ export default function ProjectsPage() {
               <Plus size={14} />
               New Project
             </button>
-          </RoleGuard>
+          )}
         </div>
 
         {/* Project list */}
