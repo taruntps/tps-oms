@@ -6,6 +6,7 @@ export default function LoginPage() {
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [remember, setRemember] = useState(true)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -13,10 +14,13 @@ export default function LoginPage() {
     e.preventDefault()
     setLoading(true)
     setError('')
+    // "Remember me": persist the session in localStorage (survives browser close)
+    // when checked; otherwise sessionStorage (cleared when the tab/browser closes).
+    localStorage.setItem('tps_remember', String(remember))
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     setLoading(false)
     if (error) {
-      setError('Invalid email or password.')
+      setError('Invalid user ID or password.')
     } else {
       navigate('/dashboard')
     }
@@ -36,12 +40,11 @@ export default function LoginPage() {
           {/* Header strip */}
           <div className="bg-gradient-to-r from-brand-900 to-primary-container px-8 pt-8 pb-6 text-center">
             <div className="flex justify-center mb-4">
-              <div className="w-16 h-16 rounded-2xl bg-white flex items-center justify-center shadow-lg overflow-hidden p-2.5">
-                <img src="/logo.png" alt="TPS Xperts Group" className="max-w-full max-h-full object-contain" />
+              <div className="w-20 h-20 rounded-2xl bg-white flex items-center justify-center shadow-lg overflow-hidden p-1">
+                <img src="/logo.png" alt="TPS Xperts Group" className="w-full h-full object-contain" />
               </div>
             </div>
             <h1 className="text-white font-display font-bold text-xl tracking-tight">TPS Portal</h1>
-            <p className="text-brand-200 text-sm mt-1">portal.tpsxpert.com</p>
           </div>
 
           {/* Form */}
@@ -53,13 +56,13 @@ export default function LoginPage() {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-brand-950 uppercase tracking-wide">
-                  Email Address
+                  User ID
                 </label>
                 <input
                   type="email"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
-                  placeholder="you@tpsxperts.com"
+                  placeholder="Your user ID"
                   required
                   autoFocus
                   className="w-full px-3 py-2.5 rounded-lg border border-border bg-[#F8FAFC] text-sm font-sans focus:outline-none focus:ring-2 focus:ring-brand-600/30 focus:border-brand-600 transition-all"
@@ -79,6 +82,17 @@ export default function LoginPage() {
                   className="w-full px-3 py-2.5 rounded-lg border border-border bg-[#F8FAFC] text-sm font-sans focus:outline-none focus:ring-2 focus:ring-brand-600/30 focus:border-brand-600 transition-all"
                 />
               </div>
+
+              {/* Remember me */}
+              <label className="flex items-center gap-2 text-xs text-brand-950 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={remember}
+                  onChange={e => setRemember(e.target.checked)}
+                  className="w-4 h-4 rounded border-border text-brand-600 focus:ring-brand-600/30"
+                />
+                Remember me on this device
+              </label>
 
               {error && (
                 <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm text-red-700">

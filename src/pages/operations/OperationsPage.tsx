@@ -173,7 +173,7 @@ export default function OperationsPage() {
                         </div>
                       </div>
                       {p.active_clock && p.clock_switched_at && (
-                        <ClockBadge clock={p.active_clock} since={p.clock_switched_at} isBlocked={p.is_blocked ?? false} />
+                        <ClockBadge clock={p.active_clock} since={p.clock_switched_at} isBlocked={p.is_blocked ?? false} personName={(p as any).profiles_assigned?.name} />
                       )}
                     </div>
                   </div>

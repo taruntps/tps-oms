@@ -20,6 +20,7 @@ interface Props {
   serviceType?: string
   appRefNo?: string | null
   clientId?: string
+  assigneeName?: string   // executive assigned — shown instead of generic "Employee"
   onClockChange: (clock: ClockType, extra?: Record<string, any>) => Promise<void>
 }
 
@@ -40,7 +41,8 @@ const CLIENT_PENDING_STAGES = ['Document Collection', 'Client Review', 'Client C
 const needsAppRef = (serviceType?: string) =>
   !!serviceType && ['New Application','Modification','Renewal','Form II'].includes(serviceType)
 
-export function StageCard({ stage, projectId, isBlocked, activeClock, serviceType, appRefNo, clientId, onClockChange }: Props) {
+export function StageCard({ stage, projectId, isBlocked, activeClock, serviceType, appRefNo, clientId, assigneeName, onClockChange }: Props) {
+  const employeeLabel = assigneeName?.trim().split(/\s+/)[0] || 'Employee'
   const [open, setOpen] = useState(false)
   const [skipReason, setSkipReason] = useState('')
   const [showSkipInput, setShowSkipInput] = useState(false)
@@ -151,7 +153,7 @@ export function StageCard({ stage, projectId, isBlocked, activeClock, serviceTyp
             'bg-blue-50 text-blue-700 border-blue-200'
           )}>
             {activeClock === 'employee' ? '🟢' : activeClock === 'client' ? '🟡' : '🔵'}
-            {activeClock === 'employee' ? 'Employee' : activeClock === 'client' ? 'With Client' : 'FSSAI'}
+            {activeClock === 'employee' ? employeeLabel : activeClock === 'client' ? 'With Client' : 'FSSAI'}
           </span>
         )}
 

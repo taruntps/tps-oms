@@ -13,14 +13,15 @@ interface Props {
   serviceType?: string
   appRefNo?: string | null
   clientId?: string
+  assigneeName?: string
   onClockChange: (clock: ClockType, extra?: Record<string, any>) => Promise<void>
 }
 
-export function StagesTab({ stages, projectId, isBlocked, activeClock, serviceType, appRefNo, clientId, onClockChange }: Props) {
+export function StagesTab({ stages, projectId, isBlocked, activeClock, serviceType, appRefNo, clientId, assigneeName, onClockChange }: Props) {
   if (stages.length === 0) {
     return (
-      <div className="bg-white rounded-xl border border-dashed border-border p-8 text-center">
-        <p className="text-sm text-muted-foreground">No stages generated yet.</p>
+      <div className="glass-panel rounded-xl border-dashed !border-white/20 p-8 text-center">
+        <p className="text-sm text-white/60">No stages generated yet.</p>
       </div>
     )
   }
@@ -39,6 +40,7 @@ export function StagesTab({ stages, projectId, isBlocked, activeClock, serviceTy
             serviceType={serviceType}
             appRefNo={appRefNo}
             clientId={clientId}
+            assigneeName={assigneeName}
             onClockChange={onClockChange}
           />
         ))}

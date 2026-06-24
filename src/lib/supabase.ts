@@ -10,11 +10,31 @@ if (!url || !key) {
   )
 }
 
+// "Remember me" storage: when the user opts out (tps_remember === 'false') the
+// session lives in sessionStorage (cleared when the tab/browser closes); otherwise
+// it persists in localStorage. The flag is set by the login form before sign-in.
+const rememberStorage = {
+  pick() {
+    return localStorage.getItem('tps_remember') === 'false' ? sessionStorage : localStorage
+  },
+  getItem(k: string) {
+    return sessionStorage.getItem(k) ?? localStorage.getItem(k)
+  },
+  setItem(k: string, v: string) {
+    this.pick().setItem(k, v)
+  },
+  removeItem(k: string) {
+    localStorage.removeItem(k)
+    sessionStorage.removeItem(k)
+  },
+}
+
 export const supabase = createClient<Database>(url, key, {
   auth: {
     persistSession: true,
     storageKey: 'tps-oms-auth',
     autoRefreshToken: true,
+    storage: rememberStorage,
   },
 })
 

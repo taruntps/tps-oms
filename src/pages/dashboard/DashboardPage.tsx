@@ -76,7 +76,7 @@ export default function DashboardPage() {
                         </div>
                         <div className="flex flex-col items-end gap-1.5 shrink-0">
                           {p.active_clock && p.clock_switched_at && (
-                            <ClockBadge clock={p.active_clock} since={p.clock_switched_at} isBlocked={p.is_blocked ?? false} />
+                            <ClockBadge clock={p.active_clock} since={p.clock_switched_at} isBlocked={p.is_blocked ?? false} personName={(p as any).profiles_assigned?.name} />
                           )}
                           {p.target_date && (
                             <span className={cn(

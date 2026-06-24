@@ -33,12 +33,11 @@ export function Sidebar() {
       {/* Logo */}
       <div className="px-4 py-5 border-b border-white/10">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-white/95 flex items-center justify-center shrink-0 shadow-lg overflow-hidden p-0.5">
+          <div className="w-12 h-12 rounded-xl bg-white flex items-center justify-center shrink-0 shadow-lg overflow-hidden p-1">
             <img src="/logo.png" alt="TPS" className="w-full h-full object-contain" />
           </div>
           <div>
             <p className="text-white font-display font-semibold text-sm leading-tight">TPS Portal</p>
-            <p className="text-white/55 text-[10px] font-mono mt-0.5">portal.tpsxpert.com</p>
           </div>
         </div>
       </div>

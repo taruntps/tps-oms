@@ -69,6 +69,8 @@ export default function ProjectDetailPage() {
   const clientId         = project.client_id
   const activeClock      = (project.active_clock ?? 'employee') as ClockType
   const appRefNo         = (project as any).app_ref_no as string | null | undefined
+  const executiveName    = (project as any).profiles_assigned?.name as string | undefined
+  const execFirstName    = executiveName?.trim().split(/\s+/)[0]
 
   const canBlock   = ['executive','manager','director','super_admin'].includes(profile?.role ?? '')
   const canApprove = ['manager','director','super_admin'].includes(profile?.role ?? '')
@@ -258,7 +260,7 @@ export default function ProjectDetailPage() {
               <h2 className="text-lg font-display font-bold text-brand-950 mt-1">{project.project_name}</h2>
             </div>
             {project.active_clock && project.clock_switched_at && (
-              <ClockBadge clock={project.active_clock} since={project.clock_switched_at} isBlocked={project.is_blocked ?? false} />
+              <ClockBadge clock={project.active_clock} since={project.clock_switched_at} isBlocked={project.is_blocked ?? false} personName={executiveName} />
             )}
           </div>
 
@@ -325,7 +327,7 @@ export default function ProjectDetailPage() {
             <span className="text-lg">{activeClock === 'employee' ? '🟢' : activeClock === 'client' ? '🟡' : '🔵'}</span>
             <div>
               <p className="text-xs font-semibold text-white">
-                {activeClock === 'employee' ? 'Currently with Employee' :
+                {activeClock === 'employee' ? `Currently with ${execFirstName ?? 'Employee'}` :
                  activeClock === 'client'   ? 'Currently with Client' : 'Currently with FSSAI Authority'}
               </p>
               <p className="text-[11px] text-white/70">Clock changes via stage action buttons in the Stages tab</p>
@@ -376,6 +378,7 @@ export default function ProjectDetailPage() {
             serviceType={project.service_type ?? undefined}
             appRefNo={appRefNo}
             clientId={clientId}
+            assigneeName={executiveName}
             onClockChange={handleClockChange}
           />
         )}
