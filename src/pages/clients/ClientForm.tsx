@@ -19,6 +19,13 @@ function generatePlaceholderGstin(): string {
   return 'NOGSTN' + suffix // 6 + 9 = 15 chars total
 }
 
+// A 15-char GSTIN embeds the 10-char PAN at positions 3–12 (0-indexed 2–11).
+// e.g. 03GJRPS5249K1ZF → PAN GJRPS5249K. Returns '' if not a full 15-char GSTIN.
+function panFromGstin(gstin: string): string {
+  const g = (gstin ?? '').toUpperCase()
+  return /^[0-9A-Z]{15}$/.test(g) ? g.slice(2, 12) : ''
+}
+
 function findSimilarClient(newName: string, clients: Client[], skipId?: string): Client | undefined {
   const newWords = newName.trim().toUpperCase().split(/\s+/)
   if (newWords.length < 2) return undefined // single-word names are too vague to match
@@ -90,6 +97,10 @@ export function ClientForm({ client, onClose }: Props) {
   const selectedState = watch('state')
   const [cities, setCities] = useState<string[]>([])
 
+  // PAN is derived-and-locked when a full GSTIN is present (it lives inside the GSTIN).
+  const gstinWatch = watch('gstin') ?? ''
+  const panLocked = gstinAvailable && panFromGstin(gstinWatch) !== ''
+
   useEffect(() => {
     const list = getCitiesForState(selectedState)
     setCities(list)
@@ -100,6 +111,12 @@ export function ClientForm({ client, onClose }: Props) {
   useEffect(() => {
     setCities(getCitiesForState(selectedState))
   }, [])
+
+  // Keep PAN authoritative when a full GSTIN is present (covers editing an
+  // existing client whose stored PAN might differ from the GSTIN-embedded one).
+  useEffect(() => {
+    if (panLocked) setValue('pan', panFromGstin(gstinWatch), { shouldValidate: false })
+  }, [panLocked, gstinWatch])
 
   // ── Save ──────────────────────────────────────────────────────────────────
 
@@ -262,7 +279,13 @@ export function ClientForm({ client, onClose }: Props) {
               {gstinAvailable ? (
                 <input
                   {...register('gstin')}
-                  onChange={e => setValue('gstin', e.target.value.toUpperCase(), { shouldValidate: false })}
+                  onChange={e => {
+                    const g = e.target.value.toUpperCase()
+                    setValue('gstin', g, { shouldValidate: false })
+                    // Auto-derive PAN from a complete GSTIN; clear it again if GSTIN
+                    // is shortened/edited so a stale PAN never lingers.
+                    setValue('pan', panFromGstin(g), { shouldValidate: false })
+                  }}
                   className={ic(!!errors.gstin)}
                   placeholder="15-character GSTIN (auto-uppercased)"
                   maxLength={15}
@@ -278,7 +301,16 @@ export function ClientForm({ client, onClose }: Props) {
             </div>
 
             <Field label="PAN" error={errors.pan?.message}>
-              <input {...register('pan')} className={ic(false)} placeholder="10-char PAN" />
+              <input
+                {...register('pan')}
+                readOnly={panLocked}
+                className={ic(false) + (panLocked ? ' bg-[#F8FAFC] text-muted-foreground cursor-not-allowed' : '')}
+                placeholder="10-char PAN"
+                style={{ textTransform: 'uppercase' }}
+              />
+              {panLocked && (
+                <p className="text-[10px] text-muted-foreground mt-1">🔒 Auto-filled from GSTIN — locked</p>
+              )}
             </Field>
 
             <Field label="WhatsApp Number" error={errors.whatsapp_number?.message}>

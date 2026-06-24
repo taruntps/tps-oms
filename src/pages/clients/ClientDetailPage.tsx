@@ -11,6 +11,7 @@ import { useLicenses } from '@/hooks/useLicenses'
 import { ClientForm } from './ClientForm'
 import { LicenseForm } from './LicenseForm'
 import { CredentialReveal } from './CredentialReveal'
+import { ClientDocuments } from './ClientDocuments'
 import { formatDate, getExpiryStatus, daysUntil, cn } from '@/lib/utils'
 
 const EXPIRY_CONFIG = {
@@ -79,6 +80,12 @@ export default function ClientDetailPage() {
             <div className="flex-1">
               <div className="flex items-center gap-2 flex-wrap">
                 <h2 className="text-xl font-display font-bold text-brand-950">{client.company_name}</h2>
+                {(client as any).client_code && (
+                  <span className="inline-flex items-center gap-1 font-mono text-xs font-semibold px-2 py-0.5 rounded border bg-brand-50 border-brand-200 text-brand-700">
+                    <Hash size={10} />
+                    {(client as any).client_code}
+                  </span>
+                )}
                 {client.trade_name && <span className="text-xs text-muted-foreground bg-[#F8FAFC] border border-border px-2 py-0.5 rounded">{client.trade_name}</span>}
                 {!client.is_active && <span className="text-xs text-red-600 bg-red-50 border border-red-100 px-2 py-0.5 rounded">Inactive</span>}
                 {(client as any).gstin_is_placeholder && (
@@ -212,6 +219,9 @@ export default function ClientDetailPage() {
             </div>
           )}
         </div>
+
+        {/* Documents */}
+        <ClientDocuments clientId={id!} canEdit={canEdit} />
       </div>
 
       {editClient && <ClientForm client={client} onClose={() => setEditClient(false)} />}
