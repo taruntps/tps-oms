@@ -37,7 +37,7 @@ export function Sidebar() {
             <img src="/logo.png" alt="TPS" className="w-full h-full object-contain" />
           </div>
           <div>
-            <p className="text-white font-display font-semibold text-sm leading-tight">TPS Operations</p>
+            <p className="text-white font-display font-semibold text-sm leading-tight">TPS Portal</p>
             <p className="text-white/55 text-[10px] font-mono mt-0.5">portal.tpsxpert.com</p>
           </div>
         </div>

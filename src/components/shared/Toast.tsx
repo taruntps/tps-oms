@@ -1,6 +1,6 @@
 import * as ToastPrimitive from '@radix-ui/react-toast'
-import { X, CheckCircle2, AlertCircle, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Sym } from '@/components/shared/Sym'
 
 type ToastType = 'success' | 'error' | 'info'
 
@@ -32,9 +32,9 @@ toast.error   = (title: string, description?: string) => toast('error', title, d
 toast.info    = (title: string, description?: string) => toast('info', title, description)
 
 const ICONS = {
-  success: <CheckCircle2 size={14} className="text-green-600 shrink-0 mt-0.5" />,
-  error:   <AlertCircle  size={14} className="text-red-600 shrink-0 mt-0.5" />,
-  info:    <Info         size={14} className="text-blue-600 shrink-0 mt-0.5" />,
+  success: <Sym name="check_circle" size={15} className="text-green-600 shrink-0 mt-0.5" />,
+  error:   <Sym name="error"        size={15} className="text-red-600 shrink-0 mt-0.5" />,
+  info:    <Sym name="info"         size={15} className="text-blue-600 shrink-0 mt-0.5" />,
 }
 
 const BG = {
@@ -80,7 +80,7 @@ export function ToastProvider() {
             )}
           </div>
           <ToastPrimitive.Close className="text-muted-foreground hover:text-foreground shrink-0">
-            <X size={12} />
+            <Sym name="close" size={13} />
           </ToastPrimitive.Close>
         </ToastPrimitive.Root>
       ))}

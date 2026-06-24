@@ -36,11 +36,11 @@ export default function LoginPage() {
           {/* Header strip */}
           <div className="bg-gradient-to-r from-brand-900 to-primary-container px-8 pt-8 pb-6 text-center">
             <div className="flex justify-center mb-4">
-              <div className="w-16 h-16 rounded-2xl bg-white/10 backdrop-blur flex items-center justify-center border border-white/20 overflow-hidden p-1">
-                <img src="/logo.png" alt="TPS Xperts Group" className="w-full h-full object-contain" />
+              <div className="w-16 h-16 rounded-2xl bg-white flex items-center justify-center shadow-lg overflow-hidden p-2.5">
+                <img src="/logo.png" alt="TPS Xperts Group" className="max-w-full max-h-full object-contain" />
               </div>
             </div>
-            <h1 className="text-white font-display font-bold text-xl tracking-tight">TPS Operations</h1>
+            <h1 className="text-white font-display font-bold text-xl tracking-tight">TPS Portal</h1>
             <p className="text-brand-200 text-sm mt-1">portal.tpsxpert.com</p>
           </div>
 
@@ -101,7 +101,7 @@ export default function LoginPage() {
             </form>
 
             <p className="text-center text-xs text-muted-foreground mt-6">
-              Internal system · Authorised users only
+              Authorised users only
             </p>
           </div>
         </div>

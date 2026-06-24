@@ -42,7 +42,7 @@ export function AppShell() {
           >
             <Sym name="menu" size={22} />
           </button>
-          <span className="text-white font-display font-semibold text-sm">TPS Operations</span>
+          <span className="text-white font-display font-semibold text-sm">TPS Portal</span>
         </div>
 
         <Outlet />
