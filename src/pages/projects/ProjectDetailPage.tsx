@@ -76,6 +76,7 @@ export default function ProjectDetailPage() {
   const canApprove = ['manager','director','super_admin'].includes(profile?.role ?? '')
   const canCancel  = ['manager','director','super_admin'].includes(profile?.role ?? '')
   const isCancelled = project.status === 'cancelled'
+  const isCompleted = project.status === 'completed'
   // Transfer: assignee of this project, an Assigner, or admin.
   const canTransfer = profile?.role === 'super_admin'
     || (project as any).assigned_to === profile?.id
@@ -319,22 +320,30 @@ export default function ProjectDetailPage() {
         {/* Current clock status bar — info only, changed by stage actions */}
         <div className={cn(
           'glass-panel rounded-xl px-5 py-3 flex items-center justify-between flex-wrap gap-3',
+          isCompleted                 ? '!bg-green-500/15 !border-green-400/30' :
+          isCancelled                 ? '!bg-red-500/15 !border-red-400/30' :
           activeClock === 'employee'  ? '!bg-green-500/15 !border-green-400/30' :
           activeClock === 'client'    ? '!bg-amber-500/15 !border-amber-400/30' :
           '!bg-blue-500/15 !border-blue-400/30'
         )}>
           <div className="flex items-center gap-3">
-            <span className="text-lg">{activeClock === 'employee' ? '🟢' : activeClock === 'client' ? '🟡' : '🔵'}</span>
+            <span className="text-lg">
+              {isCompleted ? '✅' : isCancelled ? '⛔' : activeClock === 'employee' ? '🟢' : activeClock === 'client' ? '🟡' : '🔵'}
+            </span>
             <div>
               <p className="text-xs font-semibold text-white">
-                {activeClock === 'employee' ? `Currently with ${execFirstName ?? 'Employee'}` :
+                {isCompleted ? 'Project completed — all stages done' :
+                 isCancelled ? 'Project cancelled' :
+                 activeClock === 'employee' ? `Currently with ${execFirstName ?? 'Employee'}` :
                  activeClock === 'client'   ? 'Currently with Client' : 'Currently with FSSAI Authority'}
               </p>
-              <p className="text-[11px] text-white/70">Clock changes via stage action buttons in the Stages tab</p>
+              {!isCompleted && !isCancelled && (
+                <p className="text-[11px] text-white/70">Clock changes via stage action buttons in the Stages tab</p>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {canBlock && !project.is_blocked && !myPendingRequest && !isCancelled && (
+            {canBlock && !project.is_blocked && !myPendingRequest && !isCancelled && !isCompleted && (
               <button onClick={() => setShowBlockForm(true)}
                 className="px-3 py-1.5 text-xs rounded-lg border border-amber-400/40 text-amber-200 hover:bg-amber-500/10 font-medium">
                 Request Block

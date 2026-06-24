@@ -224,7 +224,7 @@ export function QueriesTab({ projectId, projectCode }: Props) {
                   </div>
                   {!q.responded_at && (
                     <RoleGuard roles={['super_admin','director','manager','executive']}>
-                      <button onClick={() => setRespondingId(q.id)}
+                      <button onClick={() => { setExpandedId(q.id); setRespondingId(q.id) }}
                         className="text-xs text-brand-600 hover:text-brand-700 font-medium shrink-0">
                         Mark Responded
                       </button>
