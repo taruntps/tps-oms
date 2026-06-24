@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { toast } from '@/components/shared/Toast'
 import { formatRupees, cn } from '@/lib/utils'
-import { BarChart3, Download, RefreshCw, CheckCircle, Clock, TrendingUp, Users } from 'lucide-react'
+import { Sym } from '@/components/shared/Sym'
 
 // Derive a period string for the given month offset (0 = current, -1 = last, etc.)
 function periodOf(monthOffset: number) {
@@ -206,8 +206,8 @@ export default function PerformancePage() {
 
         {/* Period selector */}
         <div className="flex items-center gap-3 flex-wrap">
-          <BarChart3 size={16} className="text-muted-foreground" />
-          <span className="text-sm font-medium text-brand-950">Period:</span>
+          <Sym name="bar_chart" size={16} className="text-white/70" />
+          <span className="text-sm font-medium text-white">Period:</span>
           <div className="flex gap-1.5 flex-wrap">
             {PERIODS.map(p => (
               <button
@@ -217,28 +217,28 @@ export default function PerformancePage() {
                   'px-3 py-1.5 text-xs font-medium rounded-lg border transition-all',
                   period === p.value
                     ? 'bg-brand-600 text-white border-brand-700'
-                    : 'bg-white text-muted-foreground border-border hover:border-brand-300'
+                    : 'border border-white/20 text-white hover:bg-white/10'
                 )}
               >{p.label}</button>
             ))}
           </div>
-          {isFetching && <RefreshCw size={12} className="animate-spin text-muted-foreground" />}
+          {isFetching && <Sym name="refresh" size={12} className="animate-spin text-white/70" />}
         </div>
 
         {isLoading ? (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="h-24 bg-white rounded-xl border border-border animate-pulse" />
+              <div key={i} className="h-24 glass-panel rounded-xl animate-pulse" />
             ))}
           </div>
         ) : data ? (
           <>
             {/* KPI row */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <KPI icon={CheckCircle} label="Projects Closed"   value={data.projects_closed} color="text-green-600" />
-              <KPI icon={TrendingUp}  label="On-Time Rate"      value={`${data.on_time_rate}%`} color={data.on_time_rate >= 80 ? 'text-green-600' : data.on_time_rate >= 60 ? 'text-amber-600' : 'text-red-600'} />
-              <KPI icon={Clock}       label="Avg Closure Days"  value={`${data.avg_closure_days}d`} color="text-brand-600" />
-              <KPI icon={BarChart3}   label="Revenue Collected" value={formatRupees(data.revenue_paise)} color="text-brand-600" />
+              <KPI icon="check_circle" label="Projects Closed"   value={data.projects_closed} color="text-green-600" />
+              <KPI icon="trending_up"  label="On-Time Rate"      value={`${data.on_time_rate}%`} color={data.on_time_rate >= 80 ? 'text-green-600' : data.on_time_rate >= 60 ? 'text-amber-600' : 'text-red-600'} />
+              <KPI icon="schedule"     label="Avg Closure Days"  value={`${data.avg_closure_days}d`} color="text-brand-600" />
+              <KPI icon="bar_chart"    label="Revenue Collected" value={formatRupees(data.revenue_paise)} color="text-brand-600" />
             </div>
 
             {/* Clock distribution */}
@@ -255,7 +255,7 @@ export default function PerformancePage() {
             {data.exec_breakdown.length > 0 && (
               <div className="bg-white rounded-xl border border-border overflow-hidden">
                 <div className="px-5 py-4 border-b border-border flex items-center gap-2">
-                  <Users size={14} className="text-muted-foreground" />
+                  <Sym name="groups" size={14} className="text-muted-foreground" />
                   <h3 className="text-sm font-semibold text-brand-950">Executive Breakdown</h3>
                 </div>
                 <div className="overflow-x-auto">
@@ -300,7 +300,7 @@ export default function PerformancePage() {
                 disabled={saveReport.isPending}
                 className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-brand-600 text-white rounded-lg hover:bg-brand-700 disabled:opacity-50"
               >
-                <Download size={13} />
+                <Sym name="download" size={13} />
                 {saveReport.isPending ? 'Saving…' : 'Save Report'}
               </button>
             </div>
@@ -333,11 +333,11 @@ export default function PerformancePage() {
   )
 }
 
-function KPI({ icon: Icon, label, value, color }: { icon: React.ElementType; label: string; value: string | number; color: string }) {
+function KPI({ icon, label, value, color }: { icon: string; label: string; value: string | number; color: string }) {
   return (
     <div className="stat-card">
       <div className="flex items-center gap-2">
-        <Icon size={13} className={color} />
+        <Sym name={icon} size={13} className={color} />
         <p className="stat-label">{label}</p>
       </div>
       <p className={cn('stat-value', color)}>{value}</p>

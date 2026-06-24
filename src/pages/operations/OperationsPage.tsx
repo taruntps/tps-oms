@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { AlertTriangle, CheckCircle, XCircle } from 'lucide-react'
+import { Sym } from '@/components/shared/Sym'
 import { TopBar } from '@/components/layout/TopBar'
 import { ClockBadge } from '@/components/shared/ClockBadge'
 import { useActiveProjects, useBlockRequestInbox } from '@/hooks/useDashboard'
@@ -62,30 +62,30 @@ export default function OperationsPage() {
         {(blockRequests.length > 0 || loadingBlocks) && (
           <div>
             <div className="flex items-center gap-2 mb-3">
-              <AlertTriangle size={14} className="text-amber-500" />
-              <h2 className="font-display font-semibold text-brand-950 text-sm">Block Request Inbox</h2>
-              <span className="text-[11px] bg-amber-100 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full font-medium">
+              <Sym name="warning" size={14} className="text-warning-amber" />
+              <h2 className="font-display font-semibold text-white text-sm">Block Request Inbox</h2>
+              <span className="text-[11px] bg-amber-400/20 text-warning-amber border border-amber-400/30 px-2 py-0.5 rounded-full font-medium">
                 {blockRequests.length} pending
               </span>
             </div>
             <div className="space-y-2">
               {blockRequests.map(req => (
-                <div key={req.id} className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                <div key={req.id} className="glass-panel rounded-xl p-4 !bg-amber-400/15 !border-amber-400/30">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         <button
                           onClick={() => navigate(`/projects/${(req as any).projects?.id}`)}
-                          className="font-mono text-xs text-brand-600 hover:underline"
+                          className="font-mono text-xs text-primary-fixed-dim hover:underline"
                         >
                           {(req as any).projects?.project_code}
                         </button>
-                        <span className="text-xs text-brand-950 font-medium">{(req as any).projects?.project_name}</span>
+                        <span className="text-xs text-white font-medium">{(req as any).projects?.project_name}</span>
                       </div>
-                      <p className="text-xs text-amber-800 mt-1">
+                      <p className="text-xs text-white/80 mt-1">
                         <strong>{(req as any).profiles?.name}</strong> — {req.block_type.replace(/_/g, ' ')}: {req.reason}
                       </p>
-                      <p className="text-[11px] text-muted-foreground mt-0.5">Requested {formatDate(req.requested_at)}</p>
+                      <p className="text-[11px] text-white/55 mt-0.5">Requested {formatDate(req.requested_at)}</p>
                     </div>
                     <div className="flex gap-2 shrink-0">
                       <button
@@ -93,15 +93,15 @@ export default function OperationsPage() {
                         disabled={approveBlock.isPending}
                         className="flex items-center gap-1 px-3 py-1.5 bg-red-600 text-white text-xs font-medium rounded-lg hover:bg-red-700 disabled:opacity-50"
                       >
-                        <CheckCircle size={11} />
+                        <Sym name="check_circle" size={11} />
                         Approve
                       </button>
                       <button
                         onClick={() => handleApprove(req.id, false, (req as any).projects?.id)}
                         disabled={approveBlock.isPending}
-                        className="flex items-center gap-1 px-3 py-1.5 border border-border bg-white text-xs rounded-lg hover:bg-[#F8FAFC] disabled:opacity-50"
+                        className="flex items-center gap-1 px-3 py-1.5 border border-white/20 text-white text-xs rounded-lg hover:bg-white/10 disabled:opacity-50"
                       >
-                        <XCircle size={11} />
+                        <Sym name="cancel" size={11} />
                         Reject
                       </button>
                     </div>
@@ -115,15 +115,15 @@ export default function OperationsPage() {
         {/* ── Project list with clock filter ── */}
         <div>
           <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-            <h2 className="font-display font-semibold text-brand-950 text-sm">Active Projects</h2>
-            <div className="flex gap-1 bg-[#F8FAFC] p-1 rounded-lg border border-border">
+            <h2 className="font-display font-semibold text-white text-sm">Active Projects</h2>
+            <div className="flex gap-1 glass-panel p-1 rounded-lg">
               {CLOCK_TABS.map(t => (
                 <button
                   key={t.key}
                   onClick={() => setClockFilter(t.key)}
                   className={cn(
                     'px-3 py-1 text-xs font-medium rounded-md transition-all',
-                    clockFilter === t.key ? 'bg-white text-brand-950 shadow-sm' : 'text-muted-foreground hover:text-brand-950'
+                    clockFilter === t.key ? 'bg-white text-brand-950 shadow-sm' : 'text-white/70 hover:text-white'
                   )}
                 >
                   {t.label}
@@ -137,11 +137,11 @@ export default function OperationsPage() {
 
           {loadingProjects ? (
             <div className="space-y-2 animate-pulse">
-              {[1,2,3,4].map(i => <div key={i} className="h-20 bg-white rounded-xl border border-border" />)}
+              {[1,2,3,4].map(i => <div key={i} className="h-20 glass-panel rounded-xl" />)}
             </div>
           ) : filtered.length === 0 ? (
-            <div className="bg-white rounded-xl border border-dashed border-border p-10 text-center">
-              <p className="text-sm text-muted-foreground">No projects in this clock state.</p>
+            <div className="glass-panel rounded-xl border-dashed !border-white/20 p-10 text-center">
+              <p className="text-sm text-white/60">No projects in this clock state.</p>
             </div>
           ) : (
             <div className="space-y-2">
@@ -188,17 +188,17 @@ export default function OperationsPage() {
 }
 
 function SummaryCard({ label, value, color, detail }: { label: string; value: number; color: 'green' | 'amber' | 'blue' | 'red'; detail: string }) {
-  const cls = {
-    green: 'bg-green-50 border-green-200 text-green-700',
-    amber: 'bg-amber-50 border-amber-200 text-amber-700',
-    blue:  'bg-blue-50 border-blue-200 text-blue-700',
-    red:   'bg-red-50 border-red-200 text-red-700',
+  const valueColor = {
+    green: 'text-success-emerald',
+    amber: 'text-warning-amber',
+    blue:  'text-primary-fixed-dim',
+    red:   'text-red-300',
   }[color]
   return (
-    <div className={cn('rounded-xl border p-4', cls)}>
-      <p className="text-3xl font-display font-bold">{value}</p>
-      <p className="text-xs font-semibold mt-1">{label}</p>
-      <p className="text-[11px] opacity-70 mt-0.5">{detail}</p>
+    <div className="glass-panel-heavy rounded-xl p-4">
+      <p className={cn('text-3xl font-display font-bold', valueColor)}>{value}</p>
+      <p className="text-xs font-semibold mt-1 text-white">{label}</p>
+      <p className="text-[11px] text-white/60 mt-0.5">{detail}</p>
     </div>
   )
 }

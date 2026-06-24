@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, Archive, ClipboardPaste, Eye, Check, Trash2 } from 'lucide-react'
+import { Sym } from '@/components/shared/Sym'
 import { useSoiArchive, useCreateSoi } from '@/hooks/useAuthorityQueries'
 import { RoleGuard } from '@/components/shared/ProtectedRoute'
 import { useAuth } from '@/contexts/AuthContext'
@@ -134,17 +134,17 @@ export function SoiTab({ projectId, clientId }: Props) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-xs text-muted-foreground">Statement of Ingredients archive</p>
+        <p className="text-xs text-white/70">Statement of Ingredients archive</p>
         <RoleGuard roles={['super_admin','director','manager','executive']}>
           <div className="flex gap-2">
             {mode !== 'list' && (
               <button onClick={() => { setMode('list'); setPasteText(''); setPreview([]) }}
-                className="text-xs text-muted-foreground hover:text-brand-950">← Back</button>
+                className="text-xs text-white/70 hover:text-white">← Back</button>
             )}
             {mode === 'list' && (
               <button onClick={() => setMode('paste')}
-                className="flex items-center gap-1.5 text-sm text-brand-600 font-medium hover:text-brand-700">
-                <ClipboardPaste size={13} /> Smart Paste from FSSAI
+                className="flex items-center gap-1.5 text-sm text-white font-medium hover:text-white/80">
+                <Sym name="content_paste" size={13} /> Smart Paste from FSSAI
               </button>
             )}
           </div>
@@ -184,7 +184,7 @@ export function SoiTab({ projectId, clientId }: Props) {
           <div className="flex gap-2">
             <button onClick={handleParse} disabled={!pasteText.trim()}
               className="flex items-center gap-1.5 px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 disabled:opacity-50">
-              <Eye size={13} /> Preview & Clean
+              <Sym name="visibility" size={13} /> Preview & Clean
             </button>
             <button onClick={() => { setMode('list'); setPasteText('') }}
               className="px-4 py-2 border border-border text-sm rounded-lg hover:bg-white">Cancel</button>
@@ -224,7 +224,7 @@ export function SoiTab({ projectId, clientId }: Props) {
                     <td className="px-3 py-2 text-muted-foreground">{p.brand_name}</td>
                     <td className="px-3 py-2">
                       <button onClick={() => removeRow(i)} className="text-muted-foreground hover:text-red-600">
-                        <Trash2 size={11} />
+                        <Sym name="delete" size={11} />
                       </button>
                     </td>
                   </tr>
@@ -236,7 +236,7 @@ export function SoiTab({ projectId, clientId }: Props) {
           <div className="flex gap-2">
             <button onClick={handleSave} disabled={saving || preview.length === 0}
               className="flex items-center gap-1.5 px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50">
-              <Check size={13} /> {saving ? 'Saving…' : `Save ${preview.length} Products`}
+              <Sym name="check" size={13} /> {saving ? 'Saving…' : `Save ${preview.length} Products`}
             </button>
             <button onClick={() => setMode('paste')} className="px-4 py-2 border border-border text-sm rounded-lg hover:bg-[#F8FAFC]">
               ← Re-paste
@@ -248,11 +248,11 @@ export function SoiTab({ projectId, clientId }: Props) {
       {/* ── LIST MODE ── */}
       {mode === 'list' && (
         isLoading ? (
-          <div className="space-y-2 animate-pulse">{[1,2].map(i => <div key={i} className="h-14 bg-white rounded-xl border border-border" />)}</div>
+          <div className="space-y-2 animate-pulse">{[1,2].map(i => <div key={i} className="h-14 glass-panel rounded-xl" />)}</div>
         ) : sois.length === 0 ? (
-          <div className="bg-white rounded-xl border border-dashed border-border p-8 text-center">
-            <Archive size={28} className="mx-auto text-muted-foreground/30 mb-2" />
-            <p className="text-xs text-muted-foreground">No SOI entries yet. Use Smart Paste to import from FSSAI portal.</p>
+          <div className="glass-panel rounded-xl border-dashed !border-white/20 p-8 text-center">
+            <Sym name="inventory_2" size={28} className="mx-auto text-white/60 mb-2" />
+            <p className="text-xs text-white/60">No SOI entries yet. Use Smart Paste to import from FSSAI portal.</p>
           </div>
         ) : (
           <div className="space-y-2">
@@ -266,7 +266,7 @@ export function SoiTab({ projectId, clientId }: Props) {
                     className="w-full flex items-center justify-between px-5 py-3 hover:bg-[#F8FAFC] text-left"
                   >
                     <div className="flex items-center gap-3">
-                      <Archive size={14} className="text-muted-foreground" />
+                      <Sym name="inventory_2" size={14} className="text-muted-foreground" />
                       <div>
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-medium text-brand-950">{formatDate(s.soi_date)}</span>
@@ -285,7 +285,7 @@ export function SoiTab({ projectId, clientId }: Props) {
                           {products.length} products
                         </span>
                       )}
-                      {isOpen ? <Plus size={13} className="rotate-45 text-muted-foreground" /> : <Plus size={13} className="text-muted-foreground" />}
+                      {isOpen ? <Sym name="add" size={13} className="rotate-45 text-muted-foreground" /> : <Sym name="add" size={13} className="text-muted-foreground" />}
                     </div>
                   </button>
 

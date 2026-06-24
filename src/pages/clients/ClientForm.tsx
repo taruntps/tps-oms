@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { X, AlertTriangle } from 'lucide-react'
+import { Sym } from '@/components/shared/Sym'
 import { useCreateClient, useUpdateClient, useClients, type Client } from '@/hooks/useClients'
 import { useAuth } from '@/contexts/AuthContext'
 import { toast } from '@/components/shared/Toast'
@@ -198,7 +198,7 @@ export function ClientForm({ client, onClose }: Props) {
 
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <h2 className="font-display font-semibold text-brand-950">{isEdit ? 'Edit Client' : 'Add Client'}</h2>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X size={16} /></button>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><Sym name="close" size={16} /></button>
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="overflow-y-auto flex-1 px-6 py-5">
@@ -293,7 +293,7 @@ export function ClientForm({ client, onClose }: Props) {
                 />
               ) : (
                 <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
-                  <AlertTriangle size={12} />
+                  <Sym name="warning" size={12} />
                   A placeholder ID (NOGSTN…) will be auto-assigned. You can update the real GSTIN later.
                 </div>
               )}
@@ -334,7 +334,7 @@ export function ClientForm({ client, onClose }: Props) {
           <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-6">
             <div className="flex items-start gap-3 mb-4">
               <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
-                <AlertTriangle size={18} className="text-amber-600" />
+                <Sym name="warning" size={18} className="text-amber-600" />
               </div>
               <div>
                 <h3 className="font-semibold text-brand-950 mb-1">Possible Duplicate</h3>

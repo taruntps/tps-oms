@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, IndianRupee } from 'lucide-react'
+import { Sym } from '@/components/shared/Sym'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -60,15 +60,15 @@ export function PaymentsTab({ projectId, clientId }: Props) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <IndianRupee size={15} className="text-green-600" />
-          <span className="text-sm font-semibold text-brand-950">Total Received: {formatRupees(total)}</span>
+          <Sym name="currency_rupee" size={15} className="text-emerald-300" />
+          <span className="text-sm font-semibold text-white">Total Received: {formatRupees(total)}</span>
         </div>
         <RoleGuard roles={['super_admin','director','manager','accounts']}>
           <button
             onClick={() => setShowForm(s => !s)}
-            className="flex items-center gap-1.5 text-sm text-brand-600 font-medium hover:text-brand-700"
+            className="flex items-center gap-1.5 text-sm text-white font-medium hover:text-white/80"
           >
-            <Plus size={13} />
+            <Sym name="add" size={13} />
             Record Payment
           </button>
         </RoleGuard>
@@ -114,10 +114,10 @@ export function PaymentsTab({ projectId, clientId }: Props) {
 
       {/* Payments list */}
       {isLoading ? (
-        <div className="space-y-2 animate-pulse">{[1,2].map(i => <div key={i} className="h-14 bg-white rounded-xl border border-border" />)}</div>
+        <div className="space-y-2 animate-pulse">{[1,2].map(i => <div key={i} className="h-14 glass-panel rounded-xl" />)}</div>
       ) : payments.length === 0 ? (
-        <div className="bg-white rounded-xl border border-dashed border-border p-8 text-center">
-          <p className="text-xs text-muted-foreground">No payments recorded yet.</p>
+        <div className="glass-panel rounded-xl border-dashed !border-white/20 p-8 text-center">
+          <p className="text-xs text-white/60">No payments recorded yet.</p>
         </div>
       ) : (
         <div className="space-y-2">

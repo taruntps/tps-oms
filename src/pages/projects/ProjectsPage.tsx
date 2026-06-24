@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, FolderOpen } from 'lucide-react'
+import { Sym } from '@/components/shared/Sym'
 import { TopBar } from '@/components/layout/TopBar'
 import { ClockBadge } from '@/components/shared/ClockBadge'
 import { ProjectForm } from './ProjectForm'
@@ -74,31 +74,31 @@ export default function ProjectsPage() {
 
       <div className="p-6 animate-fade-up space-y-5">
         {/* Scope: My Projects vs Overall (Overall only if Visibility flag) */}
-        <div className="inline-flex rounded-lg border border-border bg-[#F8FAFC] p-1 text-sm">
+        <div className="inline-flex rounded-lg border border-white/15 bg-white/10 p-1 text-sm">
           <button
             onClick={() => setScope('mine')}
             className={cn(
               'px-4 py-1.5 rounded-md font-medium transition-all',
-              effectiveScope === 'mine' ? 'bg-white text-brand-950 shadow-sm' : 'text-muted-foreground hover:text-brand-950'
+              effectiveScope === 'mine' ? 'bg-white/20 text-white' : 'text-white/60 hover:text-white'
             )}
           >
-            My Projects <span className="text-xs text-muted-foreground">({mineCount})</span>
+            My Projects <span className="text-xs text-white/45">({mineCount})</span>
           </button>
           {canViewAll && (
             <button
               onClick={() => setScope('all')}
               className={cn(
                 'px-4 py-1.5 rounded-md font-medium transition-all',
-                effectiveScope === 'all' ? 'bg-white text-brand-950 shadow-sm' : 'text-muted-foreground hover:text-brand-950'
+                effectiveScope === 'all' ? 'bg-white/20 text-white' : 'text-white/60 hover:text-white'
               )}
             >
-              Overall <span className="text-xs text-muted-foreground">({projects.length})</span>
+              Overall <span className="text-xs text-white/45">({projects.length})</span>
             </button>
           )}
         </div>
 
         {effectiveScope === 'all' && (
-          <p className="text-[11px] text-muted-foreground -mt-2">
+          <p className="text-[11px] text-white/60 -mt-2">
             Viewing all projects (read-only) — you can only edit projects assigned to you.
           </p>
         )}
@@ -106,7 +106,7 @@ export default function ProjectsPage() {
         {/* Search + filter + new */}
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Sym name="search" size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
@@ -115,14 +115,14 @@ export default function ProjectsPage() {
             />
           </div>
 
-          <div className="flex gap-1 bg-[#F8FAFC] p-1 rounded-lg border border-border">
+          <div className="flex gap-1 bg-white/10 p-1 rounded-lg border border-white/15">
             {STATUS_FILTERS.map(f => (
               <button
                 key={f.value}
                 onClick={() => setStatusFilter(f.value)}
                 className={cn(
                   'px-3 py-1 text-xs font-medium rounded-md transition-all',
-                  statusFilter === f.value ? 'bg-white text-brand-950 shadow-sm' : 'text-muted-foreground hover:text-brand-950'
+                  statusFilter === f.value ? 'bg-white/20 text-white' : 'text-white/60 hover:text-white'
                 )}
               >
                 {f.label}
@@ -135,7 +135,7 @@ export default function ProjectsPage() {
               onClick={() => setShowForm(true)}
               className="flex items-center gap-2 px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700"
             >
-              <Plus size={14} />
+              <Sym name="add" size={16} />
               New Project
             </button>
           )}
@@ -144,12 +144,12 @@ export default function ProjectsPage() {
         {/* Project list */}
         {isLoading ? (
           <div className="space-y-3 animate-pulse">
-            {[1,2,3].map(i => <div key={i} className="h-24 bg-white rounded-xl border border-border" />)}
+            {[1,2,3].map(i => <div key={i} className="h-24 glass-panel rounded-xl" />)}
           </div>
         ) : filtered.length === 0 ? (
-          <div className="bg-white rounded-xl border border-dashed border-border p-12 text-center">
-            <FolderOpen size={32} className="mx-auto text-muted-foreground/30 mb-3" />
-            <p className="text-sm text-muted-foreground">No projects found</p>
+          <div className="glass-panel rounded-xl border-dashed !border-white/20 p-12 text-center">
+            <Sym name="folder_open" size={34} className="mx-auto text-white/40 mb-3" />
+            <p className="text-sm text-white/60">No projects found</p>
           </div>
         ) : (
           <div className="space-y-3">

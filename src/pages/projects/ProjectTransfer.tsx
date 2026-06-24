@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowLeftRight, X, Check, Loader2, Clock } from 'lucide-react'
+import { Sym } from '@/components/shared/Sym'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { toast } from '@/components/shared/Toast'
@@ -42,7 +42,7 @@ export function TransferProjectButton({
   if (pending) {
     return (
       <span className="inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-lg border bg-amber-50 border-amber-200 text-amber-700">
-        <Clock size={11} />
+        <Sym name="schedule" size={11} />
         Transfer pending → {(pending as any).to_profile?.name ?? 'user'}
         {(pending.initiated_by === profile?.id || isAdmin) && (
           <button
@@ -74,9 +74,9 @@ export function TransferProjectButton({
     <>
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-1.5 text-sm px-3 py-1.5 border border-border rounded-lg hover:bg-[#F8FAFC]"
+        className="flex items-center gap-1.5 text-sm px-3 py-1.5 border border-white/20 text-white rounded-lg hover:bg-white/10"
       >
-        <ArrowLeftRight size={12} />
+        <Sym name="swap_horiz" size={12} />
         Transfer
       </button>
 
@@ -85,7 +85,7 @@ export function TransferProjectButton({
           <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl">
             <div className="flex items-center justify-between px-6 py-4 border-b border-border">
               <h2 className="font-display font-semibold text-brand-950">Transfer Project</h2>
-              <button onClick={() => setOpen(false)} className="text-muted-foreground hover:text-foreground"><X size={16} /></button>
+              <button onClick={() => setOpen(false)} className="text-muted-foreground hover:text-foreground"><Sym name="close" size={16} /></button>
             </div>
             <div className="px-6 py-5 space-y-4">
               <div>
@@ -114,7 +114,7 @@ export function TransferProjectButton({
               <button onClick={() => setOpen(false)} className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-[#F8FAFC]">Cancel</button>
               <button onClick={submit} disabled={initiate.isPending}
                 className="px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 disabled:opacity-50 flex items-center gap-1.5">
-                {initiate.isPending && <Loader2 size={13} className="animate-spin" />}
+                {initiate.isPending && <Sym name="progress_activity" size={13} className="animate-spin" />}
                 {isAdmin ? 'Reassign' : 'Send Request'}
               </button>
             </div>
@@ -144,7 +144,7 @@ export function IncomingTransfers() {
   return (
     <div className="bg-white rounded-xl border border-amber-200 overflow-hidden">
       <div className="px-5 py-3 bg-amber-50 border-b border-amber-200 flex items-center gap-2">
-        <ArrowLeftRight size={14} className="text-amber-600" />
+        <Sym name="swap_horiz" size={14} className="text-amber-600" />
         <h3 className="font-display font-semibold text-amber-800 text-sm">
           Incoming Transfer Requests ({transfers.length})
         </h3>
@@ -165,7 +165,7 @@ export function IncomingTransfers() {
             <div className="flex items-center gap-2 shrink-0">
               <button onClick={() => act(t.id, true)} disabled={respond.isPending}
                 className="flex items-center gap-1 text-xs px-3 py-1.5 bg-brand-600 text-white rounded-lg hover:bg-brand-700 disabled:opacity-50">
-                <Check size={12} /> Accept
+                <Sym name="check" size={12} /> Accept
               </button>
               <button onClick={() => act(t.id, false)} disabled={respond.isPending}
                 className="text-xs px-3 py-1.5 border border-border rounded-lg hover:bg-[#F8FAFC]">

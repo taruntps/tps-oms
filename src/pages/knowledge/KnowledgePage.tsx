@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { toast } from '@/components/shared/Toast'
 import { cn, formatDate } from '@/lib/utils'
-import { BookOpen, Plus, Search, ChevronDown, ChevronUp, Tag, X } from 'lucide-react'
+import { Sym } from '@/components/shared/Sym'
 import type { Tables } from '@/types/database'
 
 type Article = Tables<'knowledge_base'>
@@ -87,7 +87,7 @@ function ArticleForm({ initial, onSave, onCancel }: {
                 <span key={t} className="flex items-center gap-1 text-[10px] bg-brand-50 border border-brand-200 text-brand-700 px-1.5 py-0.5 rounded">
                   {t}
                   <button onClick={() => setTags(prev => prev.filter(x => x !== t))}>
-                    <X size={8} />
+                    <Sym name="close" size={8} />
                   </button>
                 </span>
               ))}
@@ -140,7 +140,7 @@ function ArticleCard({ article, onEdit }: { article: Article; onEdit: () => void
         onClick={() => setExpanded(e => !e)}
         className="w-full px-5 py-4 flex items-start gap-3 text-left hover:bg-[#F8FAFC] transition-colors"
       >
-        <BookOpen size={14} className="text-muted-foreground mt-0.5 shrink-0" />
+        <Sym name="menu_book" size={14} className="text-muted-foreground mt-0.5 shrink-0" />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className={cn('text-[10px] px-1.5 py-0.5 rounded font-medium', CATEGORY_COLOR[article.category] ?? 'bg-gray-100 text-gray-600')}>
@@ -155,14 +155,14 @@ function ArticleCard({ article, onEdit }: { article: Article; onEdit: () => void
             <div className="flex flex-wrap gap-1 mt-1.5">
               {article.tags.map(t => (
                 <span key={t} className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
-                  <Tag size={8} />{t}
+                  <Sym name="tag" size={8} />{t}
                 </span>
               ))}
             </div>
           ) : null}
           <p className="text-[10px] text-muted-foreground mt-1">{formatDate(article.updated_at)}</p>
         </div>
-        {expanded ? <ChevronUp size={14} className="text-muted-foreground shrink-0 mt-0.5" /> : <ChevronDown size={14} className="text-muted-foreground shrink-0 mt-0.5" />}
+        {expanded ? <Sym name="expand_less" size={14} className="text-muted-foreground shrink-0 mt-0.5" /> : <Sym name="expand_more" size={14} className="text-muted-foreground shrink-0 mt-0.5" />}
       </button>
 
       {expanded && (
@@ -252,12 +252,12 @@ export default function KnowledgePage() {
         {/* Toolbar */}
         <div className="flex items-center gap-3 flex-wrap">
           <div className="relative flex-1 min-w-48">
-            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Sym name="search" size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Search articles…"
-              className="w-full pl-9 pr-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-300"
+              className="w-full pl-9 pr-3 py-2 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-300"
             />
           </div>
           <RoleGuard roles={['super_admin','director','manager']}>
@@ -265,7 +265,7 @@ export default function KnowledgePage() {
               onClick={() => { setCreating(true); setEditing(null) }}
               className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium bg-brand-600 text-white rounded-lg hover:bg-brand-700"
             >
-              <Plus size={13} /> New Article
+              <Sym name="add" size={13} /> New Article
             </button>
           </RoleGuard>
         </div>
@@ -280,7 +280,7 @@ export default function KnowledgePage() {
                 'px-3 py-1.5 text-xs font-medium rounded-lg border transition-all',
                 category === c
                   ? 'bg-brand-600 text-white border-brand-700'
-                  : 'bg-white text-muted-foreground border-border hover:border-brand-300'
+                  : 'border border-white/20 text-white hover:bg-white/10'
               )}
             >{c}</button>
           ))}
@@ -306,12 +306,12 @@ export default function KnowledgePage() {
         {/* Article list */}
         {isLoading ? (
           <div className="space-y-3">
-            {[1, 2, 3].map(i => <div key={i} className="h-20 bg-white rounded-xl border border-border animate-pulse" />)}
+            {[1, 2, 3].map(i => <div key={i} className="h-20 glass-panel rounded-xl animate-pulse" />)}
           </div>
         ) : visible.length === 0 ? (
-          <div className="bg-white rounded-xl border border-dashed border-border p-12 text-center">
-            <BookOpen size={24} className="text-muted-foreground mx-auto mb-2" />
-            <p className="text-sm text-muted-foreground">
+          <div className="glass-panel rounded-xl border-dashed !border-white/20 p-12 text-center">
+            <Sym name="menu_book" size={24} className="text-white/60 mx-auto mb-2" />
+            <p className="text-sm text-white/60">
               {search ? 'No articles match your search' : 'No articles yet'}
             </p>
           </div>

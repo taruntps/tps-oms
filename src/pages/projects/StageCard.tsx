@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ChevronDown, ChevronRight, CheckCircle2, Clock, PlayCircle, XCircle, ArrowRightLeft, Send, Inbox } from 'lucide-react'
+import { Sym } from '@/components/shared/Sym'
 import { useUpdateStage, useUpdateProject } from '@/hooks/useProjects'
 import { supabase } from '@/lib/supabase'
 import { useQueryClient } from '@tanstack/react-query'
@@ -24,11 +24,11 @@ interface Props {
 }
 
 const STATUS_CONFIG = {
-  pending:     { icon: Clock,        cls: 'text-muted-foreground', bg: 'bg-gray-50 border-gray-200' },
-  in_progress: { icon: PlayCircle,   cls: 'text-brand-600',        bg: 'bg-brand-50 border-brand-200' },
-  completed:   { icon: CheckCircle2, cls: 'text-green-600',        bg: 'bg-green-50 border-green-200' },
-  blocked:     { icon: XCircle,      cls: 'text-red-600',          bg: 'bg-red-50 border-red-200' },
-  skipped:     { icon: XCircle,      cls: 'text-gray-400',         bg: 'bg-gray-50 border-gray-200' },
+  pending:     { icon: 'schedule',     cls: 'text-muted-foreground', bg: 'bg-gray-50 border-gray-200' },
+  in_progress: { icon: 'play_circle',  cls: 'text-brand-600',        bg: 'bg-brand-50 border-brand-200' },
+  completed:   { icon: 'check_circle', cls: 'text-green-600',        bg: 'bg-green-50 border-green-200' },
+  blocked:     { icon: 'cancel',       cls: 'text-red-600',          bg: 'bg-red-50 border-red-200' },
+  skipped:     { icon: 'cancel',       cls: 'text-gray-400',         bg: 'bg-gray-50 border-gray-200' },
 }
 
 // Stages that submit to FSSAI (require app_ref_no for licence activities)
@@ -53,7 +53,6 @@ export function StageCard({ stage, projectId, isBlocked, activeClock, serviceTyp
   const qc            = useQueryClient()
 
   const cfg  = STATUS_CONFIG[stage.status as keyof typeof STATUS_CONFIG] ?? STATUS_CONFIG.pending
-  const Icon = cfg.icon
   const isDone = stage.status === 'completed' || stage.status === 'skipped'
 
   // --- Derived action flags ---
@@ -140,7 +139,7 @@ export function StageCard({ stage, projectId, isBlocked, activeClock, serviceTyp
         <span className="w-6 h-6 rounded-full bg-white border border-border flex items-center justify-center text-[11px] font-mono text-muted-foreground shrink-0">
           {stage.stage_order}
         </span>
-        <Icon size={15} className={cn(cfg.cls, 'shrink-0')} />
+        <Sym name={cfg.icon} size={15} className={cn(cfg.cls, 'shrink-0')} />
         <span className="flex-1 text-sm font-medium text-brand-950 truncate">{stage.stage_name}</span>
 
         {/* Clock location badge */}
@@ -168,7 +167,7 @@ export function StageCard({ stage, projectId, isBlocked, activeClock, serviceTyp
         </span>
 
         <button onClick={() => setOpen(o => !o)} className="text-muted-foreground hover:text-brand-950">
-          {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+          {open ? <Sym name="expand_more" size={14} /> : <Sym name="chevron_right" size={14} />}
         </button>
       </div>
 
@@ -203,7 +202,7 @@ export function StageCard({ stage, projectId, isBlocked, activeClock, serviceTyp
                 {stage.status === 'pending' && (
                   <ActionBtn
                     label="Start"
-                    icon={<PlayCircle size={12} />}
+                    icon={<Sym name="play_circle" size={12} />}
                     color="brand"
                     onClick={() => changeStatus('in_progress', { started_at: new Date().toISOString() })}
                     loading={updateStage.isPending}
@@ -216,7 +215,7 @@ export function StageCard({ stage, projectId, isBlocked, activeClock, serviceTyp
                     {activeClock === 'employee' && !isClientStage && (
                       <ActionBtn
                         label="Move to Client"
-                        icon={<ArrowRightLeft size={12} />}
+                        icon={<Sym name="swap_horiz" size={12} />}
                         color="amber"
                         onClick={moveToClient}
                         loading={updateStage.isPending}
@@ -225,7 +224,7 @@ export function StageCard({ stage, projectId, isBlocked, activeClock, serviceTyp
                     {activeClock === 'employee' && (isFssaiSubmit || !isClientStage) && (
                       <ActionBtn
                         label="Submit to FSSAI"
-                        icon={<Send size={12} />}
+                        icon={<Sym name="send" size={12} />}
                         color="blue"
                         onClick={() => submitToFSSAI()}
                         loading={updateStage.isPending}
@@ -234,7 +233,7 @@ export function StageCard({ stage, projectId, isBlocked, activeClock, serviceTyp
                     {activeClock === 'client' && (
                       <ActionBtn
                         label="Received from Client"
-                        icon={<Inbox size={12} />}
+                        icon={<Sym name="inbox" size={12} />}
                         color="green"
                         onClick={receivedFromClient}
                         loading={updateStage.isPending}
@@ -243,7 +242,7 @@ export function StageCard({ stage, projectId, isBlocked, activeClock, serviceTyp
                     {activeClock === 'authority' && (
                       <ActionBtn
                         label="Received from FSSAI"
-                        icon={<Inbox size={12} />}
+                        icon={<Sym name="inbox" size={12} />}
                         color="green"
                         onClick={receivedFromFSSAI}
                         loading={updateStage.isPending}
@@ -254,7 +253,7 @@ export function StageCard({ stage, projectId, isBlocked, activeClock, serviceTyp
                     {activeClock === 'employee' && (
                       <ActionBtn
                         label={isLicenceIssued ? 'Licence Issued ✓' : 'Mark Complete'}
-                        icon={<CheckCircle2 size={12} />}
+                        icon={<Sym name="check_circle" size={12} />}
                         color="green"
                         onClick={markComplete}
                         loading={updateStage.isPending}
@@ -263,14 +262,14 @@ export function StageCard({ stage, projectId, isBlocked, activeClock, serviceTyp
 
                     {/* Skip */}
                     {(stage as any).is_skippable && !showSkipInput && (
-                      <ActionBtn label="Skip" icon={<XCircle size={12} />} color="gray"
+                      <ActionBtn label="Skip" icon={<Sym name="cancel" size={12} />} color="gray"
                         onClick={() => setShowSkipInput(true)} loading={false} />
                     )}
                   </>
                 )}
 
                 {stage.status === 'blocked' && (
-                  <ActionBtn label="Resume" icon={<PlayCircle size={12} />} color="brand"
+                  <ActionBtn label="Resume" icon={<Sym name="play_circle" size={12} />} color="brand"
                     onClick={() => changeStatus('in_progress')} loading={updateStage.isPending} />
                 )}
               </div>

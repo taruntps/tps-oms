@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, MessageSquareWarning, CheckCircle2, Hash, Clock, ChevronDown, ChevronRight } from 'lucide-react'
+import { Sym } from '@/components/shared/Sym'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -133,8 +133,8 @@ export function QueriesTab({ projectId, projectCode }: Props) {
           )}
         </div>
         <RoleGuard roles={['super_admin','director','manager','executive']}>
-          <button onClick={() => setShowForm(s => !s)} className="flex items-center gap-1.5 text-sm text-brand-600 font-medium hover:text-brand-700">
-            <Plus size={13} /> Record Query
+          <button onClick={() => setShowForm(s => !s)} className="flex items-center gap-1.5 text-sm text-white font-medium hover:text-white/80">
+            <Sym name="add" size={13} /> Record Query
           </button>
         </RoleGuard>
       </div>
@@ -175,11 +175,11 @@ export function QueriesTab({ projectId, projectCode }: Props) {
       )}
 
       {isLoading ? (
-        <div className="space-y-2 animate-pulse">{[1,2].map(i => <div key={i} className="h-20 bg-white rounded-xl border border-border" />)}</div>
+        <div className="space-y-2 animate-pulse">{[1,2].map(i => <div key={i} className="h-20 glass-panel rounded-xl" />)}</div>
       ) : queries.length === 0 ? (
-        <div className="bg-white rounded-xl border border-dashed border-border p-8 text-center">
-          <MessageSquareWarning size={28} className="mx-auto text-muted-foreground/30 mb-2" />
-          <p className="text-xs text-muted-foreground">No authority queries recorded.</p>
+        <div className="glass-panel rounded-xl border-dashed !border-white/20 p-8 text-center">
+          <Sym name="feedback" size={28} className="mx-auto text-white/60 mb-2" />
+          <p className="text-xs text-white/60">No authority queries recorded.</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -195,19 +195,19 @@ export function QueriesTab({ projectId, projectCode }: Props) {
                 {/* Header row */}
                 <div className="flex items-start gap-3 p-4">
                   <button onClick={() => toggleExpand(q.id)} className="text-muted-foreground hover:text-brand-950 mt-0.5 shrink-0">
-                    {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                    {isOpen ? <Sym name="expand_more" size={14} /> : <Sym name="chevron_right" size={14} />}
                   </button>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       {/* Query code */}
                       <span className="flex items-center gap-1 font-mono text-[11px] bg-[#F8FAFC] border border-border px-2 py-0.5 rounded text-brand-950 font-semibold">
-                        <Hash size={9} />{qCode}
+                        <Sym name="tag" size={9} />{qCode}
                       </span>
                       <span className={cn('text-[10px] px-2 py-0.5 rounded border font-medium', typeInfo?.color)}>
                         {typeInfo?.label}
                       </span>
                       {q.responded_at ? (
-                        <span className="flex items-center gap-1 text-[10px] text-green-600"><CheckCircle2 size={10} />Responded</span>
+                        <span className="flex items-center gap-1 text-[10px] text-green-600"><Sym name="check_circle" size={10} />Responded</span>
                       ) : isOverdue ? (
                         <span className="text-[10px] text-red-600 font-medium">⚠ Overdue</span>
                       ) : q.response_due ? (
@@ -215,7 +215,7 @@ export function QueriesTab({ projectId, projectCode }: Props) {
                       ) : null}
                       {(q as any).response_days && (
                         <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                          <Clock size={9} />{(q as any).response_days}d window
+                          <Sym name="schedule" size={9} />{(q as any).response_days}d window
                         </span>
                       )}
                     </div>

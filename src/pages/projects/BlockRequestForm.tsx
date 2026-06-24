@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { X } from 'lucide-react'
+import { Sym } from '@/components/shared/Sym'
 import { useSubmitBlockRequest } from '@/hooks/useProjects'
 import { useAuth } from '@/contexts/AuthContext'
 import { toast } from '@/components/shared/Toast'
@@ -56,7 +56,7 @@ export function BlockRequestForm({ projectId, projectCode, onClose }: Props) {
             <h2 className="font-display font-semibold text-brand-950">Request Block</h2>
             <p className="text-xs text-muted-foreground mt-0.5">{projectCode}</p>
           </div>
-          <button onClick={onClose}><X size={16} className="text-muted-foreground" /></button>
+          <button onClick={onClose}><Sym name="close" size={16} className="text-muted-foreground" /></button>
         </div>
 
         <div className="p-5 space-y-4">

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { X, Plus, Eye, EyeOff } from 'lucide-react'
+import { Sym } from '@/components/shared/Sym'
 import { useCreateLicense, useUpdateLicense, useStoreCredential, type License } from '@/hooks/useLicenses'
 import { useAuth } from '@/contexts/AuthContext'
 import { toast } from '@/components/shared/Toast'
@@ -129,7 +129,7 @@ export function LicenseForm({ clientId, license, onClose }: Props) {
       <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl max-h-[90vh] flex flex-col">
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <h2 className="font-display font-semibold text-brand-950">{isEdit ? 'Edit Licence' : 'Add FSSAI Licence'}</h2>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X size={16} /></button>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><Sym name="close" size={16} /></button>
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="overflow-y-auto flex-1 px-6 py-5 space-y-4">
@@ -170,7 +170,7 @@ export function LicenseForm({ clientId, license, onClose }: Props) {
                   onClick={() => setShowPassword(p => !p)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-brand-600"
                 >
-                  {showPassword ? <EyeOff size={13} /> : <Eye size={13} />}
+                  {showPassword ? <Sym name="visibility_off" size={13} /> : <Sym name="visibility" size={13} />}
                 </button>
               </div>
               <p className="text-[10px] text-muted-foreground mt-1">🔒 Encrypted and stored in Vault — never visible in plain text.</p>
@@ -202,7 +202,7 @@ export function LicenseForm({ clientId, license, onClose }: Props) {
                   disabled={!catInput}
                   className="px-3 py-2 bg-brand-600 text-white text-sm rounded-lg hover:bg-brand-700 disabled:opacity-40 flex items-center gap-1"
                 >
-                  <Plus size={13} />
+                  <Sym name="add" size={13} />
                 </button>
               </div>
               {categories.length === 0 && <p className="text-[11px] text-red-600 mt-1">Add at least one category</p>}

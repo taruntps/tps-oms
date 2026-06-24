@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Eye, EyeOff, Lock, Loader2 } from 'lucide-react'
+import { Sym } from '@/components/shared/Sym'
 import { useRevealCredential } from '@/hooks/useLicenses'
 import { toast } from '@/components/shared/Toast'
 
@@ -35,7 +35,7 @@ export function CredentialReveal({ licenseId, username }: Props) {
   if (!username) {
     return (
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        <Lock size={11} />
+        <Sym name="lock" size={11} />
         No credentials stored
       </div>
     )
@@ -44,7 +44,7 @@ export function CredentialReveal({ licenseId, username }: Props) {
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2 text-xs">
-        <Lock size={11} className="text-muted-foreground" />
+        <Sym name="lock" size={11} className="text-muted-foreground" />
         <span className="text-muted-foreground">Username:</span>
         <span className="font-mono text-brand-950">{username}</span>
       </div>
@@ -56,7 +56,7 @@ export function CredentialReveal({ licenseId, username }: Props) {
               {showPassword ? password : '•'.repeat(password.length)}
             </span>
             <button onClick={() => setShowPassword(v => !v)} className="text-amber-600 hover:text-amber-800">
-              {showPassword ? <EyeOff size={12} /> : <Eye size={12} />}
+              {showPassword ? <Sym name="visibility_off" size={12} /> : <Sym name="visibility" size={12} />}
             </button>
           </div>
           <span className="text-[10px] text-amber-600 font-mono">Auto-hides in 30s</span>
@@ -76,7 +76,7 @@ export function CredentialReveal({ licenseId, username }: Props) {
               disabled={reveal.isPending}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-600 text-white text-xs font-medium rounded-lg hover:bg-brand-700 disabled:opacity-50"
             >
-              {reveal.isPending ? <Loader2 size={11} className="animate-spin" /> : <Eye size={11} />}
+              {reveal.isPending ? <Sym name="progress_activity" size={11} className="animate-spin" /> : <Sym name="visibility" size={11} />}
               Reveal
             </button>
             <button onClick={() => setConfirming(false)} className="px-3 py-1.5 text-xs border border-border rounded-lg hover:bg-white">
@@ -89,7 +89,7 @@ export function CredentialReveal({ licenseId, username }: Props) {
           onClick={() => setConfirming(true)}
           className="flex items-center gap-1.5 text-xs text-brand-600 hover:text-brand-700 font-medium"
         >
-          <Eye size={11} />
+          <Sym name="visibility" size={11} />
           Reveal FSSAI Password
         </button>
       )}

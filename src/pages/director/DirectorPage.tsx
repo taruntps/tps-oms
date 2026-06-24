@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { TrendingUp, Users, FolderKanban, AlertTriangle, IndianRupee } from 'lucide-react'
+import { Sym } from '@/components/shared/Sym'
 import { TopBar } from '@/components/layout/TopBar'
 import { useDirectorStats, useProjectPipeline } from '@/hooks/useDashboard'
 import { formatRupees, formatDate, cn } from '@/lib/utils'
@@ -18,15 +18,15 @@ export default function DirectorPage() {
         {/* ── KPI row ── */}
         {loadingStats ? (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 animate-pulse">
-            {[1,2,3,4].map(i => <div key={i} className="h-24 bg-white rounded-xl border border-border" />)}
+            {[1,2,3,4].map(i => <div key={i} className="h-24 glass-panel rounded-xl" />)}
           </div>
         ) : stats && (
           <>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <KpiCard icon={FolderKanban}  label="Active Projects"  value={stats.active}        sub={`${stats.total} total`}        color="brand" />
-              <KpiCard icon={TrendingUp}    label="Completed"         value={stats.completed}     sub="all time"                      color="green" />
-              <KpiCard icon={Users}         label="Active Clients"    value={stats.activeClients} sub="registered"                    color="blue"  />
-              <KpiCard icon={AlertTriangle} label="Pending Blocks"    value={stats.pendingBlocks} sub="need approval"                 color={stats.pendingBlocks > 0 ? 'red' : 'gray'} />
+              <KpiCard icon="assignment"     label="Active Projects"  value={stats.active}        sub={`${stats.total} total`}        color="brand" />
+              <KpiCard icon="trending_up"    label="Completed"         value={stats.completed}     sub="all time"                      color="green" />
+              <KpiCard icon="groups"         label="Active Clients"    value={stats.activeClients} sub="registered"                    color="blue"  />
+              <KpiCard icon="warning"        label="Pending Blocks"    value={stats.pendingBlocks} sub="need approval"                 color={stats.pendingBlocks > 0 ? 'red' : 'gray'} />
             </div>
 
             {/* ── Revenue row ── */}
@@ -46,7 +46,7 @@ export default function DirectorPage() {
               </div>
               {stats.blocked > 0 && (
                 <p className="mt-3 text-xs text-red-600 flex items-center gap-1.5">
-                  <AlertTriangle size={11} />
+                  <Sym name="warning" size={11} />
                   {stats.blocked} project{stats.blocked > 1 ? 's' : ''} currently blocked — approval needed
                 </p>
               )}
@@ -56,10 +56,10 @@ export default function DirectorPage() {
 
         {/* ── Project pipeline ── */}
         <div>
-          <h2 className="font-display font-semibold text-brand-950 text-sm mb-3">Recent Project Pipeline</h2>
+          <h2 className="font-display font-semibold text-white text-sm mb-3">Recent Project Pipeline</h2>
           {loadingPipeline ? (
             <div className="space-y-2 animate-pulse">
-              {[1,2,3].map(i => <div key={i} className="h-16 bg-white rounded-xl border border-border" />)}
+              {[1,2,3].map(i => <div key={i} className="h-16 glass-panel rounded-xl" />)}
             </div>
           ) : (
             <div className="bg-white rounded-xl border border-border overflow-hidden">
@@ -118,23 +118,23 @@ export default function DirectorPage() {
 
 // ── Sub-components ──────────────────────────────────────────────────────────
 
-function KpiCard({ icon: Icon, label, value, sub, color }: {
-  icon: React.ElementType; label: string; value: number; sub: string;
+function KpiCard({ icon, label, value, sub, color }: {
+  icon: string; label: string; value: number; sub: string;
   color: 'brand' | 'green' | 'blue' | 'red' | 'gray'
 }) {
-  const cls = {
-    brand: 'bg-brand-50 border-brand-200 text-brand-600',
-    green: 'bg-green-50 border-green-200 text-green-600',
-    blue:  'bg-blue-50 border-blue-200 text-blue-600',
-    red:   'bg-red-50 border-red-200 text-red-600',
-    gray:  'bg-[#F8FAFC] border-border text-muted-foreground',
+  const iconColor = {
+    brand: 'text-primary-fixed-dim',
+    green: 'text-success-emerald',
+    blue:  'text-primary-fixed-dim',
+    red:   'text-red-300',
+    gray:  'text-white/50',
   }[color]
   return (
-    <div className={cn('rounded-xl border p-4', cls)}>
-      <Icon size={18} className="mb-2 opacity-80" />
-      <p className="text-3xl font-display font-bold">{value}</p>
-      <p className="text-xs font-semibold mt-0.5">{label}</p>
-      <p className="text-[11px] opacity-60 mt-0.5">{sub}</p>
+    <div className="glass-panel-heavy rounded-xl p-4">
+      <Sym name={icon} size={18} fill className={cn('mb-2', iconColor)} />
+      <p className="text-3xl font-display font-bold text-white">{value}</p>
+      <p className="text-xs font-semibold mt-0.5 text-white">{label}</p>
+      <p className="text-[11px] text-white/60 mt-0.5">{sub}</p>
     </div>
   )
 }
@@ -143,20 +143,20 @@ function RevenueCard({ label, value, color, note }: {
   label: string; value: number; note: string;
   color: 'green' | 'brand' | 'amber' | 'gray'
 }) {
-  const cls = {
-    green: 'bg-green-50 border-green-200',
-    brand: 'bg-brand-50 border-brand-200',
-    amber: 'bg-amber-50 border-amber-200',
-    gray:  'bg-[#F8FAFC] border-border',
+  const iconColor = {
+    green: 'text-success-emerald',
+    brand: 'text-primary-fixed-dim',
+    amber: 'text-warning-amber',
+    gray:  'text-white/50',
   }[color]
   return (
-    <div className={cn('rounded-xl border p-5', cls)}>
-      <div className="flex items-center gap-1.5 text-muted-foreground mb-1">
-        <IndianRupee size={13} />
-        <p className="text-xs font-medium">{label}</p>
+    <div className="glass-panel-heavy rounded-xl p-5">
+      <div className="flex items-center gap-1.5 mb-1">
+        <Sym name="currency_rupee" size={13} className={iconColor} />
+        <p className="text-xs font-medium text-white/70">{label}</p>
       </div>
-      <p className="text-2xl font-display font-bold text-brand-950">{formatRupees(value)}</p>
-      <p className="text-[11px] text-muted-foreground mt-1">{note}</p>
+      <p className="text-2xl font-display font-bold text-white">{formatRupees(value)}</p>
+      <p className="text-[11px] text-white/60 mt-1">{note}</p>
     </div>
   )
 }

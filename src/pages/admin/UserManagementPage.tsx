@@ -4,7 +4,7 @@ import { TopBar } from '@/components/layout/TopBar'
 import { supabase } from '@/lib/supabase'
 import { toast } from '@/components/shared/Toast'
 import { useAuth } from '@/contexts/AuthContext'
-import { UserPlus, Edit2, ToggleLeft, ToggleRight, Shield, Mail, KeyRound } from 'lucide-react'
+import { Sym } from '@/components/shared/Sym'
 import { cn } from '@/lib/utils'
 
 const ROLES = ['executive', 'manager', 'director', 'accounts', 'super_admin'] as const
@@ -114,13 +114,13 @@ export default function UserManagementPage() {
             onClick={() => { setEditUser(null); setShowForm(true) }}
             className="flex items-center gap-2 px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700"
           >
-            <UserPlus size={14} /> Invite User
+            <Sym name="person_add" size={14} /> Invite User
           </button>
         </div>
 
         {isLoading ? (
           <div className="space-y-3">
-            {[1,2,3].map(i => <div key={i} className="h-16 bg-white rounded-xl border animate-pulse" />)}
+            {[1,2,3].map(i => <div key={i} className="h-16 glass-panel rounded-xl animate-pulse" />)}
           </div>
         ) : (
           <div className="bg-white rounded-xl border border-border overflow-hidden">
@@ -186,7 +186,7 @@ export default function UserManagementPage() {
                                 canToggle ? 'cursor-pointer hover:opacity-75' : 'cursor-default'
                               )}
                             >
-                              {on ? <ToggleRight size={11} /> : <ToggleLeft size={11} />}
+                              {on ? <Sym name="toggle_on" size={11} /> : <Sym name="toggle_off" size={11} />}
                               {p.label}
                             </button>
                           )
@@ -200,7 +200,7 @@ export default function UserManagementPage() {
                           className="p-1.5 text-muted-foreground hover:text-brand-600 hover:bg-brand-50 rounded-lg"
                           title="Edit"
                         >
-                          <Edit2 size={13} />
+                          <Sym name="edit" size={13} />
                         </button>
                         {u.id !== profile?.id && (
                           <button
@@ -208,7 +208,7 @@ export default function UserManagementPage() {
                             className={cn('p-1.5 rounded-lg', u.is_active ? 'text-green-600 hover:bg-red-50 hover:text-red-600' : 'text-gray-400 hover:bg-green-50 hover:text-green-600')}
                             title={u.is_active ? 'Deactivate' : 'Activate'}
                           >
-                            {u.is_active ? <ToggleRight size={16} /> : <ToggleLeft size={16} />}
+                            {u.is_active ? <Sym name="toggle_on" size={16} /> : <Sym name="toggle_off" size={16} />}
                           </button>
                         )}
                       </div>
@@ -220,12 +220,12 @@ export default function UserManagementPage() {
           </div>
         )}
 
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-800">
+        <div className="glass-panel rounded-xl p-4 text-sm text-white">
           <div className="flex items-start gap-2">
-            <Shield size={14} className="mt-0.5 shrink-0" />
+            <Sym name="shield" size={14} className="mt-0.5 shrink-0 text-primary-fixed-dim" />
             <div>
               <p className="font-medium mb-1">Adding New Users</p>
-              <p className="text-xs text-blue-700">
+              <p className="text-xs text-white/70">
                 <strong>Invite via Email</strong> — user receives a link to set their own password.
                 <strong> Create with Password</strong> — you set the password directly; user can log in immediately without any email.
               </p>
@@ -324,7 +324,7 @@ function UserForm({ user, onClose, onSaved }: { user: UserRow | null; onClose: (
                     : 'bg-white text-muted-foreground hover:bg-[#F8FAFC]'
                 )}
               >
-                <Mail size={13} /> Invite via Email
+                <Sym name="mail" size={13} /> Invite via Email
               </button>
               <button
                 type="button"
@@ -336,7 +336,7 @@ function UserForm({ user, onClose, onSaved }: { user: UserRow | null; onClose: (
                     : 'bg-white text-muted-foreground hover:bg-[#F8FAFC]'
                 )}
               >
-                <KeyRound size={13} /> Create with Password
+                <Sym name="key" size={13} /> Create with Password
               </button>
             </div>
           )}

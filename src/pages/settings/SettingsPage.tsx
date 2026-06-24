@@ -3,7 +3,7 @@ import { TopBar } from '@/components/layout/TopBar'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { toast } from '@/components/shared/Toast'
-import { Settings, MessageCircle, Bell, ChevronDown, ChevronUp, CheckCircle, AlertCircle } from 'lucide-react'
+import { Sym } from '@/components/shared/Sym'
 import { cn } from '@/lib/utils'
 
 type BSP = 'interakt' | 'wati' | 'aisensy'
@@ -161,7 +161,7 @@ export default function SettingsPage() {
         <section className="bg-white rounded-xl border border-border">
           <div className="px-5 py-4 border-b border-border flex items-center gap-2.5">
             <div className="w-7 h-7 rounded-lg bg-green-100 flex items-center justify-center">
-              <MessageCircle size={14} className="text-green-700" />
+              <Sym name="chat" size={14} className="text-green-700" />
             </div>
             <div>
               <h2 className="text-sm font-semibold text-brand-950">WhatsApp Notifications</h2>
@@ -256,7 +256,7 @@ export default function SettingsPage() {
         <section className="bg-white rounded-xl border border-border">
           <div className="px-5 py-4 border-b border-border flex items-center gap-2.5">
             <div className="w-7 h-7 rounded-lg bg-brand-100 flex items-center justify-center">
-              <Bell size={14} className="text-brand-700" />
+              <Sym name="notifications" size={14} className="text-brand-700" />
             </div>
             <div>
               <h2 className="text-sm font-semibold text-brand-950">My Notification Number</h2>
@@ -291,7 +291,7 @@ export default function SettingsPage() {
               title={!isEnabled ? 'Enable WhatsApp notifications first' : undefined}
               className="flex items-center gap-2 text-sm text-brand-600 hover:text-brand-700 disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              <MessageCircle size={13} />
+              <Sym name="chat" size={13} />
               {testing ? 'Sending test…' : 'Send a test WhatsApp message to this number'}
             </button>
           </div>
@@ -305,14 +305,14 @@ export default function SettingsPage() {
           >
             <div className="flex items-center gap-2.5">
               <div className="w-7 h-7 rounded-lg bg-purple-100 flex items-center justify-center">
-                <Settings size={14} className="text-purple-700" />
+                <Sym name="settings" size={14} className="text-purple-700" />
               </div>
               <div className="text-left">
                 <h2 className="text-sm font-semibold text-brand-950">WhatsApp Template Setup</h2>
                 <p className="text-[11px] text-muted-foreground">5 templates to register with your BSP</p>
               </div>
             </div>
-            {showTemplates ? <ChevronUp size={14} className="text-muted-foreground" /> : <ChevronDown size={14} className="text-muted-foreground" />}
+            {showTemplates ? <Sym name="expand_less" size={14} className="text-muted-foreground" /> : <Sym name="expand_more" size={14} className="text-muted-foreground" />}
           </button>
 
           {showTemplates && (
@@ -320,7 +320,7 @@ export default function SettingsPage() {
               {REQUIRED_TEMPLATES.map(tpl => (
                 <div key={tpl.name} className="px-5 py-3.5">
                   <div className="flex items-start gap-2">
-                    <CheckCircle size={12} className="text-green-500 mt-0.5 shrink-0" />
+                    <Sym name="check_circle" size={12} className="text-green-500 mt-0.5 shrink-0" />
                     <div>
                       <p className="text-xs font-mono font-semibold text-brand-950">{tpl.name}</p>
                       <p className="text-[11px] text-muted-foreground mt-0.5">{tpl.desc}</p>
@@ -338,7 +338,7 @@ export default function SettingsPage() {
 
               <div className="px-5 py-3.5 bg-amber-50 rounded-b-xl">
                 <div className="flex items-start gap-2">
-                  <AlertCircle size={12} className="text-amber-600 mt-0.5 shrink-0" />
+                  <Sym name="error" size={12} className="text-amber-600 mt-0.5 shrink-0" />
                   <p className="text-[11px] text-amber-800">
                     Templates must be approved by WhatsApp/Meta via your BSP before they can be sent.
                     Approval takes 24–48 hours. Use the exact template names above.
@@ -352,7 +352,7 @@ export default function SettingsPage() {
         {/* pg_cron Setup */}
         <section className="bg-white rounded-xl border border-border p-5">
           <h2 className="text-sm font-semibold text-brand-950 mb-1 flex items-center gap-2">
-            <Settings size={14} className="text-muted-foreground" />
+            <Sym name="settings" size={14} className="text-muted-foreground" />
             pg_cron Schedule Setup
           </h2>
           <p className="text-xs text-muted-foreground mb-3">

@@ -1,9 +1,6 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import {
-  ArrowLeft, Pencil, Phone, User, Users, Calendar,
-  AlertTriangle, CheckCircle, Clock, RefreshCw, XCircle, Hash,
-} from 'lucide-react'
+import { Sym }             from '@/components/shared/Sym'
 import { TopBar }          from '@/components/layout/TopBar'
 import { RoleGuard }       from '@/components/shared/ProtectedRoute'
 import { ClockBadge }      from '@/components/shared/ClockBadge'
@@ -59,8 +56,8 @@ export default function ProjectDetailPage() {
       <div>
         <TopBar title="Project" />
         <div className="p-6 space-y-4 animate-pulse">
-          <div className="h-40 bg-white rounded-xl border border-border" />
-          <div className="h-64 bg-white rounded-xl border border-border" />
+          <div className="h-40 glass-panel rounded-xl" />
+          <div className="h-64 glass-panel rounded-xl" />
         </div>
       </div>
     )
@@ -153,8 +150,8 @@ export default function ProjectDetailPage() {
 
         {/* Back + actions row */}
         <div className="flex items-center justify-between flex-wrap gap-2">
-          <button onClick={() => navigate('/projects')} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-brand-950">
-            <ArrowLeft size={14} /> Back to Projects
+          <button onClick={() => navigate('/projects')} className="flex items-center gap-2 text-sm text-white/70 hover:text-white">
+            <Sym name="arrow_back" size={14} /> Back to Projects
           </button>
           <div className="flex items-center gap-2">
             {/* Transfer (shows pending badge if a transfer is awaiting acceptance) */}
@@ -167,15 +164,15 @@ export default function ProjectDetailPage() {
             )}
             {/* Edit */}
             <RoleGuard roles={['super_admin','director','manager']}>
-              <button onClick={() => setShowEditProject(true)} className="flex items-center gap-1.5 text-sm px-3 py-1.5 border border-border rounded-lg hover:bg-[#F8FAFC]">
-                <Pencil size={12} /> Edit
+              <button onClick={() => setShowEditProject(true)} className="flex items-center gap-1.5 text-sm px-3 py-1.5 border border-white/20 text-white rounded-lg hover:bg-white/10">
+                <Sym name="edit" size={12} /> Edit
               </button>
             </RoleGuard>
             {/* Cancel */}
             {canCancel && !isCancelled && (
               <button onClick={() => setShowCancelModal(true)}
-                className="flex items-center gap-1.5 text-sm px-3 py-1.5 border border-red-300 text-red-700 rounded-lg hover:bg-red-50">
-                <XCircle size={12} /> Cancel Project
+                className="flex items-center gap-1.5 text-sm px-3 py-1.5 border border-red-400/40 text-red-200 rounded-lg hover:bg-red-500/10">
+                <Sym name="cancel" size={12} /> Cancel Project
               </button>
             )}
           </div>
@@ -183,22 +180,22 @@ export default function ProjectDetailPage() {
 
         {/* Cancelled banner */}
         {isCancelled && (
-          <div className="bg-red-50 border border-red-300 rounded-xl px-5 py-3 flex items-center gap-3">
-            <XCircle size={15} className="text-red-600 shrink-0" />
+          <div className="glass-panel rounded-xl px-5 py-3 flex items-center gap-3 !bg-red-500/15 !border-red-400/30">
+            <Sym name="cancel" size={15} className="text-red-300 shrink-0" />
             <div>
-              <p className="text-sm font-semibold text-red-900">Project Cancelled</p>
-              {(project as any).cancel_reason && <p className="text-xs text-red-700">{(project as any).cancel_reason}</p>}
+              <p className="text-sm font-semibold text-white">Project Cancelled</p>
+              {(project as any).cancel_reason && <p className="text-xs text-white/70">{(project as any).cancel_reason}</p>}
             </div>
           </div>
         )}
 
         {/* Block approval card */}
         {canApprove && myPendingRequest && (
-          <div className="bg-amber-50 border border-amber-300 rounded-xl p-4 flex items-start gap-3">
-            <AlertTriangle size={16} className="text-amber-600 mt-0.5 shrink-0" />
+          <div className="glass-panel rounded-xl p-4 flex items-start gap-3 !bg-amber-500/15 !border-amber-400/30">
+            <Sym name="warning" size={16} className="text-warning-amber mt-0.5 shrink-0" />
             <div className="flex-1">
-              <p className="text-sm font-semibold text-amber-900">Block Request Pending Approval</p>
-              <p className="text-xs text-amber-700 mt-0.5">
+              <p className="text-sm font-semibold text-white">Block Request Pending Approval</p>
+              <p className="text-xs text-white/70 mt-0.5">
                 <strong>{(myPendingRequest as any).profiles?.name}</strong> —{' '}
                 {myPendingRequest.block_type.replace(/_/g, ' ')}: {myPendingRequest.reason}
               </p>
@@ -209,7 +206,7 @@ export default function ProjectDetailPage() {
                 Approve Block
               </button>
               <button onClick={() => handleApprove(myPendingRequest.id, false)} disabled={approveBlock.isPending}
-                className="px-3 py-1 border border-border text-xs rounded-lg hover:bg-white">
+                className="px-3 py-1 border border-white/20 text-white text-xs rounded-lg hover:bg-white/10">
                 Reject
               </button>
             </div>
@@ -218,18 +215,18 @@ export default function ProjectDetailPage() {
 
         {/* Blocked banner */}
         {project.is_blocked && (
-          <div className="bg-red-50 border border-red-300 rounded-xl px-5 py-3 flex items-center justify-between">
+          <div className="glass-panel rounded-xl px-5 py-3 flex items-center justify-between !bg-red-500/15 !border-red-400/30">
             <div className="flex items-center gap-2">
-              <AlertTriangle size={15} className="text-red-600" />
+              <Sym name="warning" size={15} className="text-red-300" />
               <div>
-                <p className="text-sm font-semibold text-red-900">Project Blocked</p>
-                {project.block_reason && <p className="text-xs text-red-700">{project.block_reason}</p>}
+                <p className="text-sm font-semibold text-white">Project Blocked</p>
+                {project.block_reason && <p className="text-xs text-white/70">{project.block_reason}</p>}
               </div>
             </div>
             <RoleGuard roles={['super_admin','director','manager']}>
               <button onClick={handleUnblock} disabled={unblock.isPending}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-red-300 text-red-700 text-xs font-medium rounded-lg hover:bg-red-50 disabled:opacity-50">
-                <RefreshCw size={11} /> Unblock
+                className="flex items-center gap-1.5 px-3 py-1.5 border border-red-400/40 text-red-200 text-xs font-medium rounded-lg hover:bg-red-500/10 disabled:opacity-50">
+                <Sym name="refresh" size={11} /> Unblock
               </button>
             </RoleGuard>
           </div>
@@ -266,24 +263,24 @@ export default function ProjectDetailPage() {
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 pt-4 border-t border-border">
-            <Detail icon={User}     label="Client"     value={(project as any).clients?.company_name} />
-            <Detail icon={Phone}    label="Phone"      value={(project as any).clients?.contact_phone} />
-            <Detail icon={Users}    label="Executive"  value={(project as any).profiles_assigned?.name} />
-            <Detail icon={Users}    label="Manager"    value={(project as any).profiles_manager?.name} />
-            <Detail icon={Calendar} label="Target"     value={formatDate(project.target_date)} />
-            <Detail icon={Clock}    label="Created"    value={formatDate(project.created_at)} />
+            <Detail icon="person"        label="Client"     value={(project as any).clients?.company_name} />
+            <Detail icon="call"          label="Phone"      value={(project as any).clients?.contact_phone} />
+            <Detail icon="groups"        label="Executive"  value={(project as any).profiles_assigned?.name} />
+            <Detail icon="groups"        label="Manager"    value={(project as any).profiles_manager?.name} />
+            <Detail icon="calendar_today" label="Target"    value={formatDate(project.target_date)} />
+            <Detail icon="schedule"      label="Created"    value={formatDate(project.created_at)} />
             {project.quoted_amount > 0 && (
-              <Detail icon={CheckCircle} label="Quoted" value={formatRupees(project.quoted_amount)} />
+              <Detail icon="check_circle" label="Quoted" value={formatRupees(project.quoted_amount)} />
             )}
             {project.paid_amount > 0 && (
-              <Detail icon={CheckCircle} label="Paid" value={formatRupees(project.paid_amount)} />
+              <Detail icon="check_circle" label="Paid" value={formatRupees(project.paid_amount)} />
             )}
           </div>
 
           {/* App Ref No field */}
           <div className="mt-4 pt-4 border-t border-border flex items-center gap-3">
             <div className="flex items-center gap-2 flex-1">
-              <Hash size={12} className="text-muted-foreground" />
+              <Sym name="tag" size={12} className="text-muted-foreground" />
               <span className="text-[11px] text-muted-foreground uppercase tracking-wide">App Ref No.</span>
               {appRefNo ? (
                 <span className="font-mono text-sm text-brand-950 font-medium">{appRefNo}</span>
@@ -319,25 +316,25 @@ export default function ProjectDetailPage() {
 
         {/* Current clock status bar — info only, changed by stage actions */}
         <div className={cn(
-          'rounded-xl border px-5 py-3 flex items-center justify-between flex-wrap gap-3',
-          activeClock === 'employee'  ? 'bg-green-50 border-green-200' :
-          activeClock === 'client'    ? 'bg-amber-50 border-amber-200' :
-          'bg-blue-50 border-blue-200'
+          'glass-panel rounded-xl px-5 py-3 flex items-center justify-between flex-wrap gap-3',
+          activeClock === 'employee'  ? '!bg-green-500/15 !border-green-400/30' :
+          activeClock === 'client'    ? '!bg-amber-500/15 !border-amber-400/30' :
+          '!bg-blue-500/15 !border-blue-400/30'
         )}>
           <div className="flex items-center gap-3">
             <span className="text-lg">{activeClock === 'employee' ? '🟢' : activeClock === 'client' ? '🟡' : '🔵'}</span>
             <div>
-              <p className="text-xs font-semibold text-brand-950">
+              <p className="text-xs font-semibold text-white">
                 {activeClock === 'employee' ? 'Currently with Employee' :
                  activeClock === 'client'   ? 'Currently with Client' : 'Currently with FSSAI Authority'}
               </p>
-              <p className="text-[11px] text-muted-foreground">Clock changes via stage action buttons in the Stages tab</p>
+              <p className="text-[11px] text-white/70">Clock changes via stage action buttons in the Stages tab</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             {canBlock && !project.is_blocked && !myPendingRequest && !isCancelled && (
               <button onClick={() => setShowBlockForm(true)}
-                className="px-3 py-1.5 text-xs rounded-lg border border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100 font-medium">
+                className="px-3 py-1.5 text-xs rounded-lg border border-amber-400/40 text-amber-200 hover:bg-amber-500/10 font-medium">
                 Request Block
               </button>
             )}
@@ -345,12 +342,12 @@ export default function ProjectDetailPage() {
         </div>
 
         {/* Tab bar */}
-        <div className="flex gap-0.5 bg-[#F8FAFC] p-1 rounded-xl border border-border overflow-x-auto">
+        <div className="flex gap-0.5 bg-white/10 p-1 rounded-xl border border-white/15 overflow-x-auto">
           {TABS.map(t => (
             <button key={t.key} onClick={() => setActiveTab(t.key)}
               className={cn(
                 'px-4 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap transition-all',
-                activeTab === t.key ? 'bg-white text-brand-950 shadow-sm' : 'text-muted-foreground hover:text-brand-950'
+                activeTab === t.key ? 'bg-white/20 text-white' : 'text-white/60 hover:text-white'
               )}
             >{t.label}</button>
           ))}
@@ -412,7 +409,7 @@ export default function ProjectDetailPage() {
           <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl p-6">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
-                <XCircle size={18} className="text-red-600" />
+                <Sym name="cancel" size={18} className="text-red-600" />
               </div>
               <div>
                 <h2 className="font-display font-semibold text-brand-950">Cancel Project</h2>
@@ -445,13 +442,13 @@ export default function ProjectDetailPage() {
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
-function Detail({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value?: string | null }) {
+function Detail({ icon, label, value }: { icon: string; label: string; value?: string | null }) {
   if (!value) return null
   return (
     <div>
       <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">{label}</p>
       <p className="text-xs font-medium text-brand-950 flex items-center gap-1">
-        <Icon size={10} className="text-muted-foreground shrink-0" />
+        <Sym name={icon} size={10} className="text-muted-foreground shrink-0" />
         {value}
       </p>
     </div>

@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { Plus, FileText, Download, Upload } from 'lucide-react'
+import { Sym } from '@/components/shared/Sym'
 import { useDocuments, useUploadDocument, useDocumentUrl } from '@/hooks/useDocuments'
 import { RoleGuard } from '@/components/shared/ProtectedRoute'
 import { useAuth } from '@/contexts/AuthContext'
@@ -79,7 +79,7 @@ export function DocumentsTab({ projectId, clientId }: Props) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <span className="text-xs text-muted-foreground">{documents.length} document{documents.length !== 1 ? 's' : ''}</span>
+        <span className="text-xs text-white/70">{documents.length} document{documents.length !== 1 ? 's' : ''}</span>
         <RoleGuard roles={['super_admin','director','manager','executive']}>
           <div className="flex items-center gap-2">
             <select
@@ -92,9 +92,9 @@ export function DocumentsTab({ projectId, clientId }: Props) {
             <button
               onClick={() => fileRef.current?.click()}
               disabled={upload.isPending}
-              className="flex items-center gap-1.5 text-sm text-brand-600 font-medium hover:text-brand-700 disabled:opacity-50"
+              className="flex items-center gap-1.5 text-sm text-white font-medium hover:text-white/80 disabled:opacity-50"
             >
-              {upload.isPending ? <Upload size={13} className="animate-bounce" /> : <Plus size={13} />}
+              {upload.isPending ? <Sym name="upload" size={13} className="animate-bounce" /> : <Sym name="add" size={13} />}
               Upload File
             </button>
             <input ref={fileRef} type="file" className="hidden" onChange={handleFileChange} />
@@ -103,17 +103,17 @@ export function DocumentsTab({ projectId, clientId }: Props) {
       </div>
 
       {isLoading ? (
-        <div className="space-y-2 animate-pulse">{[1,2,3].map(i => <div key={i} className="h-14 bg-white rounded-xl border border-border" />)}</div>
+        <div className="space-y-2 animate-pulse">{[1,2,3].map(i => <div key={i} className="h-14 glass-panel rounded-xl" />)}</div>
       ) : documents.length === 0 ? (
-        <div className="bg-white rounded-xl border border-dashed border-border p-8 text-center">
-          <FileText size={28} className="mx-auto text-muted-foreground/30 mb-2" />
-          <p className="text-xs text-muted-foreground">No documents uploaded yet.</p>
+        <div className="glass-panel rounded-xl border-dashed !border-white/20 p-8 text-center">
+          <Sym name="description" size={28} className="mx-auto text-white/60 mb-2" />
+          <p className="text-xs text-white/60">No documents uploaded yet.</p>
         </div>
       ) : (
         <div className="space-y-2">
           {documents.map(doc => (
             <div key={doc.id} className="bg-white rounded-xl border border-border px-4 py-3 flex items-center gap-3">
-              <FileText size={18} className="text-muted-foreground/50 shrink-0" />
+              <Sym name="description" size={18} className="text-muted-foreground/50 shrink-0" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-brand-950 truncate">{doc.file_name}</p>
                 <div className="flex items-center gap-2 mt-0.5 flex-wrap">
@@ -131,7 +131,7 @@ export function DocumentsTab({ projectId, clientId }: Props) {
                 className="text-muted-foreground hover:text-brand-600 shrink-0 disabled:opacity-50"
                 title="Download"
               >
-                <Download size={14} />
+                <Sym name="download" size={14} />
               </button>
             </div>
           ))}

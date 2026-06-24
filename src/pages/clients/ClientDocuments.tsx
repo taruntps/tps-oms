@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { Upload, FileText, Image as ImageIcon, Download, Trash2, X, Eye, Loader2 } from 'lucide-react'
+import { Sym } from '@/components/shared/Sym'
 import {
   useClientDocuments,
   useUploadClientDocument,
@@ -86,7 +86,7 @@ export function ClientDocuments({ clientId, canEdit }: Props) {
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
-        <h3 className="font-display font-semibold text-brand-950">Documents</h3>
+        <h3 className="font-display font-semibold text-white">Documents</h3>
         {canEdit && (
           <div className="flex items-center gap-2">
             <select
@@ -101,7 +101,7 @@ export function ClientDocuments({ clientId, canEdit }: Props) {
               disabled={upload.isPending}
               className="flex items-center gap-1.5 text-sm px-3 py-1.5 bg-brand-600 text-white rounded-lg hover:bg-brand-700 disabled:opacity-50"
             >
-              {upload.isPending ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
+              {upload.isPending ? <Sym name="progress_activity" size={13} className="animate-spin" /> : <Sym name="upload" size={13} />}
               Upload
             </button>
             <input
@@ -123,24 +123,24 @@ export function ClientDocuments({ clientId, canEdit }: Props) {
       )}
 
       {isLoading ? (
-        <div className="h-20 bg-white rounded-xl border border-border animate-pulse" />
+        <div className="h-20 glass-panel rounded-xl animate-pulse" />
       ) : docs.length === 0 ? (
         <div className="bg-white rounded-xl border border-dashed border-border p-8 text-center">
-          <FileText size={28} className="mx-auto text-muted-foreground/30 mb-2" />
+          <Sym name="description" size={28} className="mx-auto text-muted-foreground/30 mb-2" />
           <p className="text-sm text-muted-foreground">No documents uploaded yet.</p>
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-border divide-y divide-border">
           {docs.map(doc => {
             const isPdf = doc.mime_type === 'application/pdf'
-            const Icon = isPdf ? FileText : ImageIcon
+            const iconName = isPdf ? 'description' : 'image'
             const busy = busyId === doc.id
             return (
               <div key={doc.id} className="flex items-center gap-3 p-3">
                 <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded bg-brand-100 text-brand-800 shrink-0 w-20 justify-center">
                   {CATEGORY_LABEL[doc.category]?.split(' ')[0] ?? doc.category}
                 </span>
-                <Icon size={16} className="text-muted-foreground shrink-0" />
+                <Sym name={iconName} size={16} className="text-muted-foreground shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-brand-950 truncate">{doc.file_name}</p>
                   <p className="text-[11px] text-muted-foreground">
@@ -152,16 +152,16 @@ export function ClientDocuments({ clientId, canEdit }: Props) {
                 <div className="flex items-center gap-1 shrink-0">
                   <button onClick={() => openViewer(doc)} disabled={busy} title="View"
                     className="p-1.5 text-muted-foreground hover:text-brand-600 disabled:opacity-40">
-                    {busy ? <Loader2 size={14} className="animate-spin" /> : <Eye size={14} />}
+                    {busy ? <Sym name="progress_activity" size={14} className="animate-spin" /> : <Sym name="visibility" size={14} />}
                   </button>
                   <button onClick={() => download(doc)} disabled={busy} title="Download"
                     className="p-1.5 text-muted-foreground hover:text-brand-600 disabled:opacity-40">
-                    <Download size={14} />
+                    <Sym name="download" size={14} />
                   </button>
                   {canEdit && (
                     <button onClick={() => remove(doc)} title="Delete"
                       className="p-1.5 text-muted-foreground hover:text-red-600">
-                      <Trash2 size={14} />
+                      <Sym name="delete" size={14} />
                     </button>
                   )}
                 </div>
@@ -182,10 +182,10 @@ export function ClientDocuments({ clientId, canEdit }: Props) {
               <div className="flex items-center gap-2">
                 <button onClick={() => download(viewing.doc)}
                   className="flex items-center gap-1.5 text-xs px-3 py-1.5 border border-border rounded-lg hover:bg-[#F8FAFC]">
-                  <Download size={12} /> Download
+                  <Sym name="download" size={12} /> Download
                 </button>
                 <button onClick={() => setViewing(null)} className="text-muted-foreground hover:text-foreground">
-                  <X size={16} />
+                  <Sym name="close" size={16} />
                 </button>
               </div>
             </div>
