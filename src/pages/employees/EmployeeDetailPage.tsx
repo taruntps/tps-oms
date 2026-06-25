@@ -7,6 +7,11 @@ import { toast } from '@/components/shared/Toast'
 import {
   useEmployee, useEmployeeDetails, useUpsertEmployeeDetails, useUpdateEmployeeProfile,
 } from '@/hooks/useEmployees'
+import { useMyAttendanceDays } from '@/hooks/useAttendance'
+
+const fmtT = (iso?: string) => iso ? new Date(iso).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' }) : '—'
+const fmtD = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })
+const fmtH = (m?: number | null) => m == null ? '—' : `${Math.floor(m/60)}h ${Math.round(m%60)}m`
 
 export default function EmployeeDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -14,6 +19,7 @@ export default function EmployeeDetailPage() {
   const { profile } = useAuth()
   const { data: emp, isLoading } = useEmployee(id!)
   const { data: details } = useEmployeeDetails(id!)
+  const { data: attDays = [] } = useMyAttendanceDays(id!)
   const upsertDetails = useUpsertEmployeeDetails()
   const updateProfile = useUpdateEmployeeProfile()
 
@@ -136,9 +142,32 @@ export default function EmployeeDetailPage() {
           )}
         </Section>
 
-        {/* Attendance — Phase 2 */}
+        {/* Attendance */}
         <Section title="Attendance" icon="schedule">
-          <p className="text-sm text-muted-foreground">Attendance history will appear here once the attendance module is live.</p>
+          {attDays.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No attendance recorded yet.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="border-b border-border">
+                  <tr>{['Date','First In','Last Out','Hours','Punches'].map(h =>
+                    <th key={h} className="px-3 py-2 text-left text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">{h}</th>)}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {attDays.slice(0, 31).map((d: any) => (
+                    <tr key={d.work_date}>
+                      <td className="px-3 py-2 text-brand-950">{fmtD(d.work_date)}</td>
+                      <td className="px-3 py-2 font-mono text-xs">{fmtT(d.first_in)}</td>
+                      <td className="px-3 py-2 font-mono text-xs">{fmtT(d.last_out)}</td>
+                      <td className="px-3 py-2">{fmtH(d.worked_minutes)}</td>
+                      <td className="px-3 py-2 text-muted-foreground">{d.punch_count}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </Section>
       </div>
     </div>

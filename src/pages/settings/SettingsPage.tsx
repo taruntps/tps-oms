@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { toast } from '@/components/shared/Toast'
 import { Sym } from '@/components/shared/Sym'
 import { cn } from '@/lib/utils'
+import { AttendanceSettingsSection } from './AttendanceSettingsSection'
 
 type BSP = 'interakt' | 'wati' | 'aisensy'
 
@@ -156,6 +157,9 @@ export default function SettingsPage() {
       <TopBar title="Settings" subtitle="System configuration" />
 
       <div className="p-6 space-y-6 animate-fade-up max-w-2xl">
+
+        {/* Attendance & Geofence */}
+        <AttendanceSettingsSection />
 
         {/* WhatsApp Notifications */}
         <section className="bg-white rounded-xl border border-border">

@@ -5,7 +5,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
 import { toast } from '@/components/shared/Toast'
 import {
-  useAttendanceSettings, useTodayPunches, useMyAttendanceDays, usePunch,
+  useAttendanceSettings, useTodayPunches, useMyAttendanceDays, usePunch, useTeamToday,
 } from '@/hooks/useAttendance'
 
 const fmtTime = (iso: string) =>
@@ -42,7 +42,9 @@ function downscale(file: File): Promise<Blob> {
 }
 
 export default function AttendancePage() {
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
+  const canSeeTeam = ['super_admin','director','manager','hr'].includes(profile?.role ?? '')
+  const { data: team = [] } = useTeamToday()
   const { data: settings } = useAttendanceSettings()
   const { data: today = [] } = useTodayPunches(user?.id)
   const { data: days = [] } = useMyAttendanceDays(user?.id)
@@ -56,6 +58,14 @@ export default function AttendancePage() {
   const isLate = firstIn && expectedStart
     ? fmtTime(firstIn.punch_at) > expectedStart   // HH:MM string compare (IST)
     : false
+
+  // Group team punches per employee (managers/HR/admin only).
+  const teamRows = canSeeTeam ? Object.values(
+    (team as any[]).reduce((acc: any, p: any) => {
+      (acc[p.user_id] ??= { name: p.profiles?.name, code: p.profiles?.employee_code, punches: [] }).punches.push(p)
+      return acc
+    }, {})
+  ) as { name: string; code: string; punches: any[] }[] : []
 
   const doPunch = async (selfiePath?: string | null) => {
     try {
@@ -143,6 +153,48 @@ export default function AttendancePage() {
                 </span>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* Team — Today (managers/HR/admin) */}
+        {canSeeTeam && (
+          <div>
+            <h3 className="font-display font-semibold text-white text-sm mb-3">Team — Today ({teamRows.length} punched in)</h3>
+            {teamRows.length === 0 ? (
+              <div className="glass-panel rounded-xl border-dashed !border-white/20 p-6 text-center">
+                <p className="text-sm text-white/60">No one has punched in yet today.</p>
+              </div>
+            ) : (
+              <div className="bg-white rounded-xl border border-border overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-[#F8FAFC] border-b border-border">
+                    <tr>{['Emp ID','Name','First In','Last Punch','Punches','Status'].map(h =>
+                      <th key={h} className="px-4 py-2 text-left text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">{h}</th>)}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {teamRows.map(r => {
+                      const first = r.punches[0], last = r.punches[r.punches.length - 1]
+                      const ok = last.within_fence || last.is_field
+                      return (
+                        <tr key={r.code ?? r.name} className="hover:bg-[#F8FAFC]">
+                          <td className="px-4 py-2 font-mono text-xs text-brand-700">{r.code ?? '—'}</td>
+                          <td className="px-4 py-2 text-brand-950 font-medium">{r.name}</td>
+                          <td className="px-4 py-2 font-mono text-xs">{fmtTime(first.punch_at)}</td>
+                          <td className="px-4 py-2 font-mono text-xs">{fmtTime(last.punch_at)}</td>
+                          <td className="px-4 py-2 text-muted-foreground">{r.punches.length}</td>
+                          <td className="px-4 py-2">
+                            <span className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full ${ok ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                              {last.is_field ? 'Field' : ok ? 'At office' : 'Off-site'}
+                            </span>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
 
