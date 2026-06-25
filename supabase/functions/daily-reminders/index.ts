@@ -1,247 +1,164 @@
-// Supabase Edge Function: daily-reminders
-// Runs on a cron schedule (set in Supabase dashboard: 0 8 * * * → 8:00 AM IST)
-// Sends email (via Resend) + WhatsApp (via AiSensy) to each employee
-// with their assigned pending stages and overdue items.
+// Supabase Edge Function: daily-reminders  (ZeptoMail / India DC)
+// Cron: 09:00 IST (03:30 UTC). Sends, per active staff member, a digest of their
+// OPEN/OVERDUE tasks; and to each manager/director/admin, a digest of licences
+// expiring within 30 days. Dedupes via notification_log (one per kind/recipient/day).
+//
+// Manual test (no staff emailed, nothing logged):
+//   POST { "test": true, "to": "tarun@tpsxpert.com", "name": "Tarun" }
+//
+// Secrets: ZEPTOMAIL_TOKEN, MAIL_FROM, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY.
+// WhatsApp stays stubbed (reminder_settings.whatsapp_enabled) until AiSensy is live.
 
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-const RESEND_API_KEY      = Deno.env.get('RESEND_API_KEY')!
-const AISENSY_API_KEY     = Deno.env.get('AISENSY_API_KEY') ?? ''
-const AISENSY_CAMPAIGN    = Deno.env.get('AISENSY_DAILY_CAMPAIGN') ?? 'tps_daily_reminder'
-const SUPABASE_URL        = Deno.env.get('SUPABASE_URL')!
-const SUPABASE_SERVICE_KEY= Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-const FROM_EMAIL          = 'noreply@tpsxpert.com'
+const ZEPTO_URL = 'https://api.zeptomail.in/v1.1/email'
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
+const SERVICE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+const FROM = Deno.env.get('MAIL_FROM') ?? 'noreply@tpsxpert.com'
+const RAW = Deno.env.get('ZEPTOMAIL_TOKEN') ?? ''
+const AUTH = RAW.startsWith('Zoho-enczapikey') ? RAW : `Zoho-enczapikey ${RAW}`
+const MGR_ROLES = ['super_admin', 'director', 'manager']
+
+const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type' }
 
 serve(async (req) => {
-  // Allow manual trigger via POST with Authorization header
-  const isManual = req.method === 'POST'
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
+  if (!RAW) return j({ ok: false, error: 'ZEPTOMAIL_TOKEN not set' }, 500)
 
-  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+  const supabase = createClient(SUPABASE_URL, SERVICE)
+  let opts: any = {}
+  try { if (req.method === 'POST') opts = await req.json() } catch { /* */ }
+  const testTo: string | null = opts.test ? (opts.to ?? FROM) : null
+  const today = todayIST()
 
-  // Fetch all active staff with email + whatsapp
-  const { data: staff, error: staffErr } = await supabase
-    .from('profiles')
-    .select('id, name, phone, whatsapp_number')
-    .eq('is_active', true)
+  const { data: settings } = await supabase.from('reminder_settings').select('*').eq('id', true).maybeSingle()
+  if (!testTo && settings && settings.email_enabled === false) return j({ skipped: 'email disabled' })
 
-  if (staffErr) {
-    console.error('Failed to fetch staff', staffErr.message)
-    return new Response(JSON.stringify({ error: staffErr.message }), { status: 500 })
-  }
-
-  // Fetch auth emails for staff (need service role)
-  const { data: authUsers } = await supabase.auth.admin.listUsers()
+  const { data: au } = await supabase.auth.admin.listUsers()
   const emailMap: Record<string, string> = {}
-  for (const u of authUsers?.users ?? []) {
-    if (u.email) emailMap[u.id] = u.email
+  for (const u of au?.users ?? []) if (u.email) emailMap[u.id] = u.email
+
+  const { data: staff } = await supabase.from('profiles').select('id, name, role').eq('is_active', true)
+
+  const { data: tasks } = await supabase.from('tasks')
+    .select('id, title, priority, status, due_date, assigned_to, project:projects(project_code), client:clients(company_name)')
+    .in('status', ['open', 'in_progress'])
+  const tByUser: Record<string, any[]> = {}
+  for (const t of tasks ?? []) (tByUser[t.assigned_to] ??= []).push(t)
+
+  const { data: lic } = await supabase.from('licenses')
+    .select('id, license_type, license_number, expiry_date, client:clients(company_name)')
+    .eq('is_active', true).not('expiry_date', 'is', null).lte('expiry_date', addDays(today, 30)).order('expiry_date')
+
+  const sent: any[] = []
+
+  // ── TEST MODE: one combined email, no logging ──
+  if (testTo) {
+    const sample = (tasks ?? []).slice(0, 10)
+    const html = taskDigestHtml(opts.name ?? 'Tarun', splitDue(sample, today)) + licenceHtml(lic ?? [], today)
+    const ok = await sendMail(testTo, opts.name ?? 'Tarun', `[TPS OMS] Test digest — ${sample.length} task(s), ${(lic ?? []).length} licence(s)`, html)
+    return j({ ok, test: true, to: testTo, tasks: sample.length, licences: (lic ?? []).length })
   }
 
-  // Fetch all pending/in-progress stages with project + client info
-  const { data: stages, error: stagesErr } = await supabase
-    .from('stages')
-    .select(`
-      id, stage_name, clock_status, target_date, is_overdue,
-      project:projects!stages_project_id_fkey(
-        id, project_code, project_name, service_type,
-        assigned_to, manager_id,
-        client:clients!projects_client_id_fkey(company_name)
-      )
-    `)
-    .in('clock_status', ['employee', 'awaiting_client'])
-    .eq('is_completed', false)
-    .eq('is_skipped', false)
-    .not('project', 'is', null)
-
-  if (stagesErr) {
-    console.error('Failed to fetch stages', stagesErr.message)
+  // ── Per-staff TASK digests ──
+  for (const s of staff ?? []) {
+    const mine = tByUser[s.id] ?? []
+    if (mine.length === 0) continue
+    const email = emailMap[s.id]
+    if (!email) continue
+    if (await alreadySent(supabase, 'digest', null, s.id, today)) continue
+    const { overdue, upcoming } = splitDue(mine, today)
+    const ok = await sendMail(email, s.name, `[TPS OMS] Your tasks — ${overdue.length} overdue, ${upcoming.length} open`, taskDigestHtml(s.name, { overdue, upcoming }))
+    await logSent(supabase, 'digest', null, s.id)
+    sent.push({ uid: s.id, kind: 'task_digest', ok })
   }
 
-  const stageList = (stages ?? []) as any[]
-
-  // Group stages by assigned_to
-  const byEmployee: Record<string, { name: string; email: string; wa: string; items: any[] }> = {}
-
-  for (const s of stageList) {
-    const p = s.project
-    if (!p) continue
-    const assignees = [p.assigned_to, p.manager_id].filter(Boolean)
-    for (const uid of assignees) {
-      const profile = staff?.find(x => x.id === uid)
-      if (!profile) continue
-      if (!byEmployee[uid]) {
-        byEmployee[uid] = {
-          name:  profile.name,
-          email: emailMap[uid] ?? '',
-          wa:    profile.whatsapp_number ?? '',
-          items: [],
-        }
-      }
-      byEmployee[uid].items.push({
-        project_code: p.project_code,
-        project_name: p.project_name,
-        client:       p.client?.company_name ?? 'N/A',
-        service_type: p.service_type,
-        stage_name:   s.stage_name,
-        clock_status: s.clock_status,
-        target_date:  s.target_date,
-        is_overdue:   s.is_overdue,
-      })
+  // ── Manager LICENCE digest ──
+  if ((lic ?? []).length) {
+    const mgrs = (staff ?? []).filter(s => MGR_ROLES.includes(s.role))
+    for (const m of mgrs) {
+      const email = emailMap[m.id]
+      if (!email) continue
+      if (await alreadySent(supabase, 'licence_digest', null, m.id, today)) continue
+      const ok = await sendMail(email, m.name, `[TPS OMS] ${lic!.length} licence(s) expiring within 30 days`, licenceHtml(lic!, today))
+      await logSent(supabase, 'licence_digest', null, m.id)
+      sent.push({ uid: m.id, kind: 'licence_digest', ok })
     }
   }
 
-  const results: any[] = []
-
-  for (const [uid, emp] of Object.entries(byEmployee)) {
-    if (!emp.items.length) continue
-
-    // Build email
-    const overdue  = emp.items.filter(i => i.is_overdue)
-    const pending  = emp.items.filter(i => !i.is_overdue)
-    const emailHtml = buildEmailHtml(emp.name, overdue, pending)
-
-    // Send email via Resend
-    if (emp.email) {
-      try {
-        const res = await fetch('https://api.resend.com/emails', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${RESEND_API_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            from: `TPS Xperts OMS <${FROM_EMAIL}>`,
-            to:   [emp.email],
-            subject: `[TPS OMS] Daily Task Summary — ${emp.items.length} pending item${emp.items.length > 1 ? 's' : ''}`,
-            html: emailHtml,
-          }),
-        })
-        const json = await res.json()
-        console.log(`Email to ${emp.email}:`, json.id ?? json.error)
-        results.push({ uid, channel: 'email', status: res.ok ? 'sent' : 'failed' })
-      } catch (e: any) {
-        console.error('Email error', e.message)
-        results.push({ uid, channel: 'email', status: 'error', error: e.message })
-      }
-    }
-
-    // Send WhatsApp via AiSensy (when API key is available)
-    if (AISENSY_API_KEY && emp.wa) {
-      try {
-        // AiSensy template message — uses approved template
-        const waBody = buildWaMessage(emp.name, emp.items)
-        const res = await fetch('https://backend.aisensy.com/campaign/t1/api/v2', {
-          method: 'POST',
-          headers: {
-            'X-AiSensy-Project-API-Pwd': AISENSY_API_KEY,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            apiKey:            AISENSY_API_KEY,
-            campaignName:      AISENSY_CAMPAIGN,
-            destination:       emp.wa,
-            userName:          emp.name,
-            templateParams:    [emp.name, String(emp.items.length), waBody],
-            source:            'TPS_OMS_DAILY',
-            media:             {},
-            buttons:           [],
-            carouselCards:     [],
-            location:          {},
-          }),
-        })
-        console.log(`WhatsApp to ${emp.wa}:`, res.status)
-        results.push({ uid, channel: 'whatsapp', status: res.ok ? 'sent' : 'failed' })
-      } catch (e: any) {
-        console.error('WhatsApp error', e.message)
-        results.push({ uid, channel: 'whatsapp', status: 'error', error: e.message })
-      }
-    }
-  }
-
-  return new Response(
-    JSON.stringify({ sent: results.length, results, manual: isManual }),
-    { headers: { 'Content-Type': 'application/json' } }
-  )
+  return j({ ok: true, sent: sent.length, results: sent })
 })
 
-// ─── Helpers ───────────────────────────────────────────────────────────────
-
-function buildEmailHtml(name: string, overdue: any[], pending: any[]): string {
-  const tableRows = (items: any[], isOverdue: boolean) =>
-    items.map(i => `
-      <tr>
-        <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;font-weight:600;color:#1E3A5F;">${i.project_code}</td>
-        <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;color:#374151;">${i.client}</td>
-        <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;color:#374151;">${i.project_name}</td>
-        <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;color:#374151;">${i.stage_name}</td>
-        <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;color:${isOverdue ? '#DC2626' : '#374151'};">
-          ${i.target_date ?? 'No date'}${isOverdue ? ' ⚠️' : ''}
-        </td>
-      </tr>`).join('')
-
-  const overdueSection = overdue.length ? `
-    <h3 style="color:#DC2626;margin:24px 0 8px;">⚠️ Overdue (${overdue.length})</h3>
-    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;border:1px solid #FCA5A5;border-radius:8px;overflow:hidden;">
-      <thead><tr style="background:#FEF2F2;">
-        <th style="padding:10px 12px;text-align:left;color:#7F1D1D;font-size:11px;text-transform:uppercase;">Code</th>
-        <th style="padding:10px 12px;text-align:left;color:#7F1D1D;font-size:11px;text-transform:uppercase;">Client</th>
-        <th style="padding:10px 12px;text-align:left;color:#7F1D1D;font-size:11px;text-transform:uppercase;">Project</th>
-        <th style="padding:10px 12px;text-align:left;color:#7F1D1D;font-size:11px;text-transform:uppercase;">Stage</th>
-        <th style="padding:10px 12px;text-align:left;color:#7F1D1D;font-size:11px;text-transform:uppercase;">Target</th>
-      </tr></thead>
-      <tbody>${tableRows(overdue, true)}</tbody>
-    </table>` : ''
-
-  const pendingSection = pending.length ? `
-    <h3 style="color:#1E3A5F;margin:24px 0 8px;">📋 Pending (${pending.length})</h3>
-    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;">
-      <thead><tr style="background:#EFF6FF;">
-        <th style="padding:10px 12px;text-align:left;color:#1E3A8A;font-size:11px;text-transform:uppercase;">Code</th>
-        <th style="padding:10px 12px;text-align:left;color:#1E3A8A;font-size:11px;text-transform:uppercase;">Client</th>
-        <th style="padding:10px 12px;text-align:left;color:#1E3A8A;font-size:11px;text-transform:uppercase;">Project</th>
-        <th style="padding:10px 12px;text-align:left;color:#1E3A8A;font-size:11px;text-transform:uppercase;">Stage</th>
-        <th style="padding:10px 12px;text-align:left;color:#1E3A8A;font-size:11px;text-transform:uppercase;">Target</th>
-      </tr></thead>
-      <tbody>${tableRows(pending, false)}</tbody>
-    </table>` : ''
-
-  return `
-<!DOCTYPE html><html>
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#F3F4F6;font-family:Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0">
-    <tr><td align="center" style="padding:32px 16px;">
-      <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;">
-        <!-- Header -->
-        <tr><td style="background:#1E3A5F;border-radius:12px 12px 0 0;padding:24px 32px;">
-          <h1 style="color:#fff;margin:0;font-size:20px;">TPS Xperts OMS</h1>
-          <p style="color:#93C5FD;margin:4px 0 0;font-size:13px;">Daily Task Summary</p>
-        </td></tr>
-        <!-- Body -->
-        <tr><td style="background:#fff;border-radius:0 0 12px 12px;padding:24px 32px;">
-          <p style="color:#374151;margin:0 0 16px;">Hi <strong>${name}</strong>,</p>
-          <p style="color:#374151;margin:0 0 8px;">Here is your task summary for today. You have <strong>${overdue.length + pending.length} item(s)</strong> requiring attention.</p>
-          ${overdueSection}
-          ${pendingSection}
-          <p style="margin:32px 0 0;padding-top:16px;border-top:1px solid #f0f0f0;color:#9CA3AF;font-size:12px;">
-            This is an automated reminder from TPS Xperts OMS. Log in at <a href="https://portal.tpsxpert.com" style="color:#1E3A5F;">portal.tpsxpert.com</a>
-          </p>
-        </td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body></html>`
+// ── helpers ──
+async function sendMail(to: string, name: string, subject: string, html: string): Promise<boolean> {
+  try {
+    const res = await fetch(ZEPTO_URL, {
+      method: 'POST',
+      headers: { 'Authorization': AUTH, 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({ from: { address: FROM, name: 'TPS Xperts OMS' }, to: [{ email_address: { address: to, name: name || to } }], subject, htmlbody: html }),
+    })
+    return res.ok
+  } catch { return false }
 }
-
-function buildWaMessage(name: string, items: any[]): string {
-  const overdue = items.filter(i => i.is_overdue)
-  const lines = items.slice(0, 5).map(i =>
-    `• ${i.project_code} | ${i.client} | ${i.stage_name}${i.is_overdue ? ' ⚠️' : ''}`
-  )
-  if (items.length > 5) lines.push(`...and ${items.length - 5} more items`)
-  const msg = lines.join('\n')
-  if (overdue.length) {
-    return `⚠️ ${overdue.length} overdue!\n${msg}\n\nLog in: portal.tpsxpert.com`
-  }
-  return `${msg}\n\nLog in: portal.tpsxpert.com`
+async function alreadySent(sb: any, kind: string, ref: string | null, recipient: string, today: string) {
+  const q = sb.from('notification_log').select('id').eq('kind', kind).eq('recipient', recipient).eq('for_date', today)
+  const { data } = ref ? await q.eq('ref_id', ref).maybeSingle() : await q.is('ref_id', null).maybeSingle()
+  return !!data
 }
+async function logSent(sb: any, kind: string, ref: string | null, recipient: string) {
+  await sb.from('notification_log').insert({ kind, ref_id: ref, recipient, channel: 'email' })
+}
+function todayIST() { return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()) }
+function addDays(iso: string, n: number) { const d = new Date(iso + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10) }
+function splitDue(items: any[], today: string) {
+  return { overdue: items.filter(t => t.due_date && t.due_date < today), upcoming: items.filter(t => !(t.due_date && t.due_date < today)) }
+}
+function esc(s: any) { return String(s ?? '').replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]!)) }
+function taskRows(items: any[], overdue: boolean) {
+  return items.map(t => `<tr>
+    <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;font-weight:600;color:#1E3A5F;">${esc(t.title)}</td>
+    <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;color:#6B7280;">${esc(t.project?.project_code ?? t.client?.company_name ?? '—')}</td>
+    <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;color:#6B7280;text-transform:capitalize;">${esc(t.priority)}</td>
+    <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;color:${overdue ? '#DC2626' : '#374151'};">${t.due_date ?? 'No date'}${overdue ? ' ⚠️' : ''}</td>
+  </tr>`).join('')
+}
+function taskTable(title: string, color: string, bg: string, rows: string) {
+  return `<h3 style="color:${color};margin:20px 0 8px;">${title}</h3>
+  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;border:1px solid ${bg};border-radius:8px;overflow:hidden;">
+    <thead><tr style="background:${bg};"><th style="padding:9px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:${color};">Task</th><th style="padding:9px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:${color};">Ref</th><th style="padding:9px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:${color};">Priority</th><th style="padding:9px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:${color};">Due</th></tr></thead>
+    <tbody>${rows}</tbody></table>`
+}
+function shell(name: string, intro: string, body: string) {
+  return `<!DOCTYPE html><html><body style="margin:0;background:#F3F4F6;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:28px 16px;">
+  <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;">
+  <tr><td style="background:#1E3A5F;border-radius:12px 12px 0 0;padding:22px 30px;"><h1 style="color:#fff;margin:0;font-size:19px;">TPS Xperts OMS</h1><p style="color:#93C5FD;margin:4px 0 0;font-size:13px;">Daily Summary</p></td></tr>
+  <tr><td style="background:#fff;border-radius:0 0 12px 12px;padding:24px 30px;">
+  <p style="color:#374151;margin:0 0 6px;">Hi <strong>${esc(name)}</strong>,</p><p style="color:#374151;margin:0 0 4px;">${intro}</p>${body}
+  <p style="margin:28px 0 0;padding-top:14px;border-top:1px solid #f0f0f0;color:#9CA3AF;font-size:12px;">Automated reminder from TPS Xperts OMS · <a href="https://portal.tpsxpert.com" style="color:#1E3A5F;">portal.tpsxpert.com</a></p>
+  </td></tr></table></td></tr></table></body></html>`
+}
+function taskDigestHtml(name: string, d: { overdue: any[]; upcoming: any[] }) {
+  const body = (d.overdue.length ? taskTable(`⚠️ Overdue (${d.overdue.length})`, '#DC2626', '#FEF2F2', taskRows(d.overdue, true)) : '')
+    + (d.upcoming.length ? taskTable(`📋 Open (${d.upcoming.length})`, '#1E3A8A', '#EFF6FF', taskRows(d.upcoming, false)) : '')
+    + (!d.overdue.length && !d.upcoming.length ? '<p style="color:#6B7280;">No open tasks. 🎉</p>' : '')
+  return shell(name, `You have <strong>${d.overdue.length + d.upcoming.length}</strong> open task(s).`, body)
+}
+function licenceHtml(lic: any[], today: string) {
+  if (!lic.length) return ''
+  const rows = lic.map(l => {
+    const exp = l.expiry_date as string
+    const expired = exp < today
+    return `<tr>
+      <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;color:#374151;">${esc(l.client?.company_name ?? '—')}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;color:#374151;">${esc(l.license_type)}${l.license_number ? ' · ' + esc(l.license_number) : ''}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;color:${expired ? '#DC2626' : '#B45309'};">${exp}${expired ? ' (expired)' : ''}</td>
+    </tr>`
+  }).join('')
+  return `<h3 style="color:#B45309;margin:20px 0 8px;">📜 Licences expiring (${lic.length})</h3>
+  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;border:1px solid #FDE68A;border-radius:8px;overflow:hidden;">
+  <thead><tr style="background:#FFFBEB;"><th style="padding:9px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#92400E;">Client</th><th style="padding:9px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#92400E;">Licence</th><th style="padding:9px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#92400E;">Expiry</th></tr></thead>
+  <tbody>${rows}</tbody></table>`
+}
+function j(b: unknown, status = 200) { return new Response(JSON.stringify(b), { status, headers: { ...cors, 'Content-Type': 'application/json' } }) }

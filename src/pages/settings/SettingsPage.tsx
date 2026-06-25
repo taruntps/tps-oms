@@ -6,6 +6,7 @@ import { toast } from '@/components/shared/Toast'
 import { Sym } from '@/components/shared/Sym'
 import { cn } from '@/lib/utils'
 import { AttendanceSettingsSection } from './AttendanceSettingsSection'
+import { ReminderSettingsSection } from './ReminderSettingsSection'
 
 type BSP = 'interakt' | 'wati' | 'aisensy'
 
@@ -160,6 +161,9 @@ export default function SettingsPage() {
 
         {/* Attendance & Geofence */}
         <AttendanceSettingsSection />
+
+        {/* Email & Reminders (task digest + urgent alerts) */}
+        <ReminderSettingsSection />
 
         {/* WhatsApp Notifications */}
         <section className="bg-white rounded-xl border border-border">
