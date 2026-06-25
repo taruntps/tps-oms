@@ -568,6 +568,68 @@ export type Database = {
           },
         ]
       }
+      employee_details: {
+        Row: {
+          aadhar_no: string | null
+          created_at: string
+          date_of_birth: string | null
+          date_of_joining: string | null
+          emergency_contact: string | null
+          father_name: string | null
+          higher_qualification: string | null
+          home_phone: string | null
+          local_address: string | null
+          mother_name: string | null
+          pan_no: string | null
+          permanent_address: string | null
+          personal_email: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          aadhar_no?: string | null
+          created_at?: string
+          date_of_birth?: string | null
+          date_of_joining?: string | null
+          emergency_contact?: string | null
+          father_name?: string | null
+          higher_qualification?: string | null
+          home_phone?: string | null
+          local_address?: string | null
+          mother_name?: string | null
+          pan_no?: string | null
+          permanent_address?: string | null
+          personal_email?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          aadhar_no?: string | null
+          created_at?: string
+          date_of_birth?: string | null
+          date_of_joining?: string | null
+          emergency_contact?: string | null
+          father_name?: string | null
+          higher_qualification?: string | null
+          home_phone?: string | null
+          local_address?: string | null
+          mother_name?: string | null
+          pan_no?: string | null
+          permanent_address?: string | null
+          personal_email?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_details_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       knowledge_base: {
         Row: {
           category: string
@@ -885,9 +947,14 @@ export type Database = {
           can_edit_clients: boolean
           can_view_all_projects: boolean
           created_at: string
+          department: string | null
+          designation: string | null
           email: string
+          employee_code: string | null
+          hod_email: string | null
           id: string
           is_active: boolean
+          is_field_staff: boolean
           name: string
           phone: string | null
           role: Database["public"]["Enums"]["user_role"]
@@ -901,9 +968,14 @@ export type Database = {
           can_edit_clients?: boolean
           can_view_all_projects?: boolean
           created_at?: string
+          department?: string | null
+          designation?: string | null
           email: string
+          employee_code?: string | null
+          hod_email?: string | null
           id: string
           is_active?: boolean
+          is_field_staff?: boolean
           name: string
           phone?: string | null
           role?: Database["public"]["Enums"]["user_role"]
@@ -917,9 +989,14 @@ export type Database = {
           can_edit_clients?: boolean
           can_view_all_projects?: boolean
           created_at?: string
+          department?: string | null
+          designation?: string | null
           email?: string
+          employee_code?: string | null
+          hod_email?: string | null
           id?: string
           is_active?: boolean
+          is_field_staff?: boolean
           name?: string
           phone?: string | null
           role?: Database["public"]["Enums"]["user_role"]

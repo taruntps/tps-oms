@@ -17,6 +17,8 @@ import SettingsPage from '@/pages/settings/SettingsPage'
 import PerformancePage from '@/pages/reports/PerformancePage'
 import KnowledgePage from '@/pages/knowledge/KnowledgePage'
 import UserManagementPage from '@/pages/admin/UserManagementPage'
+import EmployeesPage from '@/pages/employees/EmployeesPage'
+import EmployeeDetailPage from '@/pages/employees/EmployeeDetailPage'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -70,7 +72,16 @@ export default function App() {
               <Route path="clients/:id" element={<ClientDetailPage />} />
               <Route path="projects" element={<ProjectsPage />} />
               <Route path="projects/:id" element={<ProjectDetailPage />} />
-              <Route path="employees/*"          element={<ComingSoon title="Employees" />} />
+              <Route path="employees"           element={
+                <ProtectedRoute allowedRoles={['super_admin','director','manager','hr']}>
+                  <EmployeesPage />
+                </ProtectedRoute>
+              } />
+              <Route path="employees/:id"       element={
+                <ProtectedRoute allowedRoles={['super_admin','director','manager','hr','executive','accounts','auditor']}>
+                  <EmployeeDetailPage />
+                </ProtectedRoute>
+              } />
               <Route path="knowledge"           element={<KnowledgePage />} />
               <Route path="reports/performance" element={
                 <ProtectedRoute allowedRoles={['super_admin','director','manager']}>
@@ -99,17 +110,3 @@ export default function App() {
 
 // Suppress unused import warning — RoleGuard is exported for page-level use
 void RoleGuard
-
-function ComingSoon({ title }: { title: string }) {
-  return (
-    <div className="p-6">
-      <div className="page-header">
-        <h1 className="page-title">{title}</h1>
-        <p className="page-subtitle">This module is being built — check back soon.</p>
-      </div>
-      <div className="bg-white rounded-xl border border-dashed border-border p-12 text-center">
-        <p className="text-muted-foreground text-sm">Coming in next task</p>
-      </div>
-    </div>
-  )
-}
