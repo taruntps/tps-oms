@@ -64,6 +64,17 @@ export default function UserManagementPage() {
   const qc = useQueryClient()
   const [showForm, setShowForm] = useState(false)
   const [editUser, setEditUser] = useState<UserRow | null>(null)
+  const [resetUser, setResetUser] = useState<UserRow | null>(null)
+  const [newPwd, setNewPwd] = useState('')
+
+  const resetPassword = useMutation({
+    mutationFn: async ({ id, password }: { id: string; password: string }) => {
+      const { error } = await (supabase.rpc as any)('admin_reset_password', { p_user_id: id, p_new_password: password })
+      if (error) throw error
+    },
+    onSuccess: () => { toast.success('Password reset'); setResetUser(null); setNewPwd('') },
+    onError: (e: Error) => toast.error('Failed', e.message),
+  })
 
   const { data: users = [], isLoading } = useQuery({
     queryKey: ['profiles', 'all'],
@@ -170,8 +181,11 @@ export default function UserManagementPage() {
                     <td className="px-5 py-3">
                       <div className="flex flex-wrap gap-1.5 max-w-[280px]">
                         {PERMISSIONS.map(p => {
-                          const on = !!u[p.field]
-                          const canToggle = profile?.role === 'super_admin' && u.id !== profile?.id
+                          // super_admin / director always have every right implicitly,
+                          // so show those chips as ON (not a greyed "off").
+                          const implicitlyFull = u.role === 'super_admin' || u.role === 'director'
+                          const on = implicitlyFull ? true : !!u[p.field]
+                          const canToggle = profile?.role === 'super_admin' && u.id !== profile?.id && !implicitlyFull
                           return (
                             <button
                               key={p.field}
@@ -202,6 +216,15 @@ export default function UserManagementPage() {
                         >
                           <Sym name="edit" size={13} />
                         </button>
+                        {profile?.role === 'super_admin' && (
+                          <button
+                            onClick={() => { setResetUser(u); setNewPwd('') }}
+                            className="p-1.5 text-muted-foreground hover:text-amber-600 hover:bg-amber-50 rounded-lg"
+                            title="Reset password"
+                          >
+                            <Sym name="key" size={13} />
+                          </button>
+                        )}
                         {u.id !== profile?.id && (
                           <button
                             onClick={() => toggleActive.mutate({ id: u.id, is_active: !u.is_active })}
@@ -241,6 +264,37 @@ export default function UserManagementPage() {
           onClose={() => { setShowForm(false); setEditUser(null) }}
           onSaved={() => { qc.invalidateQueries({ queryKey: ['profiles'] }); setShowForm(false); setEditUser(null) }}
         />
+      )}
+
+      {/* Reset password modal */}
+      {resetUser && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-6">
+            <h2 className="font-display font-semibold text-brand-950 mb-1">Reset password</h2>
+            <p className="text-xs text-muted-foreground mb-4">
+              Set a new password for <strong>{resetUser.name}</strong>. They'll use it on their next login.
+            </p>
+            <label className="block text-xs font-medium text-brand-950 mb-1">New password</label>
+            <input
+              type="text"
+              value={newPwd}
+              onChange={e => setNewPwd(e.target.value)}
+              placeholder="At least 6 characters"
+              className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-600/20"
+              autoFocus
+            />
+            <div className="flex justify-end gap-3 mt-5">
+              <button onClick={() => { setResetUser(null); setNewPwd('') }}
+                className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-[#F8FAFC]">Cancel</button>
+              <button
+                onClick={() => resetPassword.mutate({ id: resetUser.id, password: newPwd })}
+                disabled={newPwd.length < 6 || resetPassword.isPending}
+                className="px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 disabled:opacity-50">
+                {resetPassword.isPending ? 'Saving…' : 'Reset Password'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

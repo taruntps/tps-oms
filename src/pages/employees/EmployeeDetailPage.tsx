@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { TopBar } from '@/components/layout/TopBar'
 import { Sym } from '@/components/shared/Sym'
 import { useAuth } from '@/contexts/AuthContext'
+import { supabase } from '@/lib/supabase'
 import { toast } from '@/components/shared/Toast'
 import {
   useEmployee, useEmployeeDetails, useUpsertEmployeeDetails, useUpdateEmployeeProfile,
@@ -26,6 +27,20 @@ export default function EmployeeDetailPage() {
   const canManage = ['super_admin','director','hr'].includes(profile?.role ?? '')  // HR/admin
   const isSelf    = profile?.id === id
   const canEditDetails = canManage || isSelf
+
+  // Self password change
+  const [pwd, setPwd] = useState('')
+  const [savingPwd, setSavingPwd] = useState(false)
+  const changeMyPassword = async () => {
+    if (pwd.length < 6) { toast.error('Password must be at least 6 characters'); return }
+    try {
+      setSavingPwd(true)
+      const { error } = await supabase.auth.updateUser({ password: pwd })
+      if (error) throw error
+      toast.success('Password changed')
+      setPwd('')
+    } catch (e: any) { toast.error('Failed', e.message) } finally { setSavingPwd(false) }
+  }
 
   // Operational (profile) fields — admin only
   const [ops, setOps] = useState({ employee_code: '', designation: '', department: '', hod_email: '', is_field_staff: false })
@@ -141,6 +156,23 @@ export default function EmployeeDetailPage() {
             </>
           )}
         </Section>
+
+        {/* Change my password (self only) */}
+        {isSelf && (
+          <Section title="Account Security" icon="lock">
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="flex-1 min-w-[220px]">
+                <label className="block text-xs font-medium text-brand-950 mb-1">New password</label>
+                <input type="text" className={ic(false)} value={pwd} onChange={e=>setPwd(e.target.value)} placeholder="At least 6 characters" />
+              </div>
+              <button onClick={changeMyPassword} disabled={savingPwd || pwd.length < 6}
+                className="px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 disabled:opacity-50">
+                {savingPwd ? 'Saving…' : 'Change Password'}
+              </button>
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-2">You can change your own password here at any time.</p>
+          </Section>
+        )}
 
         {/* Attendance */}
         <Section title="Attendance" icon="schedule">
