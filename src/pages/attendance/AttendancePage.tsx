@@ -65,8 +65,8 @@ export default function AttendancePage() {
         `Accuracy-checked · ${res.distance_m} m from office`
       )
     } catch (e: any) {
-      const msg = e?.code === 1 ? 'Location permission denied — allow location for this site and retry.'
-        : e?.code === 2 ? 'Location unavailable — turn on GPS/location services.'
+      const msg = e?.code === 1 ? 'Location is blocked for this site. Allow it (see the help below the button), then retry.'
+        : e?.code === 2 ? 'Location unavailable — turn on GPS / location services and retry.'
         : e?.code === 3 ? 'Location timed out — move to an open area and retry.'
         : e?.message ?? 'Could not punch'
       toast.error('Punch failed', msg)
@@ -87,8 +87,9 @@ export default function AttendancePage() {
       streamRef.current = stream
       setCamOpen(true)
     } catch (e: any) {
-      const msg = e?.name === 'NotAllowedError' ? 'Camera permission denied — allow camera access and retry.'
+      const msg = e?.name === 'NotAllowedError' ? 'Camera is blocked for this site. Re-enable it (see the help below the button), then retry.'
         : e?.name === 'NotFoundError' ? 'No camera found on this device.'
+        : e?.name === 'NotReadableError' ? 'Camera is busy in another app — close it and retry.'
         : e?.message ?? 'Could not open the camera'
       toast.error('Camera error', msg)
     }
@@ -159,6 +160,19 @@ export default function AttendancePage() {
             </p>
           )}
         </div>
+
+        {/* Permissions help */}
+        <details className="bg-white/10 border border-white/15 rounded-xl text-white/80 text-xs">
+          <summary className="cursor-pointer select-none px-4 py-3 flex items-center gap-2 font-medium">
+            <Sym name="help" size={14} /> Camera / Location not asking? Tap here
+          </summary>
+          <div className="px-4 pb-4 space-y-2 text-white/70 leading-relaxed">
+            <p>The first time you punch, your browser asks to allow <strong>Location</strong>{settings?.selfie_required && ' and Camera'}. Tap <strong>Allow</strong>. If you tapped “Don’t Allow” earlier, the browser won’t ask again — you must re-enable it:</p>
+            <p><strong>iPhone (Safari):</strong> tap the <strong>“ぁあ / AA”</strong> icon at the left of the address bar → <strong>Website Settings</strong> → set <strong>Camera</strong> &amp; <strong>Location</strong> to <strong>Allow</strong> → reload. Also ensure Settings ▸ Safari ▸ Camera/Location aren’t set to Deny, and Settings ▸ Privacy ▸ Location ▸ Safari is On.</p>
+            <p><strong>Android (Chrome):</strong> tap the <strong>🔒 lock</strong> icon → <strong>Permissions</strong> → allow <strong>Camera</strong> &amp; <strong>Location</strong> → reload.</p>
+            <p><strong>Desktop:</strong> click the <strong>🔒 lock</strong> / camera icon in the address bar → allow Camera &amp; Location → reload. (Desktop GPS is approximate — punch from a phone.)</p>
+          </div>
+        </details>
 
         {/* Today's punches */}
         {today.length > 0 && (
