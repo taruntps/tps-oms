@@ -13,7 +13,7 @@ import { BlockRequestForm } from './BlockRequestForm'
 import { TransferProjectButton } from './ProjectTransfer'
 import {
   useProject, useUpdateProject, useApproveBlockRequest,
-  useUnblockProject, usePendingBlockRequests,
+  useUnblockProject, usePendingBlockRequests, useDeleteProject,
 } from '@/hooks/useProjects'
 import { useAuth }   from '@/contexts/AuthContext'
 import { supabase }  from '@/lib/supabase'
@@ -41,6 +41,7 @@ export default function ProjectDetailPage() {
   const updateProject  = useUpdateProject()
   const approveBlock   = useApproveBlockRequest()
   const unblock        = useUnblockProject()
+  const deleteProject  = useDeleteProject()
   const { data: pendingRequests = [] } = usePendingBlockRequests()
 
   const [showBlockForm,   setShowBlockForm]   = useState(false)
@@ -75,6 +76,7 @@ export default function ProjectDetailPage() {
   const canBlock   = ['executive','manager','director','super_admin'].includes(profile?.role ?? '')
   const canApprove = ['manager','director','super_admin'].includes(profile?.role ?? '')
   const canCancel  = ['manager','director','super_admin'].includes(profile?.role ?? '')
+  const isAdmin    = profile?.role === 'super_admin' || profile?.role === 'director'
   const isCancelled = project.status === 'cancelled'
   const isCompleted = project.status === 'completed'
   // Transfer: assignee of this project, an Assigner, or admin.
@@ -110,6 +112,16 @@ export default function ProjectDetailPage() {
       await unblock.mutateAsync(id!)
       toast.success('Unblocked', 'Project back to employee clock.')
     } catch (err: any) { toast.error('Failed', err.message) }
+  }
+
+  // ── Delete project (admin, permanent) ────────────────────────────────────
+  const handleDelete = async () => {
+    if (!confirm(`Permanently DELETE project ${project.project_code} "${project.project_name}"? This removes all its stages, payments, documents and queries and cannot be undone. (To keep the record, use Cancel Project instead.)`)) return
+    try {
+      await deleteProject.mutateAsync(id!)
+      toast.success('Project deleted')
+      navigate('/projects')
+    } catch (err: any) { toast.error('Could not delete', err.message) }
   }
 
   // ── Cancel project ───────────────────────────────────────────────────────
@@ -176,6 +188,13 @@ export default function ProjectDetailPage() {
               <button onClick={() => setShowCancelModal(true)}
                 className="flex items-center gap-1.5 text-sm px-3 py-1.5 border border-red-400/40 text-red-200 rounded-lg hover:bg-red-500/10">
                 <Sym name="cancel" size={12} /> Cancel Project
+              </button>
+            )}
+            {/* Delete (admin, permanent) */}
+            {isAdmin && (
+              <button onClick={handleDelete} disabled={deleteProject.isPending}
+                className="flex items-center gap-1.5 text-sm px-3 py-1.5 border border-red-500/50 text-red-300 rounded-lg hover:bg-red-600/20 disabled:opacity-50">
+                <Sym name="delete" size={12} /> Delete
               </button>
             )}
           </div>

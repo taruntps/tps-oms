@@ -41,7 +41,7 @@ export default function ClientDetailPage() {
   const referralName = referrals.find(r => r.id === (client as any)?.referral_id)?.name
 
   const handleDelete = async () => {
-    if (!confirm(`Permanently delete this client? This only works if the client has no projects, licences, payments or documents.`)) return
+    if (!confirm(`Permanently delete "${client?.company_name}"? Any FSSAI licences and uploaded documents will be removed too. This is blocked if the client has any projects — delete or cancel those first.`)) return
     try {
       await del.mutateAsync(id!)
       toast.success('Client deleted')

@@ -153,3 +153,17 @@ export function usePendingBlockRequests() {
     },
   })
 }
+
+export function useDeleteProject() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (projectId: string) => {
+      // delete_project RPC: admin-only, removes all children then the project.
+      const { error } = await (supabase.rpc as any)('delete_project', { p_project_id: projectId })
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['projects'] })
+    },
+  })
+}

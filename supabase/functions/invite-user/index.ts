@@ -68,6 +68,7 @@ serve(async (req) => {
     // Upsert profile row (sets role/name/phone immediately)
     const { error: profileErr } = await supabase.from('profiles').upsert({
       id:               userId,
+      email,                          // required NOT NULL column
       name,
       role,
       phone:            phone || null,
