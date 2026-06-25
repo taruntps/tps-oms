@@ -57,6 +57,8 @@ interface InviteForm {
   whatsapp_number: string
   mode: 'invite' | 'create'
   password: string
+  loginMethod: 'email' | 'code' | 'both'
+  employee_code: string
 }
 
 export default function UserManagementPage() {
@@ -309,6 +311,8 @@ function UserForm({ user, onClose, onSaved }: { user: UserRow | null; onClose: (
     whatsapp_number: user?.whatsapp_number ?? '',
     mode: 'invite',
     password: '',
+    loginMethod: 'email',
+    employee_code: '',
   })
   const [loading, setLoading] = useState(false)
   const [showPass, setShowPass] = useState(false)
@@ -328,25 +332,34 @@ function UserForm({ user, onClose, onSaved }: { user: UserRow | null; onClose: (
         }).eq('id', user.id)
         if (error) throw error
         toast.success('User updated')
-      } else {
-        // Create or invite via Edge Function
-        const { error } = await supabase.functions.invoke('invite-user', {
-          body: {
-            email: form.email,
-            name: form.name,
-            role: form.role,
-            phone: form.phone,
-            whatsapp_number: form.whatsapp_number,
-            mode: form.mode,
-            password: form.mode === 'create' ? form.password : undefined,
-          },
+      } else if (form.mode === 'create') {
+        // Create directly (supports Employee Code login for non-email staff)
+        const useCode = form.loginMethod === 'code' || form.loginMethod === 'both'
+        const code = form.employee_code.trim()
+        if (useCode && !code) throw new Error('Employee Code is required for this login method')
+        if (form.loginMethod !== 'code' && !form.email.trim()) throw new Error('Email is required for this login method')
+        // Code-only users get a synthetic auth email; they log in with their code.
+        const authEmail = form.loginMethod === 'code'
+          ? `${code.toLowerCase()}@emp.tpsxpert.com`
+          : form.email.trim().toLowerCase()
+        const { error } = await (supabase.rpc as any)('admin_create_user', {
+          p_email: authEmail,
+          p_password: form.password,
+          p_name: form.name,
+          p_role: form.role,
+          p_employee_code: useCode ? code : null,
+          p_phone: form.phone || null,
+          p_whatsapp: form.whatsapp_number || null,
         })
         if (error) throw error
-        if (form.mode === 'create') {
-          toast.success('User created', `${form.email} can now log in with the provided password`)
-        } else {
-          toast.success('Invitation sent', `${form.email} will receive an invite link`)
-        }
+        toast.success('User created', useCode ? `Can log in with Employee Code "${code}"` : `${authEmail} can now log in`)
+      } else {
+        // Invite by email (edge function) — needs a real email
+        const { error } = await supabase.functions.invoke('invite-user', {
+          body: { email: form.email, name: form.name, role: form.role, phone: form.phone, whatsapp_number: form.whatsapp_number, mode: 'invite' },
+        })
+        if (error) throw error
+        toast.success('Invitation sent', `${form.email} will receive an invite link`)
       }
       onSaved()
     } catch (err: any) {
@@ -404,12 +417,43 @@ function UserForm({ user, onClose, onSaved }: { user: UserRow | null; onClose: (
             </p>
           )}
 
-          {!isEdit && (
+          {/* Login method (create mode only) */}
+          {!isEdit && form.mode === 'create' && (
+            <div>
+              <label className="block text-xs font-medium text-brand-950 mb-1">Login with</label>
+              <div className="flex rounded-lg border border-border overflow-hidden text-xs">
+                {([['email','Email'],['code','Employee Code'],['both','Email + Code']] as const).map(([m, lbl]) => (
+                  <button key={m} type="button" onClick={() => setForm({...form, loginMethod: m})}
+                    className={cn('flex-1 py-2 font-medium', form.loginMethod === m ? 'bg-brand-600 text-white' : 'bg-white text-muted-foreground hover:bg-[#F8FAFC]')}>
+                    {lbl}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                {form.loginMethod === 'code' ? 'No personal email — they log in with their Employee Code (good for shared-email / attendance-only staff).'
+                  : form.loginMethod === 'both' ? 'They can log in with either their email or their Employee Code.'
+                  : 'They log in with their email.'}
+              </p>
+            </div>
+          )}
+
+          {/* Email — shown unless create + code-only */}
+          {!isEdit && (form.mode === 'invite' || form.loginMethod !== 'code') && (
             <div>
               <label className="block text-xs font-medium text-brand-950 mb-1">Email *</label>
-              <input type="email" required value={form.email} onChange={e => setForm({...form, email: e.target.value})}
+              <input type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})}
                 className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-600/20"
                 placeholder="employee@tpsxperts.com" />
+            </div>
+          )}
+
+          {/* Employee Code — shown when create + code or both */}
+          {!isEdit && form.mode === 'create' && form.loginMethod !== 'email' && (
+            <div>
+              <label className="block text-xs font-medium text-brand-950 mb-1">Employee Code (User ID) *</label>
+              <input value={form.employee_code} onChange={e => setForm({...form, employee_code: e.target.value})}
+                className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-600/20"
+                placeholder="e.g. T007" />
             </div>
           )}
 
