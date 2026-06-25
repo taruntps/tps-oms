@@ -436,6 +436,7 @@ export type Database = {
           is_active: boolean
           notes: string | null
           pan: string | null
+          referral_id: string | null
           state: string
           trade_name: string | null
           updated_at: string
@@ -458,6 +459,7 @@ export type Database = {
           is_active?: boolean
           notes?: string | null
           pan?: string | null
+          referral_id?: string | null
           state?: string
           trade_name?: string | null
           updated_at?: string
@@ -480,6 +482,7 @@ export type Database = {
           is_active?: boolean
           notes?: string | null
           pan?: string | null
+          referral_id?: string | null
           state?: string
           trade_name?: string | null
           updated_at?: string
@@ -491,6 +494,13 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clients_referral_id_fkey"
+            columns: ["referral_id"]
+            isOneToOne: false
+            referencedRelation: "referrals"
             referencedColumns: ["id"]
           },
         ]
@@ -1382,6 +1392,39 @@ export type Database = {
           },
         ]
       }
+      referrals: {
+        Row: {
+          contact_person: string | null
+          created_at: string
+          email: string | null
+          id: string
+          is_active: boolean
+          name: string
+          notes: string | null
+          phone: string | null
+        }
+        Insert: {
+          contact_person?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          notes?: string | null
+          phone?: string | null
+        }
+        Update: {
+          contact_person?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          notes?: string | null
+          phone?: string | null
+        }
+        Relationships: []
+      }
       soi_archive: {
         Row: {
           client_id: string
@@ -1716,6 +1759,22 @@ export type Database = {
       }
     }
     Functions: {
+      admin_create_user: {
+        Args: {
+          p_email: string
+          p_employee_code?: string
+          p_name: string
+          p_password: string
+          p_phone?: string
+          p_role: string
+          p_whatsapp?: string
+        }
+        Returns: string
+      }
+      admin_reset_password: {
+        Args: { p_new_password: string; p_user_id: string }
+        Returns: undefined
+      }
       approve_block_request: {
         Args: { p_approved: boolean; p_note?: string; p_request_id: string }
         Returns: undefined
@@ -1728,6 +1787,7 @@ export type Database = {
         Args: { p_transfer_id: string }
         Returns: undefined
       }
+      delete_client: { Args: { p_client_id: string }; Returns: undefined }
       fn_can_assign: { Args: never; Returns: boolean }
       fn_can_edit_clients: { Args: never; Returns: boolean }
       fn_can_view_all_projects: { Args: never; Returns: boolean }
@@ -1749,6 +1809,7 @@ export type Database = {
         }
         Returns: Json
       }
+      resolve_login_email: { Args: { p_identifier: string }; Returns: string }
       respond_project_transfer: {
         Args: { p_accept: boolean; p_transfer_id: string }
         Returns: string

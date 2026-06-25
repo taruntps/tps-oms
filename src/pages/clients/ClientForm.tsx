@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Sym } from '@/components/shared/Sym'
 import { useCreateClient, useUpdateClient, useClients, type Client } from '@/hooks/useClients'
+import { useReferrals } from '@/hooks/useReferrals'
 import { useAuth } from '@/contexts/AuthContext'
 import { toast } from '@/components/shared/Toast'
 import { STATE_NAMES, getCitiesForState } from '@/data/india'
@@ -52,6 +53,7 @@ const schema = z.object({
   gstin:           z.string().optional(),
   pan:             z.string().optional(),
   whatsapp_number: z.string().optional(),
+  referral_id:     z.string().optional(),
 })
 
 type FormData = z.infer<typeof schema>
@@ -68,6 +70,7 @@ export function ClientForm({ client, onClose }: Props) {
   const create = useCreateClient()
   const update = useUpdateClient()
   const { data: allClients = [] } = useClients()
+  const { data: referrals = [] } = useReferrals()
   const isEdit = !!client
 
   // GSTIN toggle: default true (Yes) for new; for edit, infer from gstin_is_placeholder
@@ -91,6 +94,7 @@ export function ClientForm({ client, onClose }: Props) {
       gstin:           (client as any)?.gstin_is_placeholder ? '' : (client?.gstin ?? ''),
       pan:             client?.pan ?? '',
       whatsapp_number: ((client as any)?.whatsapp_number ?? '').replace(/^\+91/, ''),
+      referral_id:     (client as any)?.referral_id ?? '',
     },
   })
 
@@ -138,6 +142,7 @@ export function ClientForm({ client, onClose }: Props) {
       whatsapp_number:      data.whatsapp_number
         ? '+91' + data.whatsapp_number.replace(/^\+91/, '').replace(/^0/, '')
         : null,
+      referral_id:          data.referral_id || null,
     }
 
     try {
@@ -315,6 +320,13 @@ export function ClientForm({ client, onClose }: Props) {
 
             <Field label="WhatsApp Number" error={errors.whatsapp_number?.message}>
               <PhoneInput register={register('whatsapp_number')} error={false} placeholder="10-digit number" />
+            </Field>
+
+            <Field label="Referral / Source" error={undefined} className="col-span-2">
+              <select {...register('referral_id')} className={ic(false)}>
+                <option value="">Direct / None</option>
+                {referrals.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+              </select>
             </Field>
 
           </div>

@@ -5,7 +5,6 @@ const toTitleCase = (s: string) =>
   s.toLowerCase().replace(/\b\w/g, c => c.toUpperCase())
 import { Sym } from '@/components/shared/Sym'
 import { TopBar } from '@/components/layout/TopBar'
-import { RoleGuard } from '@/components/shared/ProtectedRoute'
 import { useClients } from '@/hooks/useClients'
 import { ClientForm } from './ClientForm'
 
@@ -38,15 +37,14 @@ export default function ClientsPage() {
               className="w-full pl-8 pr-3 py-2 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-600/20 focus:border-brand-600"
             />
           </div>
-          <RoleGuard roles={['super_admin', 'director', 'manager']}>
-            <button
-              onClick={() => setShowForm(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 transition-colors"
-            >
-              <Sym name="add" size={16} />
-              Add Client
-            </button>
-          </RoleGuard>
+          {/* Any logged-in staff can submit a new client; editing is gated by the Edit-Clients right. */}
+          <button
+            onClick={() => setShowForm(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 transition-colors"
+          >
+            <Sym name="add" size={16} />
+            Add Client
+          </button>
         </div>
 
         {/* List */}

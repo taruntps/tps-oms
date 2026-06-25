@@ -7,6 +7,9 @@ const toTitleCase = (s: string) =>
 import { TopBar } from '@/components/layout/TopBar'
 import { RoleGuard } from '@/components/shared/ProtectedRoute'
 import { useClient, useCanEditClient } from '@/hooks/useClients'
+import { useReferrals, useDeleteClient } from '@/hooks/useReferrals'
+import { useAuth } from '@/contexts/AuthContext'
+import { toast } from '@/components/shared/Toast'
 import { useLicenses } from '@/hooks/useLicenses'
 import { ClientForm } from './ClientForm'
 import { LicenseForm } from './LicenseForm'
@@ -26,10 +29,27 @@ export default function ClientDetailPage() {
   const navigate = useNavigate()
   const { data: client, isLoading } = useClient(id!)
   const { data: licenses = [] } = useLicenses(id!)
+  const { profile } = useAuth()
+  const { data: referrals = [] } = useReferrals()
+  const del = useDeleteClient()
   const canEdit = useCanEditClient()
+  const isAdmin = profile?.role === 'super_admin' || profile?.role === 'director'
   const [editClient, setEditClient] = useState(false)
   const [addLicense, setAddLicense] = useState(false)
   const [editLicense, setEditLicense] = useState<string | null>(null)
+
+  const referralName = referrals.find(r => r.id === (client as any)?.referral_id)?.name
+
+  const handleDelete = async () => {
+    if (!confirm(`Permanently delete this client? This only works if the client has no projects, licences, payments or documents.`)) return
+    try {
+      await del.mutateAsync(id!)
+      toast.success('Client deleted')
+      navigate('/clients')
+    } catch (e: any) {
+      toast.error('Could not delete', e.message)
+    }
+  }
 
   if (isLoading) {
     return (
@@ -56,17 +76,26 @@ export default function ClientDetailPage() {
             <Sym name="arrow_back" size={14} />
             Back to Clients
           </button>
-          {canEdit ? (
-            <button onClick={() => setEditClient(true)} className="flex items-center gap-2 text-sm px-3 py-1.5 border border-white/20 text-white rounded-lg hover:bg-white/10">
-              <Sym name="edit" size={12} />
-              Edit
-            </button>
-          ) : (
-            <span className="flex items-center gap-1.5 text-xs text-white px-3 py-1.5 border border-white/20 rounded-lg hover:bg-white/10">
-              <Sym name="lock" size={11} />
-              Locked
-            </span>
-          )}
+          <div className="flex items-center gap-2">
+            {isAdmin && (
+              <button onClick={handleDelete} disabled={del.isPending}
+                className="flex items-center gap-1.5 text-sm px-3 py-1.5 border border-red-400/40 text-red-200 rounded-lg hover:bg-red-500/10 disabled:opacity-50">
+                <Sym name="delete" size={12} />
+                Delete
+              </button>
+            )}
+            {canEdit ? (
+              <button onClick={() => setEditClient(true)} className="flex items-center gap-2 text-sm px-3 py-1.5 border border-white/20 text-white rounded-lg hover:bg-white/10">
+                <Sym name="edit" size={12} />
+                Edit
+              </button>
+            ) : (
+              <span className="flex items-center gap-1.5 text-xs text-white px-3 py-1.5 border border-white/20 rounded-lg">
+                <Sym name="lock" size={11} />
+                Locked
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Client card */}
@@ -114,6 +143,7 @@ export default function ClientDetailPage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6 pt-6 border-t border-border">
             <Detail icon="call" label="Phone" value={client.contact_phone} />
             <Detail icon="mail" label="Email" value={client.contact_email} />
+            {referralName && <Detail icon="handshake" label="Referral" value={referralName} />}
             <Detail icon="location_on" label="Location" value={[client.city, client.state].filter(Boolean).join(', ')} />
             {/* GSTIN — show amber badge if placeholder */}
             <div>
