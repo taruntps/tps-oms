@@ -21,6 +21,7 @@ import EmployeesPage from '@/pages/employees/EmployeesPage'
 import EmployeeDetailPage from '@/pages/employees/EmployeeDetailPage'
 import AttendancePage from '@/pages/attendance/AttendancePage'
 import ReferralsPage from '@/pages/referrals/ReferralsPage'
+import TasksPage from '@/pages/tasks/TasksPage'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -71,6 +72,7 @@ export default function App() {
 
               {/* General authenticated routes */}
               <Route path="attendance" element={<AttendancePage />} />
+              <Route path="tasks" element={<TasksPage />} />
               <Route path="clients" element={<ClientsPage />} />
               <Route path="clients/:id" element={<ClientDetailPage />} />
               <Route path="referrals" element={

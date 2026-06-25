@@ -874,6 +874,47 @@ export type Database = {
           },
         ]
       }
+      notification_log: {
+        Row: {
+          channel: string
+          for_date: string
+          id: string
+          kind: string
+          meta: Json | null
+          recipient: string
+          ref_id: string | null
+          sent_at: string
+        }
+        Insert: {
+          channel?: string
+          for_date?: string
+          id?: string
+          kind: string
+          meta?: Json | null
+          recipient: string
+          ref_id?: string | null
+          sent_at?: string
+        }
+        Update: {
+          channel?: string
+          for_date?: string
+          id?: string
+          kind?: string
+          meta?: Json | null
+          recipient?: string
+          ref_id?: string | null
+          sent_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_log_recipient_fkey"
+            columns: ["recipient"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           body: string | null
@@ -1425,6 +1466,30 @@ export type Database = {
         }
         Relationships: []
       }
+      reminder_settings: {
+        Row: {
+          digest_hour_ist: number
+          email_enabled: boolean
+          id: boolean
+          updated_at: string
+          whatsapp_enabled: boolean
+        }
+        Insert: {
+          digest_hour_ist?: number
+          email_enabled?: boolean
+          id?: boolean
+          updated_at?: string
+          whatsapp_enabled?: boolean
+        }
+        Update: {
+          digest_hour_ist?: number
+          email_enabled?: boolean
+          id?: boolean
+          updated_at?: string
+          whatsapp_enabled?: boolean
+        }
+        Relationships: []
+      }
       soi_archive: {
         Row: {
           client_id: string
@@ -1700,6 +1765,83 @@ export type Database = {
           },
         ]
       }
+      tasks: {
+        Row: {
+          assigned_by: string | null
+          assigned_to: string
+          client_id: string | null
+          completed_at: string | null
+          created_at: string
+          description: string | null
+          due_date: string | null
+          id: string
+          priority: string
+          project_id: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_by?: string | null
+          assigned_to: string
+          client_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          priority?: string
+          project_id?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_by?: string | null
+          assigned_to?: string
+          client_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          priority?: string
+          project_id?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tasks_assigned_by_fkey"
+            columns: ["assigned_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_log: {
         Row: {
           bsp: string | null
@@ -1788,6 +1930,7 @@ export type Database = {
         Returns: undefined
       }
       delete_client: { Args: { p_client_id: string }; Returns: undefined }
+      delete_project: { Args: { p_project_id: string }; Returns: undefined }
       fn_can_assign: { Args: never; Returns: boolean }
       fn_can_edit_clients: { Args: never; Returns: boolean }
       fn_can_view_all_projects: { Args: never; Returns: boolean }
