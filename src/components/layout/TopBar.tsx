@@ -63,8 +63,10 @@ export function TopBar({ title, subtitle }: TopBarProps) {
       setSavingPw(true)
       const { error } = await supabase.auth.updateUser({ password: newPw })
       if (error) throw error
-      toast.success('Password changed', 'Use your new password next time you sign in.')
       setPwOpen(false); setNewPw('')
+      toast.success('Password changed', 'Please sign in again with your new password.')
+      // Force re-login: clear the session so the new password must be used.
+      await signOut()
     } catch (e: any) {
       toast.error('Failed', e.message)
     } finally {

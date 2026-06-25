@@ -17,7 +17,7 @@ const fmtH = (m?: number | null) => m == null ? '—' : `${Math.floor(m/60)}h ${
 export default function EmployeeDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { profile } = useAuth()
+  const { profile, signOut } = useAuth()
   const { data: emp, isLoading } = useEmployee(id!)
   const { data: details } = useEmployeeDetails(id!)
   const { data: attDays = [] } = useMyAttendanceDays(id!)
@@ -37,8 +37,9 @@ export default function EmployeeDetailPage() {
       setSavingPwd(true)
       const { error } = await supabase.auth.updateUser({ password: pwd })
       if (error) throw error
-      toast.success('Password changed')
       setPwd('')
+      toast.success('Password changed', 'Please sign in again with your new password.')
+      await signOut()  // force re-login
     } catch (e: any) { toast.error('Failed', e.message) } finally { setSavingPwd(false) }
   }
 
