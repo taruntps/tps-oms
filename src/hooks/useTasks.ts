@@ -45,6 +45,10 @@ export function useCreateTask() {
     mutationFn: async (t: TablesInsert<'tasks'>) => {
       const { error } = await supabase.from('tasks').insert(t)
       if (error) throw error
+      // Fire the urgent-alerts function so the assignee/assigner get an email
+      // immediately, rather than waiting for the hourly cron. Best-effort: never
+      // block or fail task creation on the notification.
+      supabase.functions.invoke('urgent-alerts', { body: {} }).catch(() => {})
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['tasks'] }),
   })

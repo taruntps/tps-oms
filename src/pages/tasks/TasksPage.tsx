@@ -27,11 +27,11 @@ const PRIORITY_DOT: Record<TaskPriority, string> = {
 
 interface Draft {
   title: string; description: string; assigned_to: string
-  project_id: string; client_id: string; priority: TaskPriority; due_date: string
+  project_id: string; client_id: string; priority: TaskPriority; due_date: string; status: TaskStatus
 }
 const emptyDraft = (me: string): Draft => ({
   title: '', description: '', assigned_to: me,
-  project_id: '', client_id: '', priority: 'normal', due_date: '',
+  project_id: '', client_id: '', priority: 'normal', due_date: '', status: 'open',
 })
 
 export default function TasksPage() {
@@ -59,6 +59,17 @@ export default function TasksPage() {
   const [tab, setTab] = useState<Tab>('mine')
   const [statusFilter, setStatusFilter] = useState<TaskStatus | 'all'>('all')
   const [draft, setDraft] = useState<Draft | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
+
+  const openTask = (t: TaskWithRelations) => {
+    setEditingId(t.id)
+    setDraft({
+      title: t.title, description: t.description ?? '', assigned_to: t.assigned_to,
+      project_id: t.project_id ?? '', client_id: t.client_id ?? '',
+      priority: t.priority, due_date: t.due_date ?? '', status: t.status,
+    })
+  }
+  const closeModal = () => { setDraft(null); setEditingId(null) }
 
   const visible = useMemo(() => {
     let list = tasks
@@ -78,20 +89,25 @@ export default function TasksPage() {
     if (!draft) return
     if (!draft.title.trim()) { toast.error('Task title is required'); return }
     if (!draft.assigned_to)  { toast.error('Pick who the task is for'); return }
+    const payload = {
+      title: draft.title.trim(),
+      description: draft.description.trim() || null,
+      assigned_to: draft.assigned_to,
+      project_id: draft.project_id || null,
+      client_id: draft.client_id || null,
+      priority: draft.priority,
+      due_date: draft.due_date || null,
+    }
     try {
-      await createTask.mutateAsync({
-        title: draft.title.trim(),
-        description: draft.description.trim() || null,
-        assigned_to: draft.assigned_to,
-        assigned_by: me,
-        project_id: draft.project_id || null,
-        client_id: draft.client_id || null,
-        priority: draft.priority,
-        due_date: draft.due_date || null,
-      })
-      toast.success('Task created')
-      setDraft(null)
-    } catch (e: any) { toast.error('Could not create task', e.message) }
+      if (editingId) {
+        await updateTask.mutateAsync({ id: editingId, ...payload, status: draft.status })
+        toast.success('Task updated')
+      } else {
+        await createTask.mutateAsync({ ...payload, assigned_by: me })
+        toast.success('Task created')
+      }
+      closeModal()
+    } catch (e: any) { toast.error('Could not save task', e.message) }
   }
 
   const changeStatus = async (t: TaskWithRelations, status: TaskStatus) => {
@@ -137,7 +153,7 @@ export default function TasksPage() {
             <option value="cancelled">Cancelled</option>
           </select>
           <div className="flex-1" />
-          <button onClick={() => setDraft(emptyDraft(me))}
+          <button onClick={() => { setEditingId(null); setDraft(emptyDraft(me)) }}
             className="flex items-center gap-2 px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700">
             <Sym name="add" size={16} /> New Task
           </button>
@@ -157,7 +173,8 @@ export default function TasksPage() {
               const overdue = t.due_date && t.status !== 'done' && t.status !== 'cancelled' && t.due_date < todayISO()
               const canDelete = t.assigned_by === me || ['super_admin','director'].includes(profile?.role ?? '')
               return (
-                <div key={t.id} className="bg-white rounded-xl border border-border px-5 py-4 flex items-center gap-4">
+                <div key={t.id} onClick={() => openTask(t)}
+                  className="bg-white rounded-xl border border-border px-5 py-4 flex items-center gap-4 cursor-pointer hover:border-brand-600/30 hover:shadow-sm transition-all">
                   <span className={cn('w-2.5 h-2.5 rounded-full shrink-0', PRIORITY_DOT[t.priority])} title={`${t.priority} priority`} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -179,15 +196,15 @@ export default function TasksPage() {
                       {t.due_date && <> · <span className={cn(overdue && 'text-red-600 font-medium')}>{overdue ? 'Overdue ' : 'Due '}{formatDate(t.due_date)}</span></>}
                     </p>
                   </div>
-                  <select value={t.status} onChange={e => changeStatus(t, e.target.value as TaskStatus)}
-                    className={cn('text-xs px-2 py-1 rounded border font-medium shrink-0', STATUS_META[t.status].cls)}>
+                  <select value={t.status} onClick={e => e.stopPropagation()} onChange={e => { e.stopPropagation(); changeStatus(t, e.target.value as TaskStatus) }}
+                    className={cn('text-xs px-2 py-1 rounded border font-medium shrink-0 cursor-pointer', STATUS_META[t.status].cls)}>
                     <option value="open">Open</option>
                     <option value="in_progress">In Progress</option>
                     <option value="done">Done</option>
                     <option value="cancelled">Cancelled</option>
                   </select>
                   {canDelete && (
-                    <button onClick={() => remove(t)} className="p-1.5 text-muted-foreground hover:text-red-600 shrink-0" title="Delete">
+                    <button onClick={e => { e.stopPropagation(); remove(t) }} className="p-1.5 text-muted-foreground hover:text-red-600 shrink-0" title="Delete">
                       <Sym name="delete" size={14} />
                     </button>
                   )}
@@ -202,7 +219,7 @@ export default function TasksPage() {
       {draft && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl p-6 space-y-3 max-h-[90vh] overflow-y-auto">
-            <h2 className="font-display font-semibold text-brand-950">New Task</h2>
+            <h2 className="font-display font-semibold text-brand-950">{editingId ? 'Task Details' : 'New Task'}</h2>
             <Field label="Title *"><input className={ic} value={draft.title} autoFocus
               onChange={e => setDraft({ ...draft, title: e.target.value })} placeholder="e.g. Follow up on pending payment" /></Field>
             <Field label="Details"><textarea rows={2} className={ic} value={draft.description}
@@ -236,13 +253,25 @@ export default function TasksPage() {
                 </select>
               </Field>
             </div>
-            <Field label="Due Date"><input type="date" className={ic} value={draft.due_date}
-              onChange={e => setDraft({ ...draft, due_date: e.target.value })} /></Field>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Due Date"><input type="date" className={ic} value={draft.due_date}
+                onChange={e => setDraft({ ...draft, due_date: e.target.value })} /></Field>
+              {editingId && (
+                <Field label="Status">
+                  <select className={ic} value={draft.status} onChange={e => setDraft({ ...draft, status: e.target.value as TaskStatus })}>
+                    <option value="open">Open</option>
+                    <option value="in_progress">In Progress</option>
+                    <option value="done">Done</option>
+                    <option value="cancelled">Cancelled</option>
+                  </select>
+                </Field>
+              )}
+            </div>
             <div className="flex justify-end gap-3 pt-2">
-              <button onClick={() => setDraft(null)} className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-[#F8FAFC]">Cancel</button>
-              <button onClick={save} disabled={createTask.isPending}
+              <button onClick={closeModal} className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-[#F8FAFC]">Cancel</button>
+              <button onClick={save} disabled={createTask.isPending || updateTask.isPending}
                 className="px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 disabled:opacity-50">
-                {createTask.isPending ? 'Creating…' : 'Create Task'}
+                {(createTask.isPending || updateTask.isPending) ? 'Saving…' : editingId ? 'Save Changes' : 'Create Task'}
               </button>
             </div>
           </div>
