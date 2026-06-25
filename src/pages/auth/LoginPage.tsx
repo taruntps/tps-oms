@@ -17,7 +17,17 @@ export default function LoginPage() {
     // "Remember me": persist the session in localStorage (survives browser close)
     // when checked; otherwise sessionStorage (cleared when the tab/browser closes).
     localStorage.setItem('tps_remember', String(remember))
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+
+    // Accept either an email or an Employee Code (User ID). If no '@', resolve the
+    // code → its email before signing in.
+    let loginEmail = email.trim()
+    if (!loginEmail.includes('@')) {
+      const { data: resolved } = await (supabase.rpc as any)('resolve_login_email', { p_identifier: loginEmail })
+      if (!resolved) { setError('Invalid user ID or password.'); setLoading(false); return }
+      loginEmail = resolved as string
+    }
+
+    const { error } = await supabase.auth.signInWithPassword({ email: loginEmail, password })
     setLoading(false)
     if (error) {
       setError('Invalid user ID or password.')
@@ -59,10 +69,10 @@ export default function LoginPage() {
                   User ID
                 </label>
                 <input
-                  type="email"
+                  type="text"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
-                  placeholder="Your user ID"
+                  placeholder="Email or Employee Code (e.g. T002)"
                   required
                   autoFocus
                   className="w-full px-3 py-2.5 rounded-lg border border-border bg-[#F8FAFC] text-sm font-sans focus:outline-none focus:ring-2 focus:ring-brand-600/30 focus:border-brand-600 transition-all"
