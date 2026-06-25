@@ -60,6 +60,50 @@ serve(async (req) => {
     }
   }
 
+  // ── Completed tasks (last 2h) → notify assigner ──
+  const { data: doneTasks } = await supabase.from('tasks')
+    .select('id, title, assigned_to, assigned_by, completed_at, project:projects(project_code), client:clients(company_name)')
+    .eq('status', 'done').gte('completed_at', since)
+  for (const t of doneTasks ?? []) {
+    const uid = t.assigned_by
+    if (!uid) continue
+    const email = emailMap[uid]; if (!email) continue
+    if (await sentEver(supabase, 'task_done', t.id, uid)) continue
+    const html = box('✅ Task completed', `<b>${esc(t.title)}</b><br>${t.project?.project_code ? 'Project ' + esc(t.project.project_code) + '<br>' : ''}${t.client?.company_name ? 'Client ' + esc(t.client.company_name) + '<br>' : ''}Completed by ${esc(nameById[t.assigned_to] ?? '—')}`)
+    const ok = await sendMail(email, nameById[uid] ?? '', `[TPS OMS] Task completed: ${t.title}`, html)
+    await logSent(supabase, 'task_done', t.id, uid)
+    sent.push({ kind: 'task_done', task: t.id, uid, ok })
+  }
+
+  // ── Extension requests (pending, last 2h) → notify assigner ──
+  const { data: reqs } = await supabase.from('task_extension_requests')
+    .select('id, extra_days, reason, requested_by, task:tasks(title, assigned_by)')
+    .eq('status', 'pending').gte('created_at', since)
+  for (const r of reqs ?? []) {
+    const uid = (r as any).task?.assigned_by; if (!uid) continue
+    const email = emailMap[uid]; if (!email) continue
+    if (await sentEver(supabase, 'ext_req', r.id, uid)) continue
+    const html = box('⏳ Extension requested', `<b>${esc((r as any).task?.title)}</b><br>${esc(nameById[r.requested_by] ?? '—')} requested <b>+${r.extra_days} day(s)</b>.<br>Reason: ${esc(r.reason ?? '—')}<br>Open the task to approve or reject.`)
+    const ok = await sendMail(email, nameById[uid] ?? '', `[TPS OMS] Extension requested: ${(r as any).task?.title}`, html)
+    await logSent(supabase, 'ext_req', r.id, uid)
+    sent.push({ kind: 'ext_req', req: r.id, uid, ok })
+  }
+
+  // ── Extension decisions (decided last 2h) → notify requester ──
+  const { data: decided } = await supabase.from('task_extension_requests')
+    .select('id, extra_days, requested_by, status, task:tasks(title)')
+    .in('status', ['approved', 'rejected']).gte('decided_at', since)
+  for (const r of decided ?? []) {
+    const uid = r.requested_by; if (!uid) continue
+    const email = emailMap[uid]; if (!email) continue
+    if (await sentEver(supabase, 'ext_dec', r.id, uid)) continue
+    const verdict = r.status === 'approved' ? `approved (+${r.extra_days} day(s); due date extended)` : 'rejected'
+    const html = box('📌 Extension ' + r.status, `<b>${esc((r as any).task?.title)}</b><br>Your extension request was <b>${verdict}</b>.`)
+    const ok = await sendMail(email, nameById[uid] ?? '', `[TPS OMS] Extension ${r.status}: ${(r as any).task?.title}`, html)
+    await logSent(supabase, 'ext_dec', r.id, uid)
+    sent.push({ kind: 'ext_dec', req: r.id, uid, ok })
+  }
+
   return j({ ok: true, sent: sent.length, results: sent })
 })
 

@@ -1765,6 +1765,103 @@ export type Database = {
           },
         ]
       }
+      task_comments: {
+        Row: {
+          author_id: string | null
+          body: string
+          created_at: string
+          id: string
+          task_id: string
+        }
+        Insert: {
+          author_id?: string | null
+          body: string
+          created_at?: string
+          id?: string
+          task_id: string
+        }
+        Update: {
+          author_id?: string | null
+          body?: string
+          created_at?: string
+          id?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_comments_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_comments_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      task_extension_requests: {
+        Row: {
+          created_at: string
+          decided_at: string | null
+          decided_by: string | null
+          extra_days: number
+          id: string
+          reason: string | null
+          requested_by: string | null
+          status: string
+          task_id: string
+        }
+        Insert: {
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          extra_days: number
+          id?: string
+          reason?: string | null
+          requested_by?: string | null
+          status?: string
+          task_id: string
+        }
+        Update: {
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          extra_days?: number
+          id?: string
+          reason?: string | null
+          requested_by?: string | null
+          status?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_extension_requests_decided_by_fkey"
+            columns: ["decided_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_extension_requests_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_extension_requests_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tasks: {
         Row: {
           assigned_by: string | null
@@ -1929,6 +2026,10 @@ export type Database = {
         Args: { p_transfer_id: string }
         Returns: undefined
       }
+      decide_task_extension: {
+        Args: { p_approve: boolean; p_request_id: string }
+        Returns: undefined
+      }
       delete_client: { Args: { p_client_id: string }; Returns: undefined }
       delete_project: { Args: { p_project_id: string }; Returns: undefined }
       fn_can_assign: { Args: never; Returns: boolean }
@@ -1951,6 +2052,10 @@ export type Database = {
           p_selfie_path?: string
         }
         Returns: Json
+      }
+      request_task_extension: {
+        Args: { p_days: number; p_reason: string; p_task_id: string }
+        Returns: string
       }
       resolve_login_email: { Args: { p_identifier: string }; Returns: string }
       respond_project_transfer: {

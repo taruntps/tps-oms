@@ -75,3 +75,76 @@ export function useDeleteTask() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['tasks'] }),
   })
 }
+
+// Fire-and-forget: ask the urgent-alerts function to email now (done / extension
+// events) instead of waiting for the hourly cron. Never throws.
+export function pokeAlerts() {
+  supabase.functions.invoke('urgent-alerts', { body: {} }).catch(() => {})
+}
+
+export type TaskComment = Tables<'task_comments'> & { author: { name: string } | null }
+export type TaskExtension = Tables<'task_extension_requests'> & { requester: { name: string } | null }
+
+export function useTaskThread(taskId: string | null) {
+  return useQuery({
+    queryKey: ['task-thread', taskId],
+    enabled: !!taskId,
+    queryFn: async () => {
+      const [c, e] = await Promise.all([
+        supabase.from('task_comments')
+          .select('*, author:profiles!task_comments_author_id_fkey(name)')
+          .eq('task_id', taskId!).order('created_at', { ascending: true }),
+        supabase.from('task_extension_requests')
+          .select('*, requester:profiles!task_extension_requests_requested_by_fkey(name)')
+          .eq('task_id', taskId!).order('created_at', { ascending: false }),
+      ])
+      if (c.error) throw c.error
+      if (e.error) throw e.error
+      return {
+        comments: (c.data ?? []) as unknown as TaskComment[],
+        extensions: (e.data ?? []) as unknown as TaskExtension[],
+      }
+    },
+  })
+}
+
+export function useAddComment() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ taskId, body, me }: { taskId: string; body: string; me: string }) => {
+      const { error } = await supabase.from('task_comments').insert({ task_id: taskId, author_id: me, body })
+      if (error) throw error
+    },
+    onSuccess: (_d, v) => qc.invalidateQueries({ queryKey: ['task-thread', v.taskId] }),
+  })
+}
+
+export function useRequestExtension() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ taskId, days, reason }: { taskId: string; days: number; reason: string }) => {
+      const { error } = await (supabase.rpc as any)('request_task_extension', { p_task_id: taskId, p_days: days, p_reason: reason })
+      if (error) throw error
+      pokeAlerts()
+    },
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: ['task-thread', v.taskId] })
+      qc.invalidateQueries({ queryKey: ['tasks'] })
+    },
+  })
+}
+
+export function useDecideExtension() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ requestId, approve }: { requestId: string; approve: boolean; taskId: string }) => {
+      const { error } = await (supabase.rpc as any)('decide_task_extension', { p_request_id: requestId, p_approve: approve })
+      if (error) throw error
+      pokeAlerts()
+    },
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: ['task-thread', v.taskId] })
+      qc.invalidateQueries({ queryKey: ['tasks'] })
+    },
+  })
+}
