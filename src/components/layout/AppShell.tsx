@@ -2,9 +2,11 @@ import { useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
 import { Sym } from '@/components/shared/Sym'
+import { useIdleLogout } from '@/hooks/useIdleLogout'
 
 export function AppShell() {
   const [mobileOpen, setMobileOpen] = useState(false)
+  useIdleLogout() // sign out after 30 min of inactivity
 
   return (
     <div className="flex min-h-screen">
