@@ -19,6 +19,7 @@ import KnowledgePage from '@/pages/knowledge/KnowledgePage'
 import UserManagementPage from '@/pages/admin/UserManagementPage'
 import EmployeesPage from '@/pages/employees/EmployeesPage'
 import EmployeeDetailPage from '@/pages/employees/EmployeeDetailPage'
+import AttendancePage from '@/pages/attendance/AttendancePage'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -68,6 +69,7 @@ export default function App() {
               />
 
               {/* General authenticated routes */}
+              <Route path="attendance" element={<AttendancePage />} />
               <Route path="clients" element={<ClientsPage />} />
               <Route path="clients/:id" element={<ClientDetailPage />} />
               <Route path="projects" element={<ProjectsPage />} />

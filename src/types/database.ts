@@ -49,6 +49,96 @@ export type Database = {
           },
         ]
       }
+      attendance_punches: {
+        Row: {
+          accuracy_m: number | null
+          created_at: string
+          device_info: string | null
+          distance_m: number | null
+          id: string
+          is_field: boolean
+          latitude: number | null
+          longitude: number | null
+          office_id: string | null
+          punch_at: string
+          selfie_path: string | null
+          user_id: string
+          within_fence: boolean
+        }
+        Insert: {
+          accuracy_m?: number | null
+          created_at?: string
+          device_info?: string | null
+          distance_m?: number | null
+          id?: string
+          is_field?: boolean
+          latitude?: number | null
+          longitude?: number | null
+          office_id?: string | null
+          punch_at?: string
+          selfie_path?: string | null
+          user_id: string
+          within_fence?: boolean
+        }
+        Update: {
+          accuracy_m?: number | null
+          created_at?: string
+          device_info?: string | null
+          distance_m?: number | null
+          id?: string
+          is_field?: boolean
+          latitude?: number | null
+          longitude?: number | null
+          office_id?: string | null
+          punch_at?: string
+          selfie_path?: string | null
+          user_id?: string
+          within_fence?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_punches_office_id_fkey"
+            columns: ["office_id"]
+            isOneToOne: false
+            referencedRelation: "office_locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_punches_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      attendance_settings: {
+        Row: {
+          accuracy_threshold_m: number
+          expected_start_time: string
+          id: boolean
+          selfie_required: boolean
+          standard_hours: number
+          updated_at: string
+        }
+        Insert: {
+          accuracy_threshold_m?: number
+          expected_start_time?: string
+          id?: boolean
+          selfie_required?: boolean
+          standard_hours?: number
+          updated_at?: string
+        }
+        Update: {
+          accuracy_threshold_m?: number
+          expected_start_time?: string
+          id?: boolean
+          selfie_required?: boolean
+          standard_hours?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       audit_log: {
         Row: {
           action: string
@@ -821,6 +911,36 @@ export type Database = {
           },
         ]
       }
+      office_locations: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          latitude: number
+          longitude: number
+          name: string
+          radius_m: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          latitude: number
+          longitude: number
+          name: string
+          radius_m?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          latitude?: number
+          longitude?: number
+          name?: string
+          radius_m?: number
+        }
+        Relationships: []
+      }
       payments: {
         Row: {
           amount: number
@@ -1575,7 +1695,25 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      attendance_days: {
+        Row: {
+          first_in: string | null
+          last_out: string | null
+          punch_count: number | null
+          user_id: string | null
+          work_date: string | null
+          worked_minutes: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_punches_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       approve_block_request: {
@@ -1600,6 +1738,16 @@ export type Database = {
       initiate_project_transfer: {
         Args: { p_project_id: string; p_reason?: string; p_to_user: string }
         Returns: string
+      }
+      punch_attendance: {
+        Args: {
+          p_accuracy: number
+          p_device?: string
+          p_lat: number
+          p_lng: number
+          p_selfie_path?: string
+        }
+        Returns: Json
       }
       respond_project_transfer: {
         Args: { p_accept: boolean; p_transfer_id: string }

@@ -13,6 +13,7 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   { href: '/dashboard',          label: 'My Dashboard',   icon: 'dashboard',               roles: ['super_admin','director','manager','executive','accounts','hr','auditor'] },
+  { href: '/attendance',         label: 'Attendance',     icon: 'fingerprint',             roles: ['super_admin','director','manager','executive','accounts','hr','auditor'] },
   { href: '/director',           label: 'Director View',  icon: 'trending_up',             roles: ['super_admin','director'] },
   { href: '/operations',         label: 'Operations',     icon: 'shield',                  roles: ['super_admin','director','manager'] },
   { href: '/clients',            label: 'Clients',        icon: 'apartment',               roles: ['super_admin','director','manager','executive','accounts','auditor'] },
