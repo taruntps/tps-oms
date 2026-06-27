@@ -410,10 +410,11 @@ export default function ProjectDetailPage() {
             assigneeName={executiveName}
           />
         )}
+        {/* Once a project is completed/cancelled, only Payments stays editable. */}
         {activeTab === 'payments'  && <PaymentsTab  projectId={id!} clientId={clientId} />}
-        {activeTab === 'documents' && <DocumentsTab projectId={id!} clientId={clientId} />}
-        {activeTab === 'queries'   && <QueriesTab   projectId={id!} projectCode={project.project_code ?? ''} />}
-        {activeTab === 'soi'       && <SoiTab       projectId={id!} clientId={clientId} />}
+        {activeTab === 'documents' && <DocumentsTab projectId={id!} clientId={clientId} closed={isCompleted || isCancelled} />}
+        {activeTab === 'queries'   && <QueriesTab   projectId={id!} projectCode={project.project_code ?? ''} closed={isCompleted || isCancelled} />}
+        {activeTab === 'soi'       && <SoiTab       projectId={id!} clientId={clientId} closed={isCompleted || isCancelled} />}
       </div>
 
       {/* Modals */}

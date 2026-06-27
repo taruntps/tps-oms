@@ -7,7 +7,7 @@ import { toast } from '@/components/shared/Toast'
 import { supabase } from '@/lib/supabase'
 import { formatDate } from '@/lib/utils'
 
-interface Props { projectId: string; clientId: string }
+interface Props { projectId: string; clientId: string; closed?: boolean }
 
 interface ParsedProduct {
   sr_no: number
@@ -58,7 +58,7 @@ function parseFssaiTable(raw: string): ParsedProduct[] {
   return parsed.filter(p => p.product_name.length > 1)
 }
 
-export function SoiTab({ projectId, clientId }: Props) {
+export function SoiTab({ projectId, clientId, closed }: Props) {
   const { profile } = useAuth()
   const { data: sois = [], isLoading } = useSoiArchive(clientId)
   const createSoi = useCreateSoi()
@@ -141,11 +141,14 @@ export function SoiTab({ projectId, clientId }: Props) {
               <button onClick={() => { setMode('list'); setPasteText(''); setPreview([]) }}
                 className="text-xs text-white/70 hover:text-white">← Back</button>
             )}
-            {mode === 'list' && (
+            {mode === 'list' && !closed && (
               <button onClick={() => setMode('paste')}
                 className="flex items-center gap-1.5 text-sm text-white font-medium hover:text-white/80">
                 <Sym name="content_paste" size={13} /> Smart Paste from FSSAI
               </button>
+            )}
+            {mode === 'list' && closed && (
+              <span className="text-[11px] text-white/60 flex items-center gap-1"><Sym name="lock" size={11} /> Project closed — locked</span>
             )}
           </div>
         </RoleGuard>

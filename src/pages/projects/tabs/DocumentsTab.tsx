@@ -34,9 +34,9 @@ function formatBytes(bytes: number | null): string {
   return `${(bytes / 1048576).toFixed(1)} MB`
 }
 
-interface Props { projectId: string; clientId: string }
+interface Props { projectId: string; clientId: string; closed?: boolean }
 
-export function DocumentsTab({ projectId, clientId }: Props) {
+export function DocumentsTab({ projectId, clientId, closed }: Props) {
   const { profile } = useAuth()
   const { data: documents = [], isLoading } = useDocuments(projectId)
   const upload = useUploadDocument()
@@ -79,7 +79,8 @@ export function DocumentsTab({ projectId, clientId }: Props) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <span className="text-xs text-white/70">{documents.length} document{documents.length !== 1 ? 's' : ''}</span>
+        <span className="text-xs text-white/70">{documents.length} document{documents.length !== 1 ? 's' : ''}{closed ? ' · project closed (locked)' : ''}</span>
+        {!closed && (
         <RoleGuard roles={['super_admin','director','manager','executive']}>
           <div className="flex items-center gap-2">
             <select
@@ -100,6 +101,7 @@ export function DocumentsTab({ projectId, clientId }: Props) {
             <input ref={fileRef} type="file" className="hidden" onChange={handleFileChange} />
           </div>
         </RoleGuard>
+        )}
       </div>
 
       {isLoading ? (

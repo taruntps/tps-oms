@@ -21,6 +21,7 @@ interface Props {
   appRefNo?: string | null   // from project header
   clientId?: string
   assigneeName?: string
+  locked?: boolean           // a previous stage isn't complete yet
 }
 
 // FSSAI status values per service type (status_fssai stage)
@@ -29,7 +30,7 @@ const FSSAI_STATUSES_FORM2   = ['Document Scrutinisation', 'Technical Committee'
 const needsProductKob = (st?: string) => !!st && ['New Application', 'Modification'].includes(st)
 const needsAppRef     = (st?: string) => !!st && ['New Application', 'Modification', 'Renewal', 'Form II'].includes(st)
 
-export function StageCard({ stage, projectId, isBlocked, serviceType, appRefNo, clientId, assigneeName }: Props) {
+export function StageCard({ stage, projectId, isBlocked, serviceType, appRefNo, clientId, assigneeName, locked }: Props) {
   const employeeLabel = assigneeName?.trim().split(/\s+/)[0] || 'Employee'
   const kind = (stage as any).stage_kind as string
   const clock = ((stage as any).active_clock ?? 'employee') as ClockType
@@ -47,7 +48,7 @@ export function StageCard({ stage, projectId, isBlocked, serviceType, appRefNo, 
   const qc            = useQueryClient()
 
   const isDone = ['completed', 'skipped', 'not_required'].includes(stage.status)
-  const canAct = !isDone && !isBlocked
+  const canAct = !isDone && !isBlocked && !locked
 
   const patch = async (payload: Record<string, any>, okMsg = 'Stage updated') => {
     try { await updateStage.mutateAsync({ id: stage.id, projectId, ...(payload as any) }); if (okMsg) toast.success(okMsg) }
@@ -164,9 +165,22 @@ export function StageCard({ stage, projectId, isBlocked, serviceType, appRefNo, 
     if (status === 'Approved' || status === 'Rejected') {
       if (!confirm(`Mark this application "${status}"? Please confirm — ${status === 'Approved' ? 'Approved completes and locks the stage.' : 'this closes the application as rejected.'}`)) return
     }
-    const done = status === 'Approved'
+    // Both Approved and Rejected close the Status-at-FSSAI stage.
+    const done = status === 'Approved' || status === 'Rejected'
     await patch({ fssai_status: status, status: done ? 'completed' : 'in_progress',
       completed_at: done ? new Date().toISOString() : null }, `Status: ${status}`)
+    // Rejected (New Application / Modification): no licence — close out remaining stages.
+    if (status === 'Rejected' && (serviceType === 'New Application' || serviceType === 'Modification')) {
+      await supabase.from('stages').update({ status: 'not_required' } as any)
+        .eq('project_id', projectId).gt('stage_order', stage.stage_order).in('status', ['pending', 'in_progress', 'blocked'])
+      qc.invalidateQueries({ queryKey: ['projects', projectId] })
+    }
+    // Form II Approved: appeal isn't needed — skip it so Approval Issued can proceed.
+    if (status === 'Approved' && serviceType === 'Form II') {
+      await supabase.from('stages').update({ status: 'not_required' } as any)
+        .eq('project_id', projectId).eq('stage_kind', 'appeal').in('status', ['pending', 'in_progress', 'blocked'])
+      qc.invalidateQueries({ queryKey: ['projects', projectId] })
+    }
   }
   const applyQueryRaised = async (pick: { id: string; code: string }) => {
     await patch({ fssai_status: 'Query Raised', status: 'in_progress',
@@ -240,6 +254,11 @@ export function StageCard({ stage, projectId, isBlocked, serviceType, appRefNo, 
               label={kind === 'dtm' ? 'DTM file' : 'Artwork versions (V1, V2…)'} />
           )}
 
+          {locked && !isDone && (
+            <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5 flex items-center gap-1">
+              <Sym name="lock" size={12} /> Complete the previous stage(s) first.
+            </p>
+          )}
           <RoleGuard roles={['super_admin', 'director', 'manager', 'executive']}>
             {canAct && <div className="flex flex-wrap gap-2 pt-1">{renderActions()}</div>}
           </RoleGuard>
@@ -297,10 +316,11 @@ export function StageCard({ stage, projectId, isBlocked, serviceType, appRefNo, 
         // Step 2: track receipt. Partial -> client; Completed -> employee (verifying).
         return <>
           <label className="flex items-center gap-1.5 text-xs">Documents:
-            <select value={docStatus ?? 'partial'} onChange={e => {
+            <select value={docStatus ?? 'pending'} onChange={e => {
               const v = e.target.value
               patch({ doc_status: v, active_clock: v === 'completed' ? 'employee' : 'client', status: 'in_progress' }, 'Document status updated')
             }} className="text-xs px-2 py-1 border border-border rounded-lg">
+              <option value="pending">Pending (none yet)</option>
               <option value="partial">Partial received</option>
               <option value="completed">Completed (all received)</option>
             </select>

@@ -36,14 +36,19 @@ export function StagesTab({ stages, projectId, isBlocked, serviceType, appRefNo,
     )
   }
 
-  const renderList = (list: Stage[]) => (
-    <div className="space-y-2">
-      {[...list].sort((a, b) => a.stage_order - b.stage_order).map(stage => (
-        <StageCard key={stage.id} stage={stage} projectId={projectId} isBlocked={isBlocked}
-          serviceType={serviceType} appRefNo={appRefNo} clientId={clientId} assigneeName={assigneeName} />
-      ))}
-    </div>
-  )
+  const isDone = (s: Stage) => ['completed', 'skipped', 'not_required'].includes(s.status)
+  const renderList = (list: Stage[]) => {
+    const ordered = [...list].sort((a, b) => a.stage_order - b.stage_order)
+    return (
+      <div className="space-y-2">
+        {ordered.map((stage, i) => (
+          <StageCard key={stage.id} stage={stage} projectId={projectId} isBlocked={isBlocked}
+            serviceType={serviceType} appRefNo={appRefNo} clientId={clientId} assigneeName={assigneeName}
+            locked={ordered.slice(0, i).some(s => !isDone(s))} />
+        ))}
+      </div>
+    )
+  }
 
   // Multi-product (Artwork): group stages by product into parallel tracks.
   if (hasProducts && products.length) {

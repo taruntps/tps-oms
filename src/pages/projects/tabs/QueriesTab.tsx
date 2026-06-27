@@ -17,23 +17,31 @@ const QUERY_TYPES: { value: QueryType; label: string }[] = [
 ]
 const todayISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` }
 
-interface Props { projectId: string; projectCode: string }
+interface Props { projectId: string; projectCode: string; closed?: boolean }
 
-export function QueriesTab({ projectId }: Props) {
+export function QueriesTab({ projectId, closed }: Props) {
   const { profile } = useAuth()
   const { data: rounds = [], isLoading } = useAuthorityQueries(projectId)
   const createRound = useCreateQueryRound()
   const [adding, setAdding] = useState(false)
 
+  // Only one open query at a time: can't record a new round until the prior is answered.
+  const hasOpenRound = rounds.some(r => !(r as any).response_submitted_date)
+  const canRecord = !closed && !hasOpenRound
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-white/70">{rounds.length} query round{rounds.length !== 1 ? 's' : ''} from FSSAI</p>
+        <p className="text-sm text-white/70">{rounds.length} query round{rounds.length !== 1 ? 's' : ''} from FSSAI{closed ? ' · project closed' : ''}</p>
+        {!closed && (
         <RoleGuard roles={['super_admin','director','manager','executive']}>
-          <button onClick={() => setAdding(true)} className="flex items-center gap-1.5 text-sm px-3 py-1.5 bg-brand-600 text-white rounded-lg hover:bg-brand-700">
+          <button onClick={() => canRecord ? setAdding(true) : toast.error(hasOpenRound ? 'Respond to the open query first' : 'Project is closed', hasOpenRound ? 'Save the previous query response before recording a new one.' : '')}
+            disabled={!canRecord}
+            className="flex items-center gap-1.5 text-sm px-3 py-1.5 bg-brand-600 text-white rounded-lg hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed">
             <Sym name="add" size={14} /> Record Query
           </button>
         </RoleGuard>
+        )}
       </div>
 
       {isLoading ? (
@@ -46,7 +54,7 @@ export function QueriesTab({ projectId }: Props) {
       ) : (
         <div className="space-y-4">
           {rounds.map(r => <RoundCard key={r.id} round={r} projectId={projectId} meId={profile?.id ?? ''}
-            isAdmin={['super_admin','director'].includes(profile?.role ?? '')} />)}
+            isAdmin={['super_admin','director'].includes(profile?.role ?? '')} closed={!!closed} />)}
         </div>
       )}
 
@@ -55,7 +63,7 @@ export function QueriesTab({ projectId }: Props) {
   )
 }
 
-function RoundCard({ round, projectId, meId, isAdmin }: { round: QueryRound; projectId: string; meId: string; isAdmin: boolean }) {
+function RoundCard({ round, projectId, meId, isAdmin, closed }: { round: QueryRound; projectId: string; meId: string; isAdmin: boolean; closed: boolean }) {
   const save = useSaveRoundResponse()
   const responded = !!(round as any).response_submitted_date
   const due = (round as any).response_due as string | null
@@ -119,13 +127,16 @@ function RoundCard({ round, projectId, meId, isAdmin }: { round: QueryRound; pro
 
       <RoleGuard roles={['super_admin','director','manager','executive']}>
         <div className="px-4 py-2.5 border-t border-border flex items-center gap-2">
-          {!responding && !responded && (
+          {closed && (
+            <span className="text-[11px] text-muted-foreground flex items-center gap-1"><Sym name="lock" size={11} /> Project closed — queries locked</span>
+          )}
+          {!closed && !responding && !responded && (
             <button onClick={() => setResponding(true)} className="text-xs px-3 py-1.5 bg-brand-600 text-white rounded-lg hover:bg-brand-700">Add Response</button>
           )}
-          {!responding && responded && isAdmin && (
+          {!closed && !responding && responded && isAdmin && (
             <button onClick={() => setResponding(true)} className="text-xs px-3 py-1.5 border border-border rounded-lg hover:bg-[#F8FAFC]">Edit Response (admin)</button>
           )}
-          {!responding && responded && !isAdmin && (
+          {!closed && !responding && responded && !isAdmin && (
             <span className="text-[11px] text-muted-foreground flex items-center gap-1"><Sym name="lock" size={11} /> Response locked</span>
           )}
           {responding && (
@@ -155,6 +166,7 @@ function AddRoundModal({ projectId, meId, createRound, onClose }: {
     if (!receivedDate) { toast.error('Enter the date FSSAI raised the query', 'Use the actual FSSAI date, not today.'); return }
     const pts = points.filter(p => p.trim())
     if (pts.length === 0) { toast.error('Add at least one query point'); return }
+    if (!confirm(`Save this query with ${pts.length} point(s)? Make sure you've entered every query point from the deficiency letter — you can't add another query until this one is responded.`)) return
     try {
       await createRound.mutateAsync({ projectId, received_date: receivedDate, query_type: queryType, subject: '', points: pts, created_by: meId })
       toast.success('Query round recorded'); onClose()
