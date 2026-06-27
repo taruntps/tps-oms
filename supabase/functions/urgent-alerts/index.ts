@@ -37,7 +37,7 @@ serve(async (req) => {
   const nameById: Record<string, string> = Object.fromEntries((staff ?? []).map(s => [s.id, s.name]))
 
   if (testTo) {
-    const ok = await sendMail(testTo, opts.name ?? 'Tarun', '[TPS OMS] Urgent alert (test)', box('🔔 Urgent alerts test', `Hi ${esc(opts.name ?? 'Tarun')}, this confirms urgent alerts send correctly. Real alerts fire when a task is assigned.`))
+    const ok = await sendMail(testTo, opts.name ?? 'Tarun', '[TPS Xperts Group] Urgent alert (test)', box(opts.name ?? 'Tarun', '🔔 Urgent alerts test', `This confirms urgent alerts send correctly. Real alerts fire when a task is assigned.`))
     return j({ ok, test: true, to: testTo })
   }
 
@@ -53,8 +53,8 @@ serve(async (req) => {
       if (!email) continue
       if (await sentEver(supabase, 'task_new', t.id, uid)) continue
       const role = uid === t.assigned_to ? 'assigned to you' : 'you assigned'
-      const html = box('📋 New task ' + role, `<b>${esc(t.title)}</b><br>${t.project?.project_code ? 'Project ' + esc(t.project.project_code) + '<br>' : ''}${t.client?.company_name ? 'Client ' + esc(t.client.company_name) + '<br>' : ''}Priority: ${esc(t.priority)}${t.due_date ? '<br>Due: ' + t.due_date : ''}<br>For: ${esc(nameById[t.assigned_to] ?? '—')}`)
-      const ok = await sendMail(email, nameById[uid] ?? '', `[TPS OMS] New task: ${t.title}`, html)
+      const html = box(nameById[uid] ?? '', '📋 New task ' + role, `<b>${esc(t.title)}</b><br>${t.project?.project_code ? 'Project ' + esc(t.project.project_code) + '<br>' : ''}${t.client?.company_name ? 'Client ' + esc(t.client.company_name) + '<br>' : ''}Priority: ${esc(t.priority)}${t.due_date ? '<br>Due: ' + t.due_date : ''}<br>For: ${esc(nameById[t.assigned_to] ?? '—')}`)
+      const ok = await sendMail(email, nameById[uid] ?? '', `[TPS Xperts Group] New task: ${t.title}`, html)
       await logSent(supabase, 'task_new', t.id, uid)
       sent.push({ kind: 'task_new', task: t.id, uid, ok })
     }
@@ -69,8 +69,8 @@ serve(async (req) => {
     if (!uid) continue
     const email = emailMap[uid]; if (!email) continue
     if (await sentEver(supabase, 'task_done', t.id, uid)) continue
-    const html = box('✅ Task completed', `<b>${esc(t.title)}</b><br>${t.project?.project_code ? 'Project ' + esc(t.project.project_code) + '<br>' : ''}${t.client?.company_name ? 'Client ' + esc(t.client.company_name) + '<br>' : ''}Completed by ${esc(nameById[t.assigned_to] ?? '—')}`)
-    const ok = await sendMail(email, nameById[uid] ?? '', `[TPS OMS] Task completed: ${t.title}`, html)
+    const html = box(nameById[uid] ?? '', '✅ Task completed', `<b>${esc(t.title)}</b><br>${t.project?.project_code ? 'Project ' + esc(t.project.project_code) + '<br>' : ''}${t.client?.company_name ? 'Client ' + esc(t.client.company_name) + '<br>' : ''}Completed by ${esc(nameById[t.assigned_to] ?? '—')}`)
+    const ok = await sendMail(email, nameById[uid] ?? '', `[TPS Xperts Group] Task completed: ${t.title}`, html)
     await logSent(supabase, 'task_done', t.id, uid)
     sent.push({ kind: 'task_done', task: t.id, uid, ok })
   }
@@ -83,8 +83,8 @@ serve(async (req) => {
     const uid = (r as any).task?.assigned_by; if (!uid) continue
     const email = emailMap[uid]; if (!email) continue
     if (await sentEver(supabase, 'ext_req', r.id, uid)) continue
-    const html = box('⏳ Extension requested', `<b>${esc((r as any).task?.title)}</b><br>${esc(nameById[r.requested_by] ?? '—')} requested <b>+${r.extra_days} day(s)</b>.<br>Reason: ${esc(r.reason ?? '—')}<br>Open the task to approve or reject.`)
-    const ok = await sendMail(email, nameById[uid] ?? '', `[TPS OMS] Extension requested: ${(r as any).task?.title}`, html)
+    const html = box(nameById[uid] ?? '', '⏳ Extension requested', `<b>${esc((r as any).task?.title)}</b><br>${esc(nameById[r.requested_by] ?? '—')} requested <b>+${r.extra_days} day(s)</b>.<br>Reason: ${esc(r.reason ?? '—')}<br>Open the task to approve or reject.`)
+    const ok = await sendMail(email, nameById[uid] ?? '', `[TPS Xperts Group] Extension requested: ${(r as any).task?.title}`, html)
     await logSent(supabase, 'ext_req', r.id, uid)
     sent.push({ kind: 'ext_req', req: r.id, uid, ok })
   }
@@ -98,8 +98,8 @@ serve(async (req) => {
     const email = emailMap[uid]; if (!email) continue
     if (await sentEver(supabase, 'ext_dec', r.id, uid)) continue
     const verdict = r.status === 'approved' ? `approved (+${r.extra_days} day(s); due date extended)` : 'rejected'
-    const html = box('📌 Extension ' + r.status, `<b>${esc((r as any).task?.title)}</b><br>Your extension request was <b>${verdict}</b>.`)
-    const ok = await sendMail(email, nameById[uid] ?? '', `[TPS OMS] Extension ${r.status}: ${(r as any).task?.title}`, html)
+    const html = box(nameById[uid] ?? '', '📌 Extension ' + r.status, `<b>${esc((r as any).task?.title)}</b><br>Your extension request was <b>${verdict}</b>.`)
+    const ok = await sendMail(email, nameById[uid] ?? '', `[TPS Xperts Group] Extension ${r.status}: ${(r as any).task?.title}`, html)
     await logSent(supabase, 'ext_dec', r.id, uid)
     sent.push({ kind: 'ext_dec', req: r.id, uid, ok })
   }
@@ -110,7 +110,7 @@ serve(async (req) => {
 async function sendMail(to: string, name: string, subject: string, html: string): Promise<boolean> {
   try {
     const res = await fetch(ZEPTO_URL, { method: 'POST', headers: { 'Authorization': AUTH, 'Content-Type': 'application/json', 'Accept': 'application/json' },
-      body: JSON.stringify({ from: { address: FROM, name: 'TPS Xperts OMS' }, to: [{ email_address: { address: to, name: name || to } }], subject, htmlbody: html }) })
+      body: JSON.stringify({ from: { address: FROM, name: 'TPS Xperts Group' }, to: [{ email_address: { address: to, name: name || to } }], subject, htmlbody: html }) })
     return res.ok
   } catch { return false }
 }
@@ -122,7 +122,8 @@ async function logSent(sb: any, kind: string, ref: string, recipient: string) {
   await sb.from('notification_log').insert({ kind, ref_id: ref, recipient, channel: 'email' })
 }
 function esc(s: any) { return String(s ?? '').replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]!)) }
-function box(title: string, inner: string) {
-  return `<!DOCTYPE html><html><body style="margin:0;background:#F3F4F6;font-family:Arial,sans-serif;"><table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:28px 16px;"><table width="540" cellpadding="0" cellspacing="0" style="max-width:540px;"><tr><td style="background:#1E3A5F;border-radius:12px 12px 0 0;padding:20px 28px;"><h1 style="color:#fff;margin:0;font-size:18px;">TPS Xperts OMS</h1></td></tr><tr><td style="background:#fff;border-radius:0 0 12px 12px;padding:22px 28px;"><h3 style="margin:0 0 10px;color:#1E3A5F;">${title}</h3><p style="color:#374151;margin:0;line-height:1.6;">${inner}</p><p style="margin:24px 0 0;padding-top:12px;border-top:1px solid #f0f0f0;color:#9CA3AF;font-size:12px;"><a href="https://portal.tpsxpert.com" style="color:#1E3A5F;">Open portal.tpsxpert.com</a></p></td></tr></table></td></tr></table></body></html>`
+function box(name: string, title: string, inner: string) {
+  const header = `<tr><td style="background:#1E3A5F;border-radius:12px 12px 0 0;padding:18px 28px;"><table cellpadding="0" cellspacing="0"><tr><td style="padding-right:12px;"><table cellpadding="0" cellspacing="0"><tr><td style="width:42px;height:42px;background:#ffffff;border-radius:10px;text-align:center;vertical-align:middle;"><img src="https://portal.tpsxpert.com/logo.png" width="34" height="34" alt="TPS" style="display:inline-block;vertical-align:middle;" /></td></tr></table></td><td style="vertical-align:middle;"><span style="color:#ffffff;font-size:18px;font-weight:bold;">TPS Xperts Group</span></td></tr></table></td></tr>`
+  return `<!DOCTYPE html><html><body style="margin:0;background:#F3F4F6;font-family:Arial,sans-serif;"><table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:28px 16px;"><table width="540" cellpadding="0" cellspacing="0" style="max-width:540px;">${header}<tr><td style="background:#fff;border-radius:0 0 12px 12px;padding:22px 28px;"><p style="margin:0 0 12px;color:#374151;font-size:15px;">Dear <strong>${esc(name)}</strong>,</p><h3 style="margin:0 0 10px;color:#1E3A5F;">${title}</h3><p style="color:#374151;margin:0;line-height:1.6;">${inner}</p><p style="margin:24px 0 0;padding-top:12px;border-top:1px solid #f0f0f0;color:#9CA3AF;font-size:12px;">Automated message from TPS Xperts Group · <a href="https://portal.tpsxpert.com" style="color:#1E3A5F;">portal.tpsxpert.com</a></p></td></tr></table></td></tr></table></body></html>`
 }
 function j(b: unknown, status = 200) { return new Response(JSON.stringify(b), { status, headers: { ...cors, 'Content-Type': 'application/json' } }) }

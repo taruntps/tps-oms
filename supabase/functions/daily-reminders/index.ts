@@ -57,7 +57,7 @@ serve(async (req) => {
   if (testTo) {
     const sample = (tasks ?? []).slice(0, 10)
     const html = taskDigestHtml(opts.name ?? 'Tarun', splitDue(sample, today)) + licenceHtml(lic ?? [], today)
-    const ok = await sendMail(testTo, opts.name ?? 'Tarun', `[TPS OMS] Test digest — ${sample.length} task(s), ${(lic ?? []).length} licence(s)`, html)
+    const ok = await sendMail(testTo, opts.name ?? 'Tarun', `[TPS Xperts Group] Test digest — ${sample.length} task(s), ${(lic ?? []).length} licence(s)`, html)
     return j({ ok, test: true, to: testTo, tasks: sample.length, licences: (lic ?? []).length })
   }
 
@@ -69,7 +69,7 @@ serve(async (req) => {
     if (!email) continue
     if (await alreadySent(supabase, 'digest', null, s.id, today)) continue
     const { overdue, upcoming } = splitDue(mine, today)
-    const ok = await sendMail(email, s.name, `[TPS OMS] Your tasks — ${overdue.length} overdue, ${upcoming.length} open`, taskDigestHtml(s.name, { overdue, upcoming }))
+    const ok = await sendMail(email, s.name, `[TPS Xperts Group] Your tasks — ${overdue.length} overdue, ${upcoming.length} open`, taskDigestHtml(s.name, { overdue, upcoming }))
     await logSent(supabase, 'digest', null, s.id)
     sent.push({ uid: s.id, kind: 'task_digest', ok })
   }
@@ -81,7 +81,7 @@ serve(async (req) => {
       const email = emailMap[m.id]
       if (!email) continue
       if (await alreadySent(supabase, 'licence_digest', null, m.id, today)) continue
-      const ok = await sendMail(email, m.name, `[TPS OMS] ${lic!.length} licence(s) expiring within 30 days`, licenceHtml(lic!, today))
+      const ok = await sendMail(email, m.name, `[TPS Xperts Group] ${lic!.length} licence(s) expiring within 30 days`, licenceHtml(lic!, today))
       await logSent(supabase, 'licence_digest', null, m.id)
       sent.push({ uid: m.id, kind: 'licence_digest', ok })
     }
@@ -96,7 +96,7 @@ async function sendMail(to: string, name: string, subject: string, html: string)
     const res = await fetch(ZEPTO_URL, {
       method: 'POST',
       headers: { 'Authorization': AUTH, 'Content-Type': 'application/json', 'Accept': 'application/json' },
-      body: JSON.stringify({ from: { address: FROM, name: 'TPS Xperts OMS' }, to: [{ email_address: { address: to, name: name || to } }], subject, htmlbody: html }),
+      body: JSON.stringify({ from: { address: FROM, name: 'TPS Xperts Group' }, to: [{ email_address: { address: to, name: name || to } }], subject, htmlbody: html }),
     })
     return res.ok
   } catch { return false }
@@ -129,14 +129,21 @@ function taskTable(title: string, color: string, bg: string, rows: string) {
     <thead><tr style="background:${bg};"><th style="padding:9px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:${color};">Task</th><th style="padding:9px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:${color};">Ref</th><th style="padding:9px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:${color};">Priority</th><th style="padding:9px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:${color};">Due</th></tr></thead>
     <tbody>${rows}</tbody></table>`
 }
+function brandHeader(subtitle: string) {
+  return `<tr><td style="background:#1E3A5F;border-radius:12px 12px 0 0;padding:18px 28px;">
+  <table cellpadding="0" cellspacing="0"><tr>
+  <td style="padding-right:12px;"><table cellpadding="0" cellspacing="0"><tr><td style="width:42px;height:42px;background:#ffffff;border-radius:10px;text-align:center;vertical-align:middle;"><img src="https://portal.tpsxpert.com/logo.png" width="34" height="34" alt="TPS" style="display:inline-block;vertical-align:middle;" /></td></tr></table></td>
+  <td style="vertical-align:middle;"><span style="color:#ffffff;font-size:18px;font-weight:bold;">TPS Xperts Group</span>${subtitle ? `<br><span style="color:#93C5FD;font-size:12px;">${subtitle}</span>` : ''}</td>
+  </tr></table></td></tr>`
+}
 function shell(name: string, intro: string, body: string) {
   return `<!DOCTYPE html><html><body style="margin:0;background:#F3F4F6;font-family:Arial,sans-serif;">
   <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:28px 16px;">
   <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;">
-  <tr><td style="background:#1E3A5F;border-radius:12px 12px 0 0;padding:22px 30px;"><h1 style="color:#fff;margin:0;font-size:19px;">TPS Xperts OMS</h1><p style="color:#93C5FD;margin:4px 0 0;font-size:13px;">Daily Summary</p></td></tr>
+  ${brandHeader('Daily Summary')}
   <tr><td style="background:#fff;border-radius:0 0 12px 12px;padding:24px 30px;">
-  <p style="color:#374151;margin:0 0 6px;">Hi <strong>${esc(name)}</strong>,</p><p style="color:#374151;margin:0 0 4px;">${intro}</p>${body}
-  <p style="margin:28px 0 0;padding-top:14px;border-top:1px solid #f0f0f0;color:#9CA3AF;font-size:12px;">Automated reminder from TPS Xperts OMS · <a href="https://portal.tpsxpert.com" style="color:#1E3A5F;">portal.tpsxpert.com</a></p>
+  <p style="color:#374151;margin:0 0 6px;">Dear <strong>${esc(name)}</strong>,</p><p style="color:#374151;margin:0 0 4px;">${intro}</p>${body}
+  <p style="margin:28px 0 0;padding-top:14px;border-top:1px solid #f0f0f0;color:#9CA3AF;font-size:12px;">Automated message from TPS Xperts Group · <a href="https://portal.tpsxpert.com" style="color:#1E3A5F;">portal.tpsxpert.com</a></p>
   </td></tr></table></td></tr></table></body></html>`
 }
 function taskDigestHtml(name: string, d: { overdue: any[]; upcoming: any[] }) {
