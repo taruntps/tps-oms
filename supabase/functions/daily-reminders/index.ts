@@ -51,14 +51,20 @@ serve(async (req) => {
     .select('id, license_type, license_number, expiry_date, client:clients(company_name)')
     .eq('is_active', true).not('expiry_date', 'is', null).lte('expiry_date', addDays(today, 30)).order('expiry_date')
 
+  // FSSAI query rounds with response due within 5 days or overdue (not yet responded)
+  const { data: queries } = await supabase.from('authority_queries')
+    .select('id, received_date, response_due, project:projects(project_code, client:clients(company_name))')
+    .is('response_submitted_date', null).not('response_due', 'is', null)
+    .lte('response_due', addDays(today, 5)).order('response_due')
+
   const sent: any[] = []
 
   // ── TEST MODE: one combined email, no logging ──
   if (testTo) {
     const sample = (tasks ?? []).slice(0, 10)
-    const html = taskDigestHtml(opts.name ?? 'Tarun', splitDue(sample, today)) + licenceHtml(lic ?? [], today)
+    const html = taskDigestHtml(opts.name ?? 'Tarun', splitDue(sample, today)) + licenceHtml(lic ?? [], today) + queryHtml(queries ?? [], today)
     const ok = await sendMail(testTo, opts.name ?? 'Tarun', `[TPS Xperts Group] Test digest — ${sample.length} task(s), ${(lic ?? []).length} licence(s)`, html)
-    return j({ ok, test: true, to: testTo, tasks: sample.length, licences: (lic ?? []).length })
+    return j({ ok, test: true, to: testTo, tasks: sample.length, licences: (lic ?? []).length, queries: (queries ?? []).length })
   }
 
   // ── Per-staff TASK digests ──
@@ -84,6 +90,19 @@ serve(async (req) => {
       const ok = await sendMail(email, m.name, `[TPS Xperts Group] ${lic!.length} licence(s) expiring within 30 days`, licenceHtml(lic!, today))
       await logSent(supabase, 'licence_digest', null, m.id)
       sent.push({ uid: m.id, kind: 'licence_digest', ok })
+    }
+  }
+
+  // ── Manager FSSAI QUERY-DUE digest ──
+  if ((queries ?? []).length) {
+    const mgrs = (staff ?? []).filter(s => MGR_ROLES.includes(s.role))
+    for (const m of mgrs) {
+      const email = emailMap[m.id]
+      if (!email) continue
+      if (await alreadySent(supabase, 'query_digest', null, m.id, today)) continue
+      const ok = await sendMail(email, m.name, `[TPS Xperts Group] ${queries!.length} FSSAI query response(s) due`, queryHtml(queries!, today))
+      await logSent(supabase, 'query_digest', null, m.id)
+      sent.push({ uid: m.id, kind: 'query_digest', ok })
     }
   }
 
@@ -166,6 +185,23 @@ function licenceHtml(lic: any[], today: string) {
   return `<h3 style="color:#B45309;margin:20px 0 8px;">📜 Licences expiring (${lic.length})</h3>
   <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;border:1px solid #FDE68A;border-radius:8px;overflow:hidden;">
   <thead><tr style="background:#FFFBEB;"><th style="padding:9px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#92400E;">Client</th><th style="padding:9px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#92400E;">Licence</th><th style="padding:9px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#92400E;">Expiry</th></tr></thead>
+  <tbody>${rows}</tbody></table>`
+}
+function queryHtml(qs: any[], today: string) {
+  if (!qs.length) return ''
+  const rows = qs.map(q => {
+    const due = q.response_due as string
+    const overdue = due < today
+    return `<tr>
+      <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;color:#374151;">${esc(q.project?.client?.company_name ?? '—')}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;color:#374151;">${esc(q.project?.project_code ?? '—')}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;color:#6B7280;">${q.received_date}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;color:${overdue ? '#DC2626' : '#B45309'};">${due}${overdue ? ' (overdue)' : ''}</td>
+    </tr>`
+  }).join('')
+  return `<h3 style="color:#B45309;margin:20px 0 8px;">⏳ FSSAI query responses due (${qs.length})</h3>
+  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;border:1px solid #FDE68A;border-radius:8px;overflow:hidden;">
+  <thead><tr style="background:#FFFBEB;"><th style="padding:9px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#92400E;">Client</th><th style="padding:9px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#92400E;">Project</th><th style="padding:9px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#92400E;">Received</th><th style="padding:9px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#92400E;">Response due</th></tr></thead>
   <tbody>${rows}</tbody></table>`
 }
 function j(b: unknown, status = 200) { return new Response(JSON.stringify(b), { status, headers: { ...cors, 'Content-Type': 'application/json' } }) }
