@@ -96,7 +96,7 @@ export default function ProjectDetailPage() {
   const noExtra = ['Annual Return', 'Claim Check', 'Renewal'].includes(st)
   const visibleTabs = TABS.filter(t => {
     if (noExtra && ['documents', 'queries', 'soi'].includes(t.key)) return false
-    if (t.key === 'soi' && (st === 'Form II' || noExtra)) return false
+    if (t.key === 'soi' && (st === 'Form II' || st === 'Artwork' || noExtra)) return false
     return true
   })
   const effectiveTab = visibleTabs.some(t => t.key === activeTab) ? activeTab : 'overview'

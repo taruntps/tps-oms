@@ -37,6 +37,8 @@ export function StagesTab({ stages, projectId, isBlocked, serviceType, appRefNo,
   }
 
   const isDone = (s: Stage) => ['completed', 'skipped', 'not_required'].includes(s.status)
+  // Form II: stages 1–3 can be worked in parallel; stage 4 onwards is gated on the prior ones.
+  const parallelMax = serviceType === 'Form II' ? 3 : 0
   const renderList = (list: Stage[]) => {
     const ordered = [...list].sort((a, b) => a.stage_order - b.stage_order)
     return (
@@ -44,7 +46,7 @@ export function StagesTab({ stages, projectId, isBlocked, serviceType, appRefNo,
         {ordered.map((stage, i) => (
           <StageCard key={stage.id} stage={stage} projectId={projectId} isBlocked={isBlocked}
             serviceType={serviceType} appRefNo={appRefNo} clientId={clientId} assigneeName={assigneeName}
-            locked={ordered.slice(0, i).some(s => !isDone(s))} />
+            locked={stage.stage_order <= parallelMax ? false : ordered.slice(0, i).some(s => !isDone(s))} />
         ))}
       </div>
     )

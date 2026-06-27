@@ -11,13 +11,15 @@ import { supabase } from '@/lib/supabase'
 import { useQuery } from '@tanstack/react-query'
 import { SERVICE_TYPES } from '@/data/india'
 
+const todayISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
+
 const schema = z.object({
   client_id:    z.string().min(1, 'Select a client'),
   service_type: z.string().min(1, 'Required'),
   assigned_to:  z.string().min(1, 'Assign an executive'),
   manager_id:   z.string().min(1, 'Assign a manager'),
   quoted_amount: z.coerce.number().min(0),
-  target_date:  z.string().optional(),
+  target_date:  z.string().min(1, 'Target date is required').refine(d => d >= todayISO(), 'Target date must be today or a future date'),
   notes:        z.string().optional(),
 })
 
@@ -130,8 +132,8 @@ export function ProjectForm({ onClose }: Props) {
               </select>
             </Field>
 
-            <Field label="Target Date" error={errors.target_date?.message} className="col-span-2">
-              <input type="date" {...register('target_date')} className={ic(false)} />
+            <Field label="Target Date *" error={errors.target_date?.message} className="col-span-2">
+              <input type="date" min={todayISO()} {...register('target_date')} className={ic(!!errors.target_date)} />
             </Field>
 
             <Field label="Notes" error={errors.notes?.message} className="col-span-2">
