@@ -25,3 +25,14 @@ describe('isMatch', () => {
     expect(isMatch(a, b, 0.99)).toBe(false)
   })
 })
+
+import { averageDescriptors } from './faceEngine'
+
+describe('averageDescriptors', () => {
+  it('averages element-wise', () => {
+    expect(averageDescriptors([[2, 4], [4, 8]])).toEqual([3, 6])
+  })
+  it('returns [] for empty input', () => {
+    expect(averageDescriptors([])).toEqual([])
+  })
+})
