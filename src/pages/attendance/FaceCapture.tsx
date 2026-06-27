@@ -15,7 +15,7 @@ interface Props {
   actionLabel: string
   busy?: boolean
   // Returns a captured frame canvas + its descriptor for the caller to use.
-  onCapture: (result: { canvas: HTMLCanvasElement; descriptor: number[] }) => void
+  onCapture: (result: { canvas: HTMLCanvasElement; descriptor: number[] }) => void | Promise<void>
   onCancel: () => void
 }
 
@@ -61,10 +61,12 @@ export function FaceCapture({ title, actionLabel, busy, onCapture, onCancel }: P
     try {
       const canvas = snapshot(video)
       const res: DescriptorResult = await getDescriptor(canvas)
-      if (!res.ok) { toast.error('Try again', REASON_MSG[res.reason]); setWorking(false); return }
-      onCapture({ canvas, descriptor: res.descriptor })
+      if (!res.ok) { toast.error('Try again', REASON_MSG[res.reason]); return }
+      await onCapture({ canvas, descriptor: res.descriptor })
     } catch (e: any) {
-      toast.error('Capture failed', e.message); setWorking(false)
+      toast.error('Capture failed', e.message)
+    } finally {
+      setWorking(false)
     }
   }
 
