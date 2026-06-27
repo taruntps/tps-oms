@@ -1,23 +1,19 @@
 import { StageCard } from '../StageCard'
 import type { Tables } from '@/types/database'
-import type { Database } from '@/types/database'
 
 type Stage = Tables<'stages'>
-type ClockType = Database['public']['Enums']['clock_type']
 
 interface Props {
   stages: Stage[]
   projectId: string
   isBlocked: boolean
-  activeClock: ClockType
   serviceType?: string
   appRefNo?: string | null
   clientId?: string
   assigneeName?: string
-  onClockChange: (clock: ClockType, extra?: Record<string, any>) => Promise<void>
 }
 
-export function StagesTab({ stages, projectId, isBlocked, activeClock, serviceType, appRefNo, clientId, assigneeName, onClockChange }: Props) {
+export function StagesTab({ stages, projectId, isBlocked, serviceType, appRefNo, clientId, assigneeName }: Props) {
   if (stages.length === 0) {
     return (
       <div className="glass-panel rounded-xl border-dashed !border-white/20 p-8 text-center">
@@ -36,12 +32,10 @@ export function StagesTab({ stages, projectId, isBlocked, activeClock, serviceTy
             stage={stage}
             projectId={projectId}
             isBlocked={isBlocked}
-            activeClock={activeClock}
             serviceType={serviceType}
             appRefNo={appRefNo}
             clientId={clientId}
             assigneeName={assigneeName}
-            onClockChange={onClockChange}
           />
         ))}
     </div>

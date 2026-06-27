@@ -68,7 +68,10 @@ export default function ProjectDetailPage() {
   const myPendingRequest = pendingRequests.find(r => r.project_id === id)
   const stages           = (project as any).stages ?? []
   const clientId         = project.client_id
-  const activeClock      = (project.active_clock ?? 'employee') as ClockType
+  // Header clock reflects the CURRENT (first not-done) stage's own clock — per-stage now.
+  const currentStage     = [...stages].sort((a: any, b: any) => a.stage_order - b.stage_order)
+                             .find((s: any) => !['completed','skipped','not_required'].includes(s.status))
+  const activeClock      = ((currentStage as any)?.active_clock ?? project.active_clock ?? 'employee') as ClockType
   const appRefNo         = (project as any).app_ref_no as string | null | undefined
   const executiveName    = (project as any).profiles_assigned?.name as string | undefined
   const execFirstName    = executiveName?.trim().split(/\s+/)[0]
@@ -84,21 +87,7 @@ export default function ProjectDetailPage() {
     || (project as any).assigned_to === profile?.id
     || (profile as any)?.can_assign === true
 
-  // ── Clock change (called by StageCard) ──────────────────────────────────
-  const handleClockChange = async (clock: ClockType, extra?: Record<string, any>) => {
-    try {
-      await updateProject.mutateAsync({
-        id: project.id,
-        active_clock: clock,
-        clock_switched_at: new Date().toISOString(),
-        ...(extra ?? {}),
-      })
-      toast.success(
-        clock === 'employee'  ? '🟢 Back to Employee' :
-        clock === 'client'    ? '🟡 Moved to Client'  : '🔵 Submitted to FSSAI'
-      )
-    } catch (err: any) { toast.error('Clock update failed', err.message) }
-  }
+  // (Per-stage clock is now managed inside StageCard; no project-level clock handler.)
 
   // ── Block / Unblock ──────────────────────────────────────────────────────
   const handleApprove = async (requestId: string, approved: boolean) => {
@@ -160,7 +149,7 @@ export default function ProjectDetailPage() {
 
   return (
     <div>
-      <TopBar title={project.project_code ?? 'Project'} subtitle={project.project_name} />
+      <TopBar title={project.project_code ?? 'Project'} subtitle={project.project_name || (project.service_type ?? undefined)} />
       <div className="p-6 animate-fade-up space-y-4">
 
         {/* Back + actions row */}
@@ -402,12 +391,10 @@ export default function ProjectDetailPage() {
             stages={stages}
             projectId={id!}
             isBlocked={project.is_blocked ?? false}
-            activeClock={activeClock}
             serviceType={project.service_type ?? undefined}
             appRefNo={appRefNo}
             clientId={clientId}
             assigneeName={executiveName}
-            onClockChange={handleClockChange}
           />
         )}
         {activeTab === 'payments'  && <PaymentsTab  projectId={id!} clientId={clientId} />}

@@ -1176,6 +1176,41 @@ export type Database = {
         }
         Relationships: []
       }
+      project_products: {
+        Row: {
+          created_at: string
+          id: string
+          product_name: string
+          product_no: number
+          project_id: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          product_name: string
+          product_no: number
+          project_id: string
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          product_name?: string
+          product_no?: number
+          project_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_products_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       project_transfers: {
         Row: {
           created_at: string
@@ -1280,7 +1315,7 @@ export type Database = {
           paid_amount: number
           payment_status: Database["public"]["Enums"]["payment_status"]
           project_code: string
-          project_name: string
+          project_name: string | null
           quoted_amount: number
           service_type: string
           start_date: string
@@ -1313,7 +1348,7 @@ export type Database = {
           paid_amount?: number
           payment_status?: Database["public"]["Enums"]["payment_status"]
           project_code?: string
-          project_name: string
+          project_name?: string | null
           quoted_amount?: number
           service_type: string
           start_date?: string
@@ -1346,7 +1381,7 @@ export type Database = {
           paid_amount?: number
           payment_status?: Database["public"]["Enums"]["payment_status"]
           project_code?: string
-          project_name?: string
+          project_name?: string | null
           quoted_amount?: number
           service_type?: string
           start_date?: string
@@ -1604,6 +1639,7 @@ export type Database = {
           is_skippable: boolean
           service_type: string
           stage_code: string
+          stage_kind: string
           stage_name: string
           stage_order: number
         }
@@ -1614,6 +1650,7 @@ export type Database = {
           is_skippable?: boolean
           service_type: string
           stage_code: string
+          stage_kind?: string
           stage_name: string
           stage_order: number
         }
@@ -1624,6 +1661,7 @@ export type Database = {
           is_skippable?: boolean
           service_type?: string
           stage_code?: string
+          stage_kind?: string
           stage_name?: string
           stage_order?: number
         }
@@ -1689,19 +1727,23 @@ export type Database = {
       }
       stages: {
         Row: {
+          active_clock: Database["public"]["Enums"]["clock_type"]
           assigned_to: string | null
           awaiting_client_flag: boolean
           clock_action: string | null
           completed_at: string | null
           created_at: string
+          doc_status: string | null
           due_date: string | null
           id: string
           is_skippable: boolean
           notes: string | null
+          product_id: string | null
           project_id: string
           skip_reason: string | null
           skipped_at: string | null
           stage_code: string | null
+          stage_kind: string
           stage_name: string
           stage_order: number
           started_at: string | null
@@ -1709,19 +1751,23 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          active_clock?: Database["public"]["Enums"]["clock_type"]
           assigned_to?: string | null
           awaiting_client_flag?: boolean
           clock_action?: string | null
           completed_at?: string | null
           created_at?: string
+          doc_status?: string | null
           due_date?: string | null
           id?: string
           is_skippable?: boolean
           notes?: string | null
+          product_id?: string | null
           project_id: string
           skip_reason?: string | null
           skipped_at?: string | null
           stage_code?: string | null
+          stage_kind?: string
           stage_name: string
           stage_order: number
           started_at?: string | null
@@ -1729,19 +1775,23 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          active_clock?: Database["public"]["Enums"]["clock_type"]
           assigned_to?: string | null
           awaiting_client_flag?: boolean
           clock_action?: string | null
           completed_at?: string | null
           created_at?: string
+          doc_status?: string | null
           due_date?: string | null
           id?: string
           is_skippable?: boolean
           notes?: string | null
+          product_id?: string | null
           project_id?: string
           skip_reason?: string | null
           skipped_at?: string | null
           stage_code?: string | null
+          stage_kind?: string
           stage_name?: string
           stage_order?: number
           started_at?: string | null
@@ -1754,6 +1804,13 @@ export type Database = {
             columns: ["assigned_to"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stages_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "project_products"
             referencedColumns: ["id"]
           },
           {
@@ -2032,6 +2089,10 @@ export type Database = {
       }
       delete_client: { Args: { p_client_id: string }; Returns: undefined }
       delete_project: { Args: { p_project_id: string }; Returns: undefined }
+      fn_add_working_days: {
+        Args: { p_days: number; p_start: string }
+        Returns: string
+      }
       fn_can_assign: { Args: never; Returns: boolean }
       fn_can_edit_clients: { Args: never; Returns: boolean }
       fn_can_view_all_projects: { Args: never; Returns: boolean }
@@ -2123,6 +2184,7 @@ export type Database = {
         | "blocked"
         | "completed"
         | "skipped"
+        | "not_required"
       user_role:
         | "super_admin"
         | "director"
@@ -2308,6 +2370,7 @@ export const Constants = {
         "blocked",
         "completed",
         "skipped",
+        "not_required",
       ],
       user_role: [
         "super_admin",

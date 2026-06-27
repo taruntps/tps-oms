@@ -19,6 +19,19 @@ const STATUS_FILTERS: { label: string; value: ProjectStatus | 'all' }[] = [
   { label: 'Cancelled',  value: 'cancelled' },
 ]
 
+// Distinct colour per project (service) type so the type reads at a glance.
+const PROJECT_TYPE_BADGE: Record<string, string> = {
+  'New Application': 'bg-blue-50 text-blue-700 border-blue-200',
+  'Renewal':        'bg-green-50 text-green-700 border-green-200',
+  'Modification':   'bg-amber-50 text-amber-700 border-amber-200',
+  'Annual Return':  'bg-purple-50 text-purple-700 border-purple-200',
+  'Form II':        'bg-indigo-50 text-indigo-700 border-indigo-200',
+  'Artwork':        'bg-pink-50 text-pink-700 border-pink-200',
+  'Claim Check':    'bg-teal-50 text-teal-700 border-teal-200',
+}
+const projectTypeBadge = (t?: string | null) =>
+  (t && PROJECT_TYPE_BADGE[t]) || 'bg-gray-50 text-gray-600 border-gray-200'
+
 const STATUS_BADGE: Record<ProjectStatus, string> = {
   active:    'bg-green-100 text-green-700',
   on_hold:   'bg-amber-100 text-amber-700',
@@ -59,7 +72,7 @@ export default function ProjectsPage() {
     const q = search.toLowerCase()
     const matchSearch = !q ||
       p.project_code?.toLowerCase().includes(q) ||
-      p.project_name.toLowerCase().includes(q) ||
+      p.project_name?.toLowerCase().includes(q) ||
       p.clients?.company_name?.toLowerCase().includes(q) ||
       p.service_type?.toLowerCase().includes(q)
     return matchStatus && matchSearch
@@ -172,10 +185,10 @@ export default function ProjectsPage() {
                         <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-red-100 text-red-700">BLOCKED</span>
                       )}
                     </div>
-                    <h3 className="font-semibold text-brand-950 mt-1">{p.project_name}</h3>
+                    <h3 className="font-semibold text-brand-950 mt-1">{p.project_name?.trim() || p.service_type}</h3>
                     <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
                       <span>{p.clients?.company_name}</span>
-                      {p.service_type && <span className="text-[10px] bg-[#F8FAFC] border border-border px-1.5 py-0.5 rounded">{p.service_type}</span>}
+                      {p.service_type && <span className={cn('text-[10px] border px-1.5 py-0.5 rounded font-medium', projectTypeBadge(p.service_type))}>{p.service_type}</span>}
                       {p.profiles_assigned && <span>Executive: {p.profiles_assigned.name}</span>}
                       {p.target_date && <span>Due {formatDate(p.target_date)}</span>}
                     </div>

@@ -13,7 +13,6 @@ import { SERVICE_TYPES } from '@/data/india'
 
 const schema = z.object({
   client_id:    z.string().min(1, 'Select a client'),
-  project_name: z.string().min(2, 'Required'),
   service_type: z.string().min(1, 'Required'),
   assigned_to:  z.string().min(1, 'Assign an executive'),
   manager_id:   z.string().min(1, 'Assign a manager'),
@@ -63,6 +62,7 @@ export function ProjectForm({ onClose }: Props) {
     try {
       await create.mutateAsync({
         ...data,
+        project_name:  '',
         target_date:   data.target_date  || null,
         notes:         data.notes        || null,
         quoted_amount: Math.round(data.quoted_amount * 100),
@@ -93,11 +93,7 @@ export function ProjectForm({ onClose }: Props) {
               </select>
             </Field>
 
-            <Field label="Project Name *" error={errors.project_name?.message} className="col-span-2">
-              <input {...register('project_name')} className={ic(!!errors.project_name)} placeholder="e.g. Form II – Magnesium Glycinate" />
-            </Field>
-
-            <Field label="Service Type *" error={errors.service_type?.message}>
+            <Field label="Project Type *" error={errors.service_type?.message}>
               <select {...register('service_type')} className={ic(!!errors.service_type)}>
                 {SERVICE_TYPES.map(t => <option key={t}>{t}</option>)}
               </select>
