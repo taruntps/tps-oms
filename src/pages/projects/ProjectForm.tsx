@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -58,9 +58,17 @@ export function ProjectForm({ onClose }: Props) {
     }
   }, [managers, managerValue])
 
+  // Artwork can hold multiple products, each with its own parallel stage track.
+  const serviceType = watch('service_type')
+  const isArtwork = serviceType === 'Artwork'
+  const [products, setProducts] = useState<string[]>([''])
+
   const onSubmit = async (data: FormData) => {
+    if (isArtwork && products.filter(p => p.trim()).length === 0) {
+      toast.error('Add at least one product name'); return
+    }
     try {
-      await create.mutateAsync({
+      const proj = await create.mutateAsync({
         ...data,
         project_name:  '',
         target_date:   data.target_date  || null,
@@ -68,7 +76,12 @@ export function ProjectForm({ onClose }: Props) {
         quoted_amount: Math.round(data.quoted_amount * 100),
         created_by:    profile?.id,
       })
-      toast.success('Project created', 'Stages auto-generated from template')
+      if (isArtwork && proj?.id) {
+        const names = products.map(p => p.trim()).filter(Boolean)
+        await supabase.from('project_products').insert(names.map((nm, i) => ({ project_id: proj.id, product_no: i + 1, product_name: nm })) as any)
+        await (supabase.rpc as any)('generate_artwork_product_stages', { p_project_id: proj.id })
+      }
+      toast.success('Project created', isArtwork ? `${products.filter(p => p.trim()).length} product track(s) created` : 'Stages auto-generated from template')
       onClose()
     } catch (err: any) {
       toast.error('Failed to create project', err.message)
@@ -124,6 +137,22 @@ export function ProjectForm({ onClose }: Props) {
             <Field label="Notes" error={errors.notes?.message} className="col-span-2">
               <textarea {...register('notes')} rows={2} className={ic(false)} />
             </Field>
+
+            {isArtwork && (
+              <div className="col-span-2 border-t border-border pt-3">
+                <label className="block text-xs font-medium text-brand-950 mb-1">Products ({products.length}) — each runs its own artwork track</label>
+                <div className="space-y-2">
+                  {products.map((p, i) => (
+                    <div key={i} className="flex gap-2 items-center">
+                      <span className="w-6 text-xs text-muted-foreground text-center">{i + 1}</span>
+                      <input className={ic(false)} value={p} onChange={e => setProducts(products.map((x, j) => j === i ? e.target.value : x))} placeholder={`Product ${i + 1} name`} />
+                      {products.length > 1 && <button type="button" onClick={() => setProducts(products.filter((_, j) => j !== i))} className="text-muted-foreground hover:text-red-600"><Sym name="close" size={14} /></button>}
+                    </div>
+                  ))}
+                </div>
+                <button type="button" onClick={() => setProducts([...products, ''])} className="mt-2 text-xs text-brand-600 hover:text-brand-700 flex items-center gap-1"><Sym name="add" size={13} /> Add product</button>
+              </div>
+            )}
 
           </div>
         </form>

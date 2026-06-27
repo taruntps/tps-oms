@@ -4,6 +4,7 @@ import { useUpdateStage } from '@/hooks/useProjects'
 import { supabase } from '@/lib/supabase'
 import { useQueryClient } from '@tanstack/react-query'
 import { RoleGuard } from '@/components/shared/ProtectedRoute'
+import { StageAttachments } from './StageAttachments'
 import { toast } from '@/components/shared/Toast'
 import { cn, formatDate, formatDateTime } from '@/lib/utils'
 import type { Tables } from '@/types/database'
@@ -201,6 +202,12 @@ export function StageCard({ stage, projectId, isBlocked, serviceType, appRefNo, 
               {meta.date && <div>Date: {meta.date}</div>}
               {meta.decision && <div>Appeal: {meta.decision} (filed {meta.filed_date})</div>}
             </div>
+          )}
+
+          {(kind === 'review_loop' || kind === 'dtm') && serviceType === 'Artwork' && (
+            <StageAttachments stageId={stage.id} projectId={projectId}
+              docType={kind === 'dtm' ? 'dtm' : 'revision'}
+              label={kind === 'dtm' ? 'DTM file' : 'Artwork versions (V1, V2…)'} />
           )}
 
           <RoleGuard roles={['super_admin', 'director', 'manager', 'executive']}>

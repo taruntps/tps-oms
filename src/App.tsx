@@ -15,6 +15,7 @@ import OperationsPage from '@/pages/operations/OperationsPage'
 import DirectorPage from '@/pages/director/DirectorPage'
 import SettingsPage from '@/pages/settings/SettingsPage'
 import PerformancePage from '@/pages/reports/PerformancePage'
+import QueriesReportPage from '@/pages/reports/QueriesReportPage'
 import KnowledgePage from '@/pages/knowledge/KnowledgePage'
 import UserManagementPage from '@/pages/admin/UserManagementPage'
 import EmployeesPage from '@/pages/employees/EmployeesPage'
@@ -96,6 +97,11 @@ export default function App() {
               <Route path="reports/performance" element={
                 <ProtectedRoute allowedRoles={['super_admin','director','manager']}>
                   <PerformancePage />
+                </ProtectedRoute>
+              } />
+              <Route path="reports/queries" element={
+                <ProtectedRoute allowedRoles={['super_admin','director','manager']}>
+                  <QueriesReportPage />
                 </ProtectedRoute>
               } />
               <Route path="settings"            element={

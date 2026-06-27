@@ -23,6 +23,7 @@ const NAV: NavItem[] = [
   { href: '/employees',          label: 'Employees',      icon: 'badge',                   roles: ['super_admin','director','manager','hr'] },
   { href: '/knowledge',          label: 'Knowledge Base', icon: 'menu_book',               roles: ['super_admin','director','manager','executive','auditor'] },
   { href: '/reports/performance',label: 'Reports',        icon: 'bar_chart',               roles: ['super_admin','director','manager'] },
+  { href: '/reports/queries',    label: 'Queries Report', icon: 'fact_check',              roles: ['super_admin','director','manager'] },
   { href: '/settings',           label: 'Settings',       icon: 'settings',                roles: ['super_admin'] },
   { href: '/admin/users',        label: 'User Management',icon: 'admin_panel_settings',    roles: ['super_admin','director'] },
 ]
