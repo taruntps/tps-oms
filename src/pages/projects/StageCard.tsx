@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { useQueryClient } from '@tanstack/react-query'
 import { RoleGuard } from '@/components/shared/ProtectedRoute'
 import { StageAttachments } from './StageAttachments'
+import { useStageDocuments } from '@/hooks/useStageDocuments'
 import { toast } from '@/components/shared/Toast'
 import { cn, formatDate, formatDateTime } from '@/lib/utils'
 import type { Tables } from '@/types/database'
@@ -48,6 +49,8 @@ export function StageCard({ stage, projectId, isBlocked, serviceType, appRefNo, 
 
   const updateStage   = useUpdateStage()
   const qc            = useQueryClient()
+  const hasAttachments = kind === 'review_loop' || kind === 'dtm'
+  const { data: stageDocs = [] } = useStageDocuments(hasAttachments ? stage.id : '')
 
   const isDone = ['completed', 'skipped', 'not_required'].includes(stage.status)
   const canAct = !isDone && !isBlocked && !locked
@@ -59,6 +62,22 @@ export function StageCard({ stage, projectId, isBlocked, serviceType, appRefNo, 
   const setClock = (c: ClockType) => patch({ active_clock: c, status: 'in_progress' }, c === 'client' ? 'Moved to client' : c === 'authority' ? 'Submitted to FSSAI' : 'Back with us')
   const start    = () => patch({ status: 'in_progress', started_at: new Date().toISOString() }, 'Started')
   const complete = (extra: Record<string, any> = {}) => patch({ status: 'completed', completed_at: new Date().toISOString(), ...extra }, 'Stage completed')
+
+  // Artwork review: each "Send Correction" needs a fresh version (V1, then V2…) + confirmation.
+  const sendCorrection = () => {
+    const sent = (meta.corrections_sent ?? 0) as number
+    if (stageDocs.length < sent + 1) {
+      toast.error(`Attach V${sent + 1} first`, 'Upload the corrected artwork as a new version before sending it to the client.'); return
+    }
+    if (!confirm(`Send correction V${sent + 1} to the client?`)) return
+    patch({ active_clock: 'client', status: 'in_progress', meta: { ...meta, corrections_sent: sent + 1 } }, `Correction V${sent + 1} sent to client`)
+  }
+  // DTM must be uploaded (V1) before it can be submitted to the client.
+  const submitDtmToClient = () => {
+    if (stageDocs.length < 1) { toast.error('Attach the DTM (V1) first', 'Upload the DTM file before submitting to the client.'); return }
+    if (!confirm('Submit the DTM to the client?')) return
+    setClock('client')
+  }
 
   const openCapture = (key: string, initial: Record<string, any> = {}) => { setForm(initial); setCapture(key) }
   const recordPayment = async (amount: number, date: string, paidBy: string) => {
@@ -251,7 +270,7 @@ export function StageCard({ stage, projectId, isBlocked, serviceType, appRefNo, 
           )}
 
           {(kind === 'review_loop' || kind === 'dtm') && serviceType === 'Artwork' && (
-            <StageAttachments stageId={stage.id} projectId={projectId}
+            <StageAttachments stageId={stage.id} projectId={projectId} disabled={isDone}
               docType={kind === 'dtm' ? 'dtm' : 'revision'}
               label={kind === 'dtm' ? 'DTM file' : 'Artwork versions (V1, V2…)'} />
           )}
@@ -346,7 +365,7 @@ export function StageCard({ stage, projectId, isBlocked, serviceType, appRefNo, 
       case 'dtm':
         return <>
           {!started && <ActionBtn label="Start" icon="play_circle" color="brand" onClick={start} />}
-          {started && clock === 'employee' && <ActionBtn label="Submit to Client" icon="send" color="amber" onClick={() => setClock('client')} />}
+          {started && clock === 'employee' && <ActionBtn label="Submit to Client" icon="send" color="amber" onClick={submitDtmToClient} />}
           {started && <ActionBtn label="Mark Complete" icon="check_circle" color="green" onClick={() => complete()} />}
         </>
       case 'client_review':
@@ -357,7 +376,7 @@ export function StageCard({ stage, projectId, isBlocked, serviceType, appRefNo, 
       case 'review_loop':
         return <>
           {!started && <ActionBtn label="Start Review" icon="play_circle" color="brand" onClick={start} />}
-          {started && clock === 'employee' && <ActionBtn label="Send Correction to Client" icon="send" color="amber" onClick={() => setClock('client')} />}
+          {started && clock === 'employee' && <ActionBtn label="Send Correction to Client" icon="send" color="amber" onClick={() => serviceType === 'Artwork' ? sendCorrection() : setClock('client')} />}
           {started && clock === 'client' && <ActionBtn label="Received for Review" icon="inbox" color="green" onClick={() => setClock('employee')} />}
           {started && clock === 'employee' && <ActionBtn label="Approve" icon="check_circle" color="green" onClick={() => complete()} />}
         </>

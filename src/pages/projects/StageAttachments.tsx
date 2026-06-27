@@ -6,8 +6,8 @@ import { formatDate } from '@/lib/utils'
 import { useStageDocuments, useUploadStageDocument, useStageDocumentUrl } from '@/hooks/useStageDocuments'
 
 // Versioned attachments for a stage (Artwork revisions, DTM). PDF/JPEG, 6MB.
-export function StageAttachments({ stageId, projectId, docType = 'revision', label = 'Versions' }: {
-  stageId: string; projectId: string; docType?: string; label?: string
+export function StageAttachments({ stageId, projectId, docType = 'revision', label = 'Versions', disabled }: {
+  stageId: string; projectId: string; docType?: string; label?: string; disabled?: boolean
 }) {
   const { profile } = useAuth()
   const { data: docs = [] } = useStageDocuments(stageId)
@@ -30,10 +30,14 @@ export function StageAttachments({ stageId, projectId, docType = 'revision', lab
     <div className="border-t border-black/5 pt-2">
       <div className="flex items-center justify-between mb-1.5">
         <p className="text-[11px] font-semibold text-brand-950 flex items-center gap-1"><Sym name="attach_file" size={12} /> {label}</p>
-        <button onClick={() => fileRef.current?.click()} disabled={upload.isPending}
-          className="text-[11px] text-brand-600 hover:text-brand-700 flex items-center gap-1 disabled:opacity-50">
-          <Sym name="upload" size={12} /> {upload.isPending ? 'Uploading…' : 'Upload version'}
-        </button>
+        {disabled ? (
+          <span className="text-[11px] text-muted-foreground flex items-center gap-1"><Sym name="lock" size={11} /> Stage completed</span>
+        ) : (
+          <button onClick={() => fileRef.current?.click()} disabled={upload.isPending}
+            className="text-[11px] text-brand-600 hover:text-brand-700 flex items-center gap-1 disabled:opacity-50">
+            <Sym name="upload" size={12} /> {upload.isPending ? 'Uploading…' : 'Upload version'}
+          </button>
+        )}
         <input ref={fileRef} type="file" accept="application/pdf,image/jpeg,image/png" className="hidden" onChange={onPick} />
       </div>
       {docs.length === 0 ? (
