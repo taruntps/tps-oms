@@ -374,3 +374,24 @@ Reuses existing authority_queries (round) + query_points (points) tables.
          => cannot clear/advance a query without recording the response.
 - Solves "employee marks status but forgets to enter the query/response."
 - Same record shows in Queries tab + feeds the report automatically.
+
+## REFINEMENTS ROUND 2 (2026-06-27) — New Application + Modification (awaiting command to implement)
+1. On project creation clock starts EMPLOYEE (not client). Doc Collection stage gets a
+   "Document list sent to client" action -> moves clock to CLIENT. (button inside the stage)
+2. Doc Collection clock by doc_status: Partial -> clock Client; Completed -> clock Employee;
+   Mark Complete only when Completed; once complete -> irreversible.
+3. Rename "Form Submission to FSSAI" -> "Form Preparation & Completion to FSSAI"; add Start button
+   (prep can begin earlier) then Mark Complete (kind work-like).
+4. Fee Payment "Paid by" default = TPS (order TPS, Client).
+5. Status at FSSAI: after Submit-to-FSSAI auto-set fssai_status = 'Document Scrutinisation'.
+6. QUERY<->STATUS HARD BINDING:
+   - Query rounds numbered <project_code>-Q1, -Q2 ... (e.g. TPS-2026-0010-Q1) replacing Round N.
+   - To set status 'Query Raised': dropdown of EXISTING recorded query numbers (from Queries tab);
+     cannot set Query Raised unless a query round exists. Select the query no -> status Query Raised (linked).
+   - Saving a response: confirmation popup; ALL response cells must be filled (block empty); once saved
+     LOCKED (admin-only edit).
+   - On response saved -> status auto flips Query Raised -> Document Scrutinisation.
+   - While response not saved -> status cannot move off Query Raised.
+   - Next query -> Doc Scrutinisation -> Query Raised again -> creates -Q2, etc.
+7. Approved / Rejected -> confirmation popup before applying (Approved still locks after).
+OPEN CONFIRMS: (a) point1 action is a button inside Doc Collection stage; (b) query no format = <project_code>-Q<n>.

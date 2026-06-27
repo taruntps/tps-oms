@@ -38,6 +38,7 @@ export function StageCard({ stage, projectId, isBlocked, serviceType, appRefNo, 
 
   const [open, setOpen] = useState(false)
   const [capture, setCapture] = useState<null | string>(null)   // which capture modal is open
+  const [queryPick, setQueryPick] = useState<null | { id: string; code: string }[]>(null)
   const [form, setForm] = useState<Record<string, any>>({})
   const [skipReason, setSkipReason] = useState('')
   const [showSkip, setShowSkip] = useState(false)
@@ -81,7 +82,13 @@ export function StageCard({ stage, projectId, isBlocked, serviceType, appRefNo, 
         domestic_products: form.domestic ?? null, export_products: form.export ?? null,
         kob_added: form.kob_added === 'yes', kob_details: form.kob_details ?? null, app_ref_no: appRefNo },
     })
+    await initStatusAtFssai()
     setCapture(null)
+  }
+  // After submission, the FSSAI portal always starts at Document Scrutinisation.
+  const initStatusAtFssai = async () => {
+    await supabase.from('stages').update({ fssai_status: 'Document Scrutinisation', status: 'in_progress' } as any)
+      .eq('project_id', projectId).eq('stage_kind', 'status_fssai').is('fssai_status', null)
   }
   const submitFeeOnly = async () => {
     if (!form.amount || !form.date || !form.paid_by) { toast.error('Amount, date and paid-by are required'); return }
@@ -99,6 +106,7 @@ export function StageCard({ stage, projectId, isBlocked, serviceType, appRefNo, 
     if (!appRefNo) { toast.error('App Ref No is blank', 'Add it in the project header first.'); return }
     if (!form.date) { toast.error('Submission date is required'); return }
     await complete({ active_clock: 'authority', meta: { ...meta, app_ref_no: appRefNo, submission_date: form.date } })
+    await initStatusAtFssai()
     setCapture(null)
   }
   const submitEntry = async () => {
@@ -129,19 +137,41 @@ export function StageCard({ stage, projectId, isBlocked, serviceType, appRefNo, 
     setCapture(null)
   }
   const setFssaiStatus = async (status: string) => {
-    // Gating: cannot mark Approved while any query round is unanswered.
-    if (status === 'Approved') {
-      const { count } = await supabase.from('authority_queries')
-        .select('id', { count: 'exact', head: true })
-        .eq('project_id', projectId).is('response_submitted_date', null)
-      if ((count ?? 0) > 0) { toast.error('Open queries pending', 'Respond to all query rounds in the Queries tab before marking Approved.'); return }
+    const current = (stage as any).fssai_status as string | null
+    // Cannot move OFF 'Query Raised' until the linked query's response is saved
+    // (saving the response auto-returns the status to Document Scrutinisation).
+    if (current === 'Query Raised' && status !== 'Query Raised' && meta.active_query_round) {
+      const { data } = await supabase.from('authority_queries').select('response_submitted_date').eq('id', meta.active_query_round).maybeSingle()
+      if (data && !(data as any).response_submitted_date) {
+        toast.error('Query response pending', 'Save the response in the Queries tab — the status will then move automatically.'); return
+      }
     }
+    // 'Query Raised' requires selecting an already-recorded (unanswered) query number.
     if (status === 'Query Raised') {
-      toast.info?.('Record the query', 'Open the Queries tab and log the deficiency letter (date + points).')
+      const { data } = await supabase.from('authority_queries').select('id, query_code')
+        .eq('project_id', projectId).is('response_submitted_date', null).order('round_no', { ascending: true })
+      if (!data || data.length === 0) {
+        toast.error('No query recorded', 'Record the deficiency letter in the Queries tab first — it will appear here as a number to select.'); return
+      }
+      setQueryPick(data.map((r: any) => ({ id: r.id, code: r.query_code })))
+      return  // wait for the user to pick a query number
+    }
+    if (status === 'Approved') {
+      const { count } = await supabase.from('authority_queries').select('id', { count: 'exact', head: true })
+        .eq('project_id', projectId).is('response_submitted_date', null)
+      if ((count ?? 0) > 0) { toast.error('Open queries pending', 'Respond to all query rounds before marking Approved.'); return }
+    }
+    if (status === 'Approved' || status === 'Rejected') {
+      if (!confirm(`Mark this application "${status}"? Please confirm — ${status === 'Approved' ? 'Approved completes and locks the stage.' : 'this closes the application as rejected.'}`)) return
     }
     const done = status === 'Approved'
     await patch({ fssai_status: status, status: done ? 'completed' : 'in_progress',
       completed_at: done ? new Date().toISOString() : null }, `Status: ${status}`)
+  }
+  const applyQueryRaised = async (pick: { id: string; code: string }) => {
+    await patch({ fssai_status: 'Query Raised', status: 'in_progress',
+      meta: { ...meta, active_query_round: pick.id, active_query_code: pick.code } }, `Query Raised — ${pick.code}`)
+    setQueryPick(null)
   }
   const submitSkip = async () => {
     if (!skipReason.trim()) { toast.error('Reason required'); return }
@@ -235,6 +265,22 @@ export function StageCard({ stage, projectId, isBlocked, serviceType, appRefNo, 
           capture === 'late_fee' ? submitLateFee : capture === 'submit_fssai' ? submitToFssai :
           capture === 'appeal' ? submitAppeal : submitEntry
         } />}
+
+      {queryPick && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-6 space-y-3">
+            <h3 className="font-display font-semibold text-brand-950 text-sm">Select the query number</h3>
+            <p className="text-xs text-muted-foreground">Pick the recorded deficiency letter to set the status to “Query Raised”.</p>
+            <div className="space-y-1.5">
+              {queryPick.map(q => (
+                <button key={q.id} onClick={() => applyQueryRaised(q)}
+                  className="w-full text-left px-3 py-2 rounded-lg border border-border hover:bg-[#F8FAFC] font-mono text-sm text-brand-700">{q.code}</button>
+              ))}
+            </div>
+            <div className="flex justify-end"><button onClick={() => setQueryPick(null)} className="px-4 py-2 text-sm border border-border rounded-lg">Cancel</button></div>
+          </div>
+        </div>
+      )}
     </div>
   )
 
@@ -243,10 +289,18 @@ export function StageCard({ stage, projectId, isBlocked, serviceType, appRefNo, 
     const started = stage.status === 'in_progress'
     switch (kind) {
       case 'doc_collection':
+        // Step 1: send the required-documents list to the client (clock starts with us).
+        if (!meta.doc_request_sent) {
+          return <ActionBtn label="Document list sent to client" icon="send" color="amber"
+            onClick={() => patch({ meta: { ...meta, doc_request_sent: true }, active_clock: 'client', status: 'in_progress' }, 'Document request sent — now with client')} />
+        }
+        // Step 2: track receipt. Partial -> client; Completed -> employee (verifying).
         return <>
           <label className="flex items-center gap-1.5 text-xs">Documents:
-            <select value={docStatus ?? 'partial'} onChange={e => patch({ doc_status: e.target.value }, 'Document status updated')}
-              className="text-xs px-2 py-1 border border-border rounded-lg">
+            <select value={docStatus ?? 'partial'} onChange={e => {
+              const v = e.target.value
+              patch({ doc_status: v, active_clock: v === 'completed' ? 'employee' : 'client', status: 'in_progress' }, 'Document status updated')
+            }} className="text-xs px-2 py-1 border border-border rounded-lg">
               <option value="partial">Partial received</option>
               <option value="completed">Completed (all received)</option>
             </select>
@@ -286,15 +340,18 @@ export function StageCard({ stage, projectId, isBlocked, serviceType, appRefNo, 
           {started && clock === 'employee' && <ActionBtn label="Approve" icon="check_circle" color="green" onClick={() => complete()} />}
         </>
       case 'form_submit':
-        return <ActionBtn label="Completed" icon="check_circle" color="green" onClick={() => complete()} />
+        return <>
+          {!started && <ActionBtn label="Start (begin preparing)" icon="play_circle" color="brand" onClick={start} />}
+          {started && <ActionBtn label="Mark Complete" icon="check_circle" color="green" onClick={() => complete()} />}
+        </>
       case 'fee_submit':
         return <>
           {clock === 'employee' && <ActionBtn label="Move to Client" icon="swap_horiz" color="amber" onClick={() => setClock('client')} />}
           {clock === 'client' && <ActionBtn label="Received from Client" icon="inbox" color="green" onClick={() => setClock('employee')} />}
-          <ActionBtn label="Submit to FSSAI" icon="send" color="blue" onClick={() => openCapture('fee_submit', { paid_by: 'Client', kob_added: 'no' })} />
+          <ActionBtn label="Submit to FSSAI" icon="send" color="blue" onClick={() => openCapture('fee_submit', { paid_by: 'TPS', kob_added: 'no' })} />
         </>
       case 'fee':
-        return <ActionBtn label="Record Fee & Complete" icon="payments" color="green" onClick={() => openCapture('fee', { paid_by: 'Client' })} />
+        return <ActionBtn label="Record Fee & Complete" icon="payments" color="green" onClick={() => openCapture('fee', { paid_by: 'TPS' })} />
       case 'fee_optional':
         return <>
           <ActionBtn label="Not Applicable" icon="block" color="gray" onClick={() => patch({ status: 'not_required' }, 'Marked not required')} />
@@ -304,13 +361,18 @@ export function StageCard({ stage, projectId, isBlocked, serviceType, appRefNo, 
         return <ActionBtn label="Submit to FSSAI" icon="send" color="blue" onClick={() => openCapture('submit_fssai', {})} />
       case 'status_fssai': {
         const opts = serviceType === 'Form II' ? FSSAI_STATUSES_FORM2 : FSSAI_STATUSES_DEFAULT
-        return <label className="flex items-center gap-1.5 text-xs">FSSAI status:
-          <select value={(stage as any).fssai_status ?? ''} onChange={e => setFssaiStatus(e.target.value)}
-            className="text-xs px-2 py-1 border border-border rounded-lg">
-            <option value="">— select —</option>
-            {opts.map(o => <option key={o} value={o}>{o}</option>)}
-          </select>
-        </label>
+        return <>
+          <label className="flex items-center gap-1.5 text-xs">FSSAI status:
+            <select value={(stage as any).fssai_status ?? ''} onChange={e => setFssaiStatus(e.target.value)}
+              className="text-xs px-2 py-1 border border-border rounded-lg">
+              <option value="">— select —</option>
+              {opts.map(o => <option key={o} value={o}>{o}</option>)}
+            </select>
+          </label>
+          {(stage as any).fssai_status === 'Query Raised' && meta.active_query_code && (
+            <span className="text-[11px] font-mono px-2 py-1 rounded-lg bg-amber-50 text-amber-700 border border-amber-200">{meta.active_query_code} — respond in Queries tab</span>
+          )}
+        </>
       }
       case 'appeal':
         return <>
@@ -353,7 +415,7 @@ function CaptureModal({ kind, stageCode, serviceType, appRefNo, form, setForm, o
         {(kind === 'fee_submit' || kind === 'fee' || kind === 'late_fee') && <>
           <Field label="Amount paid (₹)"><input type="number" className={ic} value={form.amount ?? ''} onChange={e => set('amount', e.target.value)} /></Field>
           <Field label="Date"><input type="date" className={ic} value={form.date ?? ''} onChange={e => set('date', e.target.value)} /></Field>
-          {kind !== 'late_fee' && <Field label="Paid by"><select className={ic} value={form.paid_by ?? 'Client'} onChange={e => set('paid_by', e.target.value)}><option>Client</option><option>TPS</option></select></Field>}
+          {kind !== 'late_fee' && <Field label="Paid by"><select className={ic} value={form.paid_by ?? 'TPS'} onChange={e => set('paid_by', e.target.value)}><option>TPS</option><option>Client</option></select></Field>}
         </>}
 
         {kind === 'fee_submit' && needsProductKob(serviceType) && <>

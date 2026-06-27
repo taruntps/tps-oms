@@ -45,7 +45,8 @@ export function QueriesTab({ projectId }: Props) {
         </div>
       ) : (
         <div className="space-y-4">
-          {rounds.map(r => <RoundCard key={r.id} round={r} projectId={projectId} meId={profile?.id ?? ''} />)}
+          {rounds.map(r => <RoundCard key={r.id} round={r} projectId={projectId} meId={profile?.id ?? ''}
+            isAdmin={['super_admin','director'].includes(profile?.role ?? '')} />)}
         </div>
       )}
 
@@ -54,7 +55,7 @@ export function QueriesTab({ projectId }: Props) {
   )
 }
 
-function RoundCard({ round, projectId, meId }: { round: QueryRound; projectId: string; meId: string }) {
+function RoundCard({ round, projectId, meId, isAdmin }: { round: QueryRound; projectId: string; meId: string; isAdmin: boolean }) {
   const save = useSaveRoundResponse()
   const responded = !!(round as any).response_submitted_date
   const due = (round as any).response_due as string | null
@@ -65,16 +66,20 @@ function RoundCard({ round, projectId, meId }: { round: QueryRound; projectId: s
 
   const submit = async () => {
     if (!respDate) { toast.error('Response submitted date is required'); return }
+    // Every point must have a response — no empty cells allowed.
+    const empty = round.points.filter(p => !(resp[p.id] ?? '').trim())
+    if (empty.length) { toast.error('All responses required', `Fill the response for all ${round.points.length} point(s) before saving.`); return }
+    if (!confirm('Are you sure you want to save this response? Once saved it is locked (only an admin can edit it), and the FSSAI status returns to Document Scrutinisation.')) return
     try {
       await save.mutateAsync({ roundId: round.id, projectId, responses: resp, response_submitted_date: respDate, responded_by: meId })
-      toast.success('Response saved'); setResponding(false)
+      toast.success('Response saved', 'Status moved to Document Scrutinisation'); setResponding(false)
     } catch (e: any) { toast.error('Save failed', e.message) }
   }
 
   return (
     <div className="bg-white rounded-xl border border-border overflow-hidden">
       <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-b border-border bg-[#F8FAFC]">
-        <span className="font-semibold text-sm text-brand-950">Round {(round as any).round_no ?? '—'}</span>
+        <span className="font-mono font-semibold text-sm text-brand-700">{(round as any).query_code ?? `Round ${(round as any).round_no ?? ''}`}</span>
         <span className="text-xs text-muted-foreground">· {QUERY_TYPES.find(q => q.value === round.query_type)?.label ?? round.query_type}</span>
         <span className="text-xs text-muted-foreground flex items-center gap-1"><Sym name="calendar_today" size={11} /> Received {formatDate(round.received_date)}</span>
         <span className="flex-1" />
@@ -117,8 +122,11 @@ function RoundCard({ round, projectId, meId }: { round: QueryRound; projectId: s
           {!responding && !responded && (
             <button onClick={() => setResponding(true)} className="text-xs px-3 py-1.5 bg-brand-600 text-white rounded-lg hover:bg-brand-700">Add Response</button>
           )}
-          {!responding && responded && (
-            <button onClick={() => setResponding(true)} className="text-xs px-3 py-1.5 border border-border rounded-lg hover:bg-[#F8FAFC]">Edit Response</button>
+          {!responding && responded && isAdmin && (
+            <button onClick={() => setResponding(true)} className="text-xs px-3 py-1.5 border border-border rounded-lg hover:bg-[#F8FAFC]">Edit Response (admin)</button>
+          )}
+          {!responding && responded && !isAdmin && (
+            <span className="text-[11px] text-muted-foreground flex items-center gap-1"><Sym name="lock" size={11} /> Response locked</span>
           )}
           {responding && (
             <>

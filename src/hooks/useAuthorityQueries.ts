@@ -41,11 +41,10 @@ export function useCreateQueryRound() {
       projectId: string; received_date: string; query_type: TablesInsert<'authority_queries'>['query_type']
       subject: string; points: string[]; created_by: string
     }) => {
-      const { data: existing } = await supabase.from('authority_queries').select('round_no').eq('project_id', args.projectId)
-      const nextRound = Math.max(0, ...((existing ?? []).map((r: any) => r.round_no ?? 0))) + 1
+      // round_no + query_code (<project_code>-Q<n>) are stamped by the generate_query_code trigger.
       const { data: round, error } = await supabase.from('authority_queries').insert({
         project_id: args.projectId, received_date: args.received_date, query_type: args.query_type,
-        subject: args.subject || `Deficiency Letter ${nextRound}`, round_no: nextRound,
+        subject: args.subject || 'Deficiency Letter',
         response_due: addCalendarDays(args.received_date, 30), created_by: args.created_by,
       } as any).select().single()
       if (error) throw error
@@ -75,6 +74,11 @@ export function useSaveRoundResponse() {
         .update({ response_submitted_date: args.response_submitted_date, responded_at: new Date().toISOString(), responded_by: args.responded_by } as any)
         .eq('id', args.roundId)
       if (e2) throw e2
+      // Auto-flip the project's Status-at-FSSAI stage from 'Query Raised' back to
+      // 'Document Scrutinisation' now that the response is filed.
+      await (supabase.from('stages') as any)
+        .update({ fssai_status: 'Document Scrutinisation' })
+        .eq('project_id', args.projectId).eq('stage_kind', 'status_fssai').eq('fssai_status', 'Query Raised')
     },
     onSuccess: (_d, v) => qc.invalidateQueries({ queryKey: ['authority_queries', v.projectId] }),
   })
