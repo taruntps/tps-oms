@@ -48,6 +48,13 @@ export function AttendanceSettingsSection() {
     catch (e: any) { toast.error('Failed', e.message) }
   }
 
+  // One control for the two underlying flags. Face match implies a captured photo,
+  // so "face" sets face_match_required and leaves selfie_required off (avoids redundancy).
+  type VerifyMode = 'off' | 'photo' | 'face'
+  const verifyMode: VerifyMode = s.face_match_required ? 'face' : s.selfie_required ? 'photo' : 'off'
+  const setVerifyMode = (m: VerifyMode) =>
+    setS(v => ({ ...v, selfie_required: m === 'photo', face_match_required: m === 'face' }))
+
   return (
     <section className="bg-white rounded-xl border border-border">
       <div className="px-5 py-4 border-b border-border flex items-center gap-2.5">
@@ -89,17 +96,20 @@ export function AttendanceSettingsSection() {
             <L label="Expected Start Time"><input type="time" className={ic} value={s.expected_start_time} onChange={e=>setS({...s, expected_start_time:e.target.value})} /></L>
             <L label="Standard Hours / day"><input type="number" step="0.5" className={ic} value={s.standard_hours} onChange={e=>setS({...s, standard_hours:Number(e.target.value)})} /></L>
             <L label="GPS Accuracy Limit (m)"><input type="number" className={ic} value={s.accuracy_threshold_m} onChange={e=>setS({...s, accuracy_threshold_m:Number(e.target.value)})} /></L>
-            <L label="Require Selfie at Punch">
-              <button type="button" onClick={()=>setS({...s, selfie_required:!s.selfie_required})}
-                className={`px-3 py-2 rounded-lg text-sm font-medium border ${s.selfie_required ? 'bg-brand-50 border-brand-200 text-brand-700' : 'bg-[#F8FAFC] border-border text-muted-foreground'}`}>
-                {s.selfie_required ? 'Selfie ON' : 'Selfie OFF'}
-              </button>
-            </L>
-            <L label="Require Face Match at Punch">
-              <button type="button" onClick={()=>setS({...s, face_match_required:!s.face_match_required})}
-                className={`px-3 py-2 rounded-lg text-sm font-medium border ${s.face_match_required ? 'bg-brand-50 border-brand-200 text-brand-700' : 'bg-[#F8FAFC] border-border text-muted-foreground'}`}>
-                {s.face_match_required ? 'Face Match ON' : 'Face Match OFF'}
-              </button>
+            <L label="Punch Verification" wide>
+              <div className="flex rounded-lg border border-border overflow-hidden text-sm max-w-md">
+                {([['off','None'],['photo','Photo only'],['face','Face match']] as const).map(([m, lbl]) => (
+                  <button key={m} type="button" onClick={() => setVerifyMode(m)}
+                    className={`flex-1 py-2 px-3 font-medium transition-colors ${verifyMode === m ? 'bg-brand-600 text-white' : 'bg-white text-muted-foreground hover:bg-[#F8FAFC]'}`}>
+                    {lbl}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-1.5">
+                {verifyMode === 'off' ? 'Punch records GPS location only — no photo.'
+                  : verifyMode === 'photo' ? 'A selfie is captured and stored at each punch (kept as a record, not verified).'
+                  : 'The live face is captured and verified against the employee’s enrolled face — non-matching punches are rejected. Each employee enrols once on their first punch.'}
+              </p>
             </L>
             {s.face_match_required && (
               <L label="Match Strictness" wide>
