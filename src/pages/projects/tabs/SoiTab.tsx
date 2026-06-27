@@ -1,6 +1,7 @@
 import { useState } from 'react'
+import * as XLSX from 'xlsx'
 import { Sym } from '@/components/shared/Sym'
-import { useSoiArchive, useCreateSoi } from '@/hooks/useAuthorityQueries'
+import { useSoiArchive } from '@/hooks/useAuthorityQueries'
 import { RoleGuard } from '@/components/shared/ProtectedRoute'
 import { useAuth } from '@/contexts/AuthContext'
 import { toast } from '@/components/shared/Toast'
@@ -9,126 +10,177 @@ import { formatDate } from '@/lib/utils'
 
 interface Props { projectId: string; clientId: string; closed?: boolean }
 
-interface ParsedProduct {
-  sr_no: number
-  product_name: string
-  hsn_code: string
-  category: string
-  quantity: string
-  uom: string
-  manufacturer_name: string
-  brand_name: string
-}
+type SoiType = 'domestic' | 'export'
+interface ColDef { key: string; label: string }
+interface ParsedRow { sr_no: number; data: Record<string, string> }
 
-// ─── Smart paste parser ────────────────────────────────────────────────────
-// Handles tab-separated or multi-space text copied from FSSAI portal table.
-function parseFssaiTable(raw: string): ParsedProduct[] {
-  const lines = raw
-    .split('\n')
-    .map(l => l.trim())
-    .filter(l => l.length > 0)
+// ─── Column maps mirror the two FSSAI portal SOI tables exactly ──────────────
+const DOMESTIC_COLS: ColDef[] = [
+  { key: 'food_category',    label: 'Food Category' },
+  { key: 'sub_category',     label: 'Sub-Food Category Name' },
+  { key: 'product',          label: 'Product' },
+  { key: 'kind_of_business', label: 'Kind of Business' },
+]
+const EXPORT_COLS: ColDef[] = [
+  { key: 'export_unit_type', label: 'Export Unit Type' },
+  { key: 'product_category', label: 'Product Category' },
+  { key: 'product',          label: 'Name of Food Item(s)' },
+  { key: 'quantity',         label: 'Quantity' },
+  { key: 'unit',             label: 'Unit' },
+  { key: 'per_basis',        label: 'Per day/Per annum' },
+  { key: 'scope_supply',     label: 'Scope of Product Supply' },
+]
+const colsFor = (t: SoiType) => (t === 'export' ? EXPORT_COLS : DOMESTIC_COLS)
 
-  const parsed: ParsedProduct[] = []
-  let srCounter = 1
+// Header / noise keywords to drop while parsing (covers both formats).
+const HEADER_HINTS = [
+  'food category', 'sub-food', 'kind of business', 'upload product', 'production capacity',
+  'sl.no', 'export unit', 'product category', 'name of food', 'per day/per annum', 'scope of',
+]
+
+// ─── Smart paste parser ──────────────────────────────────────────────────────
+// The FSSAI copy includes the trailing "Upload"/"View" and "Action"/"Delete" cells,
+// so we map by FIXED index per format and simply ignore the extra trailing cells.
+// We split on TAB (preserving empty cells so indices stay aligned); fall back to
+// 2+ spaces only when a row has no tabs.
+function parseFssaiTable(raw: string, type: SoiType): ParsedRow[] {
+  const lines = raw.split('\n').map(l => l.replace(/ /g, ' ')).filter(l => l.trim().length > 0)
+  const out: ParsedRow[] = []
+  let sr = 1
 
   for (const line of lines) {
-    // Split on tabs or 2+ spaces
-    const cols = line.split(/\t|  +/).map(c => c.trim()).filter(Boolean)
-    if (cols.length < 2) continue
-
-    // Skip header rows (contain "Sr. No", "S.No", "Product Name", "HSN")
     const lower = line.toLowerCase()
-    if (lower.includes('sr.') || lower.includes('s.no') || lower.includes('product name') || lower.includes('hsn')) continue
-    // Skip if first col is not a number
-    const firstIsNum = /^\d+$/.test(cols[0])
+    if (HEADER_HINTS.some(h => lower.includes(h))) continue          // header rows
+    const cells = (line.includes('\t') ? line.split('\t') : line.split(/ {2,}/)).map(c => c.trim())
 
-    // Map columns — FSSAI table: Sr|Product Name|HSN|Category|Qty|UOM|Manufacturer|Brand
-    const offset = firstIsNum ? 1 : 0
-    parsed.push({
-      sr_no:             srCounter++,
-      product_name:      cols[offset + 0] ?? '',
-      hsn_code:          cols[offset + 1] ?? '',
-      category:          cols[offset + 2] ?? '',
-      quantity:          cols[offset + 3] ?? '',
-      uom:               cols[offset + 4] ?? '',
-      manufacturer_name: cols[offset + 5] ?? '',
-      brand_name:        cols[offset + 6] ?? '',
-    })
+    let data: Record<string, string>
+    if (type === 'domestic') {
+      // [Food Category, Sub-Food Category, Product, Kind of Business, (Upload), (Action)]
+      if (cells.filter(Boolean).length < 3) continue
+      data = {
+        food_category:    cells[0] ?? '',
+        sub_category:     cells[1] ?? '',
+        product:          cells[2] ?? '',
+        kind_of_business: cells[3] ?? '',
+      }
+      if (!data.product) continue
+    } else {
+      // [Sl.No, Export Unit Type, Product Category, Name of Food Item, Qty, Unit, Per-basis, Scope, (Action)]
+      // Native Sl.No is at index 0 — we re-number ourselves, so map from index 1.
+      const n = cells.length
+      if (n < 8) continue
+      data = {
+        export_unit_type: cells[1] ?? '',
+        product_category: cells[2] ?? '',
+        product:          cells[3] ?? '',
+        quantity:         cells[4] ?? '',
+        unit:             cells[5] ?? '',
+        per_basis:        cells[6] ?? '',
+        scope_supply:     cells[7] ?? '',
+      }
+      if (!data.product) continue
+    }
+    out.push({ sr_no: sr++, data })
   }
-  return parsed.filter(p => p.product_name.length > 1)
+  return out
 }
 
 export function SoiTab({ projectId, clientId, closed }: Props) {
   const { profile } = useAuth()
   const { data: sois = [], isLoading } = useSoiArchive(clientId)
-  const createSoi = useCreateSoi()
 
   const [mode, setMode] = useState<'list' | 'paste' | 'preview'>('list')
+  const [soiType, setSoiType] = useState<SoiType>('domestic')
   const [soiDate, setSoiDate] = useState(new Date().toISOString().split('T')[0])
-  const [soiCategory, setSoiCategory] = useState('')
   const [pasteText, setPasteText] = useState('')
-  const [preview, setPreview] = useState<ParsedProduct[]>([])
+  const [preview, setPreview] = useState<ParsedRow[]>([])
+  const [activeCols, setActiveCols] = useState<ColDef[]>(DOMESTIC_COLS)
   const [saving, setSaving] = useState(false)
   const [expandedSoi, setExpandedSoi] = useState<string | null>(null)
   const [soiProducts, setSoiProducts] = useState<Record<string, any[]>>({})
 
+  const resetFlow = () => { setMode('list'); setPasteText(''); setPreview([]) }
+
   const handleParse = () => {
-    const rows = parseFssaiTable(pasteText)
+    const rows = parseFssaiTable(pasteText, soiType)
     if (rows.length === 0) { toast.error('No data found', 'Check the pasted text — ensure it contains product rows'); return }
     setPreview(rows)
+    setActiveCols(colsFor(soiType))
     setMode('preview')
   }
 
-  const removeRow = (idx: number) => setPreview(prev => prev.filter((_, i) => i !== idx).map((r, i) => ({ ...r, sr_no: i + 1 })))
+  const removeRow = (idx: number) =>
+    setPreview(prev => prev.filter((_, i) => i !== idx).map((r, i) => ({ ...r, sr_no: i + 1 })))
+
+  const removeCol = (key: string) => {
+    if (activeCols.length <= 1) { toast.error('Keep at least one column'); return }
+    setActiveCols(prev => prev.filter(c => c.key !== key))
+  }
 
   const handleSave = async () => {
     if (!soiDate) { toast.error('Select an SOI date'); return }
+    if (preview.length === 0) { toast.error('Nothing to save'); return }
     setSaving(true)
     try {
-      // 1. Create SOI record (soi_archive = existing table)
+      // Next version number for this project.
+      const { data: existing } = await (supabase as any)
+        .from('soi_archive').select('version_no').eq('project_id', projectId)
+      const nextVer = (existing ?? []).reduce((m: number, r: any) => Math.max(m, r.version_no ?? 0), 0) + 1
+
+      const keptKeys = activeCols.map(c => c.key)
       const { data: soiRecord, error: soiErr } = await (supabase as any).from('soi_archive').insert({
-        client_id:        clientId,
-        project_id:       projectId,
-        created_by:       profile!.id,
-        soi_date:         soiDate,
-        product_category: soiCategory || null,
-        description:      `${preview.length} products imported from FSSAI portal`,
+        client_id:   clientId,
+        project_id:  projectId,
+        created_by:  profile!.id,
+        soi_date:    soiDate,
+        soi_type:    soiType,
+        columns:     activeCols,
+        version_no:  nextVer,
+        description: `${preview.length} ${soiType} products`,
       }).select().single()
       if (soiErr) throw soiErr
 
-      // 2. Insert all product rows into soi_products (new table from migration 006)
-      const productRows = preview.map(p => ({
-        soi_id:            soiRecord.id,
-        sr_no:             p.sr_no,
-        product_name:      p.product_name,
-        hsn_code:          p.hsn_code || null,
-        category:          p.category || null,
-        quantity:          p.quantity || null,
-        uom:               p.uom     || null,
-        manufacturer_name: p.manufacturer_name || null,
-        brand_name:        p.brand_name        || null,
+      const rows = preview.map(p => ({
+        soi_id: soiRecord.id,
+        sr_no:  p.sr_no,
+        data:   Object.fromEntries(keptKeys.map(k => [k, p.data[k] ?? ''])),
       }))
-      const { error: prodErr } = await (supabase as any).from('soi_products').insert(productRows)
+      const { error: prodErr } = await (supabase as any).from('soi_products').insert(rows)
       if (prodErr) throw prodErr
 
-      toast.success('SOI saved', `${preview.length} products imported`)
-      setPasteText(''); setPreview([]); setSoiCategory(''); setMode('list')
-      createSoi.reset()
+      toast.success('SOI saved', `V${nextVer} · ${preview.length} products`)
+      resetFlow()
     } catch (err: any) {
       toast.error('Failed to save SOI', err.message)
     } finally { setSaving(false) }
   }
 
-  const loadProducts = async (soiId: string) => {
-    if (soiProducts[soiId]) return
-    const { data, error } = await (supabase as any).from('soi_products').select('*').eq('soi_id', soiId).order('sr_no')
-    if (!error) setSoiProducts(prev => ({ ...prev, [soiId]: data ?? [] }))
+  const loadProducts = async (soiId: string): Promise<any[]> => {
+    if (soiProducts[soiId]) return soiProducts[soiId]
+    const { data } = await (supabase as any).from('soi_products').select('*').eq('soi_id', soiId).order('sr_no')
+    const rows = data ?? []
+    setSoiProducts(prev => ({ ...prev, [soiId]: rows }))
+    return rows
   }
 
   const toggleSoi = async (soiId: string) => {
     const next = expandedSoi === soiId ? null : soiId
     setExpandedSoi(next)
     if (next) await loadProducts(next)
+  }
+
+  const downloadExcel = async (s: any) => {
+    try {
+      const products = await loadProducts(s.id)
+      const cols: ColDef[] = (s.columns?.length ? s.columns : colsFor(s.soi_type)) as ColDef[]
+      const header = ['S.No', ...cols.map(c => c.label)]
+      const body = products.map((p: any) => [p.sr_no, ...cols.map(c => p.data?.[c.key] ?? '')])
+      const ws = XLSX.utils.aoa_to_sheet([header, ...body])
+      ws['!cols'] = header.map((h, i) => ({ wch: i === 0 ? 6 : Math.min(60, Math.max(14, h.length + 4)) }))
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, 'SOI')
+      XLSX.writeFile(wb, `SOI_${s.soi_type}_V${s.version_no ?? 1}_${s.soi_date}.xlsx`)
+    } catch (e: any) { toast.error('Download failed', e.message) }
   }
 
   return (
@@ -138,8 +190,7 @@ export function SoiTab({ projectId, clientId, closed }: Props) {
         <RoleGuard roles={['super_admin','director','manager','executive']}>
           <div className="flex gap-2">
             {mode !== 'list' && (
-              <button onClick={() => { setMode('list'); setPasteText(''); setPreview([]) }}
-                className="text-xs text-white/70 hover:text-white">← Back</button>
+              <button onClick={resetFlow} className="text-xs text-white/70 hover:text-white">← Back</button>
             )}
             {mode === 'list' && !closed && (
               <button onClick={() => setMode('paste')}
@@ -158,39 +209,42 @@ export function SoiTab({ projectId, clientId, closed }: Props) {
       {mode === 'paste' && (
         <div className="bg-[#F8FAFC] rounded-xl border border-border p-5 space-y-4">
           <div>
-            <h4 className="text-xs font-semibold text-brand-950 mb-1">Smart Paste — FSSAI SOI Table</h4>
+            <h4 className="text-xs font-semibold text-brand-950 mb-2">Smart Paste — FSSAI SOI Table</h4>
+            {/* Format toggle */}
+            <div className="flex gap-2 mb-3">
+              {(['domestic','export'] as SoiType[]).map(t => (
+                <button key={t} onClick={() => setSoiType(t)}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-lg border ${soiType === t
+                    ? 'bg-brand-600 text-white border-brand-600'
+                    : 'bg-white text-brand-950 border-border hover:bg-[#F1F5F9]'}`}>
+                  {t === 'domestic' ? 'Domestic' : 'Export'}
+                </button>
+              ))}
+            </div>
             <p className="text-[11px] text-muted-foreground mb-3">
-              Go to the FSSAI portal → SOI table → select all rows → copy → paste below.
-              Headers and blank rows are auto-stripped.
+              FSSAI portal → {soiType === 'export' ? 'Export' : 'Food/Health Supplements'} product table →
+              select all rows → copy → paste below. Headers, the <em>Upload</em>/<em>View</em> and{' '}
+              <em>Action</em>/<em>Delete</em> cells are auto-stripped.
             </p>
             <textarea
               value={pasteText}
               onChange={e => setPasteText(e.target.value)}
               rows={8}
-              placeholder="Paste the SOI table here (Ctrl+A, Ctrl+C from FSSAI portal)…"
+              placeholder="Paste the SOI table here (select the table, Ctrl+C from FSSAI portal)…"
               className="w-full px-3 py-2 text-xs font-mono border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-600/20 bg-white"
             />
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-[11px] font-medium text-brand-950 mb-1">SOI Date *</label>
-              <input type="date" value={soiDate} onChange={e => setSoiDate(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none" />
-            </div>
-            <div>
-              <label className="block text-[11px] font-medium text-brand-950 mb-1">Product Category (optional)</label>
-              <input value={soiCategory} onChange={e => setSoiCategory(e.target.value)}
-                placeholder="e.g. Nutraceuticals – Capsules"
-                className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none" />
-            </div>
+          <div className="max-w-[220px]">
+            <label className="block text-[11px] font-medium text-brand-950 mb-1">SOI / Submission Date *</label>
+            <input type="date" value={soiDate} onChange={e => setSoiDate(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none" />
           </div>
           <div className="flex gap-2">
             <button onClick={handleParse} disabled={!pasteText.trim()}
               className="flex items-center gap-1.5 px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 disabled:opacity-50">
               <Sym name="visibility" size={13} /> Preview & Clean
             </button>
-            <button onClick={() => { setMode('list'); setPasteText('') }}
-              className="px-4 py-2 border border-border text-sm rounded-lg hover:bg-white">Cancel</button>
+            <button onClick={resetFlow} className="px-4 py-2 border border-border text-sm rounded-lg hover:bg-white">Cancel</button>
           </div>
         </div>
       )}
@@ -200,31 +254,37 @@ export function SoiTab({ projectId, clientId, closed }: Props) {
         <div className="space-y-4">
           <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 flex items-center justify-between">
             <p className="text-sm font-medium text-green-800">
-              ✓ {preview.length} products parsed — review below then save
+              ✓ {preview.length} products parsed — {soiType === 'export' ? 'Export' : 'Domestic'} format
             </p>
-            <p className="text-xs text-green-700">Remove rows by clicking ✕</p>
+            <p className="text-xs text-green-700">Delete unwanted rows (✕ at end) or columns (✕ in header)</p>
           </div>
 
-          <div className="bg-white rounded-xl border border-border overflow-hidden">
+          <div className="bg-white rounded-xl border border-border overflow-x-auto">
             <table className="w-full text-xs">
               <thead className="bg-[#F8FAFC] border-b border-border">
                 <tr>
-                  {['#','Product Name','HSN','Category','Qty','UOM','Manufacturer','Brand',''].map(h => (
-                    <th key={h} className="px-3 py-2 text-left text-[10px] font-semibold text-muted-foreground uppercase">{h}</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-muted-foreground uppercase">#</th>
+                  {activeCols.map(c => (
+                    <th key={c.key} className="px-3 py-2 text-left text-[10px] font-semibold text-muted-foreground uppercase whitespace-nowrap">
+                      <span className="inline-flex items-center gap-1">
+                        {c.label}
+                        <button onClick={() => removeCol(c.key)} title="Remove column"
+                          className="text-muted-foreground hover:text-red-600"><Sym name="close" size={11} /></button>
+                      </span>
+                    </th>
                   ))}
+                  <th className="px-3 py-2" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {preview.map((p, i) => (
                   <tr key={i} className="hover:bg-[#F8FAFC]">
                     <td className="px-3 py-2 font-mono text-muted-foreground">{p.sr_no}</td>
-                    <td className="px-3 py-2 font-medium text-brand-950 max-w-[160px] truncate">{p.product_name}</td>
-                    <td className="px-3 py-2 font-mono">{p.hsn_code}</td>
-                    <td className="px-3 py-2 text-muted-foreground">{p.category}</td>
-                    <td className="px-3 py-2">{p.quantity}</td>
-                    <td className="px-3 py-2">{p.uom}</td>
-                    <td className="px-3 py-2 text-muted-foreground max-w-[120px] truncate">{p.manufacturer_name}</td>
-                    <td className="px-3 py-2 text-muted-foreground">{p.brand_name}</td>
+                    {activeCols.map(c => (
+                      <td key={c.key} className="px-3 py-2 text-brand-950 max-w-[260px] truncate" title={p.data[c.key]}>
+                        {p.data[c.key] || '—'}
+                      </td>
+                    ))}
                     <td className="px-3 py-2">
                       <button onClick={() => removeRow(i)} className="text-muted-foreground hover:text-red-600">
                         <Sym name="delete" size={11} />
@@ -255,51 +315,51 @@ export function SoiTab({ projectId, clientId, closed }: Props) {
         ) : sois.length === 0 ? (
           <div className="glass-panel rounded-xl border-dashed !border-white/20 p-8 text-center">
             <Sym name="inventory_2" size={28} className="mx-auto text-white/60 mb-2" />
-            <p className="text-xs text-white/60">No SOI entries yet. Use Smart Paste to import from FSSAI portal.</p>
+            <p className="text-xs text-white/60">No SOI entries yet. Use Smart Paste to import from the FSSAI portal.</p>
           </div>
         ) : (
           <div className="space-y-2">
-            {sois.map(s => {
+            {sois.map((s: any) => {
               const products = soiProducts[s.id] ?? []
               const isOpen   = expandedSoi === s.id
+              const cols: ColDef[] = (s.columns?.length ? s.columns : colsFor(s.soi_type)) as ColDef[]
               return (
                 <div key={s.id} className="bg-white rounded-xl border border-border overflow-hidden">
-                  <button
-                    onClick={() => toggleSoi(s.id)}
-                    className="w-full flex items-center justify-between px-5 py-3 hover:bg-[#F8FAFC] text-left"
-                  >
-                    <div className="flex items-center gap-3">
+                  <div className="w-full flex items-center justify-between px-5 py-3 hover:bg-[#F8FAFC]">
+                    <button onClick={() => toggleSoi(s.id)} className="flex items-center gap-3 text-left flex-1">
                       <Sym name="inventory_2" size={14} className="text-muted-foreground" />
                       <div>
                         <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-mono font-semibold bg-brand-50 text-brand-700 border border-brand-200 px-1.5 py-0.5 rounded">V{s.version_no ?? 1}</span>
                           <span className="text-sm font-medium text-brand-950">{formatDate(s.soi_date)}</span>
-                          {s.product_category && (
-                            <span className="text-[10px] bg-purple-50 text-purple-700 border border-purple-200 px-1.5 py-0.5 rounded font-medium">
-                              {s.product_category}
-                            </span>
-                          )}
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium border ${s.soi_type === 'export'
+                            ? 'bg-amber-50 text-amber-700 border-amber-200'
+                            : 'bg-purple-50 text-purple-700 border-purple-200'}`}>
+                            {s.soi_type === 'export' ? 'Export' : 'Domestic'}
+                          </span>
                         </div>
                         {s.description && <p className="text-[11px] text-muted-foreground mt-0.5">{s.description}</p>}
                       </div>
-                    </div>
+                    </button>
                     <div className="flex items-center gap-2 shrink-0">
-                      {products.length > 0 && (
-                        <span className="text-[11px] bg-[#F8FAFC] border border-border px-2 py-0.5 rounded">
-                          {products.length} products
-                        </span>
-                      )}
-                      {isOpen ? <Sym name="add" size={13} className="rotate-45 text-muted-foreground" /> : <Sym name="add" size={13} className="text-muted-foreground" />}
+                      <button onClick={() => downloadExcel(s)} title="Download Excel"
+                        className="flex items-center gap-1 text-[11px] text-green-700 hover:text-green-800 border border-green-200 bg-green-50 rounded px-2 py-1">
+                        <Sym name="download" size={12} /> Excel
+                      </button>
+                      <button onClick={() => toggleSoi(s.id)}>
+                        <Sym name="add" size={13} className={`text-muted-foreground ${isOpen ? 'rotate-45' : ''}`} />
+                      </button>
                     </div>
-                  </button>
+                  </div>
 
-                  {/* Product list */}
                   {isOpen && products.length > 0 && (
                     <div className="border-t border-border overflow-x-auto">
                       <table className="w-full text-xs">
                         <thead className="bg-[#F8FAFC]">
                           <tr>
-                            {['#','Product Name','HSN','Category','Qty','UOM','Manufacturer','Brand'].map(h => (
-                              <th key={h} className="px-3 py-2 text-left text-[10px] font-semibold text-muted-foreground uppercase whitespace-nowrap">{h}</th>
+                            <th className="px-3 py-2 text-left text-[10px] font-semibold text-muted-foreground uppercase">#</th>
+                            {cols.map(c => (
+                              <th key={c.key} className="px-3 py-2 text-left text-[10px] font-semibold text-muted-foreground uppercase whitespace-nowrap">{c.label}</th>
                             ))}
                           </tr>
                         </thead>
@@ -307,13 +367,11 @@ export function SoiTab({ projectId, clientId, closed }: Props) {
                           {products.map((p: any) => (
                             <tr key={p.id} className="hover:bg-[#F8FAFC]">
                               <td className="px-3 py-2 font-mono text-muted-foreground">{p.sr_no}</td>
-                              <td className="px-3 py-2 font-medium text-brand-950 max-w-[180px] truncate">{p.product_name}</td>
-                              <td className="px-3 py-2 font-mono">{p.hsn_code ?? '—'}</td>
-                              <td className="px-3 py-2 text-muted-foreground">{p.category ?? '—'}</td>
-                              <td className="px-3 py-2">{p.quantity ?? '—'}</td>
-                              <td className="px-3 py-2">{p.uom ?? '—'}</td>
-                              <td className="px-3 py-2 text-muted-foreground max-w-[140px] truncate">{p.manufacturer_name ?? '—'}</td>
-                              <td className="px-3 py-2 text-muted-foreground">{p.brand_name ?? '—'}</td>
+                              {cols.map(c => (
+                                <td key={c.key} className="px-3 py-2 text-brand-950 max-w-[260px] truncate" title={p.data?.[c.key]}>
+                                  {p.data?.[c.key] || '—'}
+                                </td>
+                              ))}
                             </tr>
                           ))}
                         </tbody>
