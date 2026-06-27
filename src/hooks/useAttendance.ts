@@ -121,12 +121,14 @@ export function useTeamToday() {
 export function usePunch() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async ({ lat, lng, accuracy, selfiePath, device }: {
+    mutationFn: async ({ lat, lng, accuracy, selfiePath, device, faceMatched, faceScore }: {
       lat: number; lng: number; accuracy: number; selfiePath?: string | null; device?: string
+      faceMatched?: boolean | null; faceScore?: number | null
     }) => {
-      const { data, error } = await supabase.rpc('punch_attendance', {
+      const { data, error } = await (supabase.rpc as any)('punch_attendance', {
         p_lat: lat, p_lng: lng, p_accuracy: accuracy,
         p_selfie_path: selfiePath ?? undefined, p_device: device ?? undefined,
+        p_face_matched: faceMatched ?? undefined, p_face_score: faceScore ?? undefined,
       })
       if (error) throw error
       return data as { id: string; within_fence: boolean; distance_m: number; is_field: boolean }

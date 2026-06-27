@@ -12,7 +12,7 @@ export function AttendanceSettingsSection() {
   const upsertOffice = useUpsertOffice()
   const [locating, setLocating] = useState(false)
 
-  const [s, setS] = useState({ expected_start_time: '09:30', standard_hours: 8, selfie_required: false, accuracy_threshold_m: 100 })
+  const [s, setS] = useState({ expected_start_time: '09:30', standard_hours: 8, selfie_required: false, accuracy_threshold_m: 100, face_match_required: false, face_match_threshold: 0.5 })
   const [o, setO] = useState({ name: '', latitude: '', longitude: '', radius_m: 150 })
 
   useEffect(() => { if (settings) setS({
@@ -20,6 +20,8 @@ export function AttendanceSettingsSection() {
     standard_hours: Number(settings.standard_hours ?? 8),
     selfie_required: !!settings.selfie_required,
     accuracy_threshold_m: settings.accuracy_threshold_m ?? 100,
+    face_match_required: !!(settings as any).face_match_required,
+    face_match_threshold: Number((settings as any).face_match_threshold ?? 0.5),
   }) }, [settings])
   useEffect(() => { if (office) setO({
     name: office.name, latitude: String(office.latitude), longitude: String(office.longitude), radius_m: office.radius_m,
@@ -42,7 +44,7 @@ export function AttendanceSettingsSection() {
     catch (e: any) { toast.error('Failed', e.message) }
   }
   const saveSettings = async () => {
-    try { await updateSettings.mutateAsync({ expected_start_time: s.expected_start_time, standard_hours: s.standard_hours, selfie_required: s.selfie_required, accuracy_threshold_m: s.accuracy_threshold_m } as any); toast.success('Attendance settings saved') }
+    try { await updateSettings.mutateAsync({ expected_start_time: s.expected_start_time, standard_hours: s.standard_hours, selfie_required: s.selfie_required, accuracy_threshold_m: s.accuracy_threshold_m, face_match_required: s.face_match_required, face_match_threshold: s.face_match_threshold } as any); toast.success('Attendance settings saved') }
     catch (e: any) { toast.error('Failed', e.message) }
   }
 
@@ -93,6 +95,22 @@ export function AttendanceSettingsSection() {
                 {s.selfie_required ? 'Selfie ON' : 'Selfie OFF'}
               </button>
             </L>
+            <L label="Require Face Match at Punch">
+              <button type="button" onClick={()=>setS({...s, face_match_required:!s.face_match_required})}
+                className={`px-3 py-2 rounded-lg text-sm font-medium border ${s.face_match_required ? 'bg-brand-50 border-brand-200 text-brand-700' : 'bg-[#F8FAFC] border-border text-muted-foreground'}`}>
+                {s.face_match_required ? 'Face Match ON' : 'Face Match OFF'}
+              </button>
+            </L>
+            {s.face_match_required && (
+              <L label="Match Strictness" wide>
+                <label className="block text-[11px] text-muted-foreground mb-1">
+                  Similarity ≥ {s.face_match_threshold.toFixed(2)} (higher = stricter)
+                </label>
+                <input type="range" min={0.3} max={0.8} step={0.01} value={s.face_match_threshold}
+                  onChange={e => setS(v => ({ ...v, face_match_threshold: Number(e.target.value) }))}
+                  className="w-full max-w-xs" />
+              </L>
+            )}
           </div>
           <div className="mt-3 flex justify-end">
             <button onClick={saveSettings} disabled={updateSettings.isPending} className="px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 disabled:opacity-50">Save Rules</button>

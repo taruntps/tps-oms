@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef } from 'react'
 import { TopBar } from '@/components/layout/TopBar'
 import { Sym } from '@/components/shared/Sym'
 import { useAuth } from '@/contexts/AuthContext'
@@ -7,6 +7,9 @@ import { toast } from '@/components/shared/Toast'
 import {
   useAttendanceSettings, useTodayPunches, useMyAttendanceDays, usePunch, useTeamToday,
 } from '@/hooks/useAttendance'
+import { FaceCapture } from './FaceCapture'
+import { useFaceEnrollment, useSaveFaceEnrollment } from '@/hooks/useFaceEnrollment'
+import { averageDescriptors, similarity } from '@/lib/faceEngine'
 
 const fmtTime = (iso: string) =>
   new Date(iso).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' })
@@ -34,10 +37,12 @@ export default function AttendancePage() {
   const punch = usePunch()
   const [busy, setBusy] = useState(false)
 
-  // Camera modal state
-  const [camOpen, setCamOpen] = useState(false)
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const streamRef = useRef<MediaStream | null>(null)
+  const { data: enrollment } = useFaceEnrollment(user?.id)
+  const saveEnroll = useSaveFaceEnrollment()
+  const faceOn = !!(settings as any)?.face_match_required
+  const threshold = Number((settings as any)?.face_match_threshold ?? 0.5)
+  const [mode, setMode] = useState<null | 'enroll' | 'punch'>(null)
+  const enrollFrames = useRef<number[][]>([])
 
   const firstIn = today[0]
   const lastPunch = today[today.length - 1]
@@ -52,13 +57,14 @@ export default function AttendancePage() {
   ) as { name: string; code: string; punches: any[] }[] : []
 
   // ── Core punch (geolocation + RPC) ──────────────────────────────────────────
-  const doPunch = async (selfiePath?: string | null) => {
+  const doPunch = async (selfiePath?: string | null, faceMatched?: boolean | null, faceScore?: number | null) => {
     try {
       setBusy(true)
       const pos = await getPosition()
       const res = await punch.mutateAsync({
         lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy,
         selfiePath, device: navigator.userAgent.slice(0, 120),
+        faceMatched: faceMatched ?? null, faceScore: faceScore ?? null,
       })
       toast.success(
         res.is_field ? 'Punched (field)' : res.within_fence ? 'Punched at office' : 'Punched',
@@ -76,61 +82,58 @@ export default function AttendancePage() {
   }
 
   const onPunchClick = () => {
-    if (settings?.selfie_required) openCamera()
-    else doPunch(null)
-  }
-
-  // ── Camera (getUserMedia) ───────────────────────────────────────────────────
-  const openCamera = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false })
-      streamRef.current = stream
-      setCamOpen(true)
-    } catch (e: any) {
-      const msg = e?.name === 'NotAllowedError' ? 'Camera is blocked for this site. Re-enable it (see the help below the button), then retry.'
-        : e?.name === 'NotFoundError' ? 'No camera found on this device.'
-        : e?.name === 'NotReadableError' ? 'Camera is busy in another app — close it and retry.'
-        : e?.message ?? 'Could not open the camera'
-      toast.error('Camera error', msg)
+    if (faceOn) {
+      if (!enrollment?.enrolled) { enrollFrames.current = []; setMode('enroll') }
+      else setMode('punch')
+    } else if (settings?.selfie_required) {
+      setMode('punch')          // legacy selfie path: capture, no match
+    } else {
+      doPunch(null)
     }
   }
 
-  // Attach the stream to the <video> once the modal is mounted.
-  useEffect(() => {
-    if (camOpen && videoRef.current && streamRef.current) {
-      videoRef.current.srcObject = streamRef.current
-      videoRef.current.play().catch(() => {})
-    }
-  }, [camOpen])
-
-  const stopCamera = () => {
-    streamRef.current?.getTracks().forEach(t => t.stop())
-    streamRef.current = null
-    setCamOpen(false)
+  const uploadSelfie = async (canvas: HTMLCanvasElement): Promise<string | null> => {
+    if (!user) return null
+    const blob: Blob = await new Promise((res, rej) =>
+      canvas.toBlob(b => b ? res(b) : rej(new Error('Capture failed')), 'image/jpeg', 0.6))
+    const path = `${user.id}/${new Date().toISOString().slice(0, 10)}/${Date.now()}.jpg`
+    const { error } = await supabase.storage.from('attendance').upload(path, blob, { contentType: 'image/jpeg' })
+    if (error) throw error
+    return path
   }
-  useEffect(() => () => { streamRef.current?.getTracks().forEach(t => t.stop()) }, [])
 
-  const captureAndPunch = async () => {
-    const video = videoRef.current
-    if (!video || !user) return
+  const onCapture = async ({ canvas, descriptor }: { canvas: HTMLCanvasElement; descriptor: number[] }) => {
+    if (!user) return
     try {
       setBusy(true)
-      // snapshot the current frame, downscaled to ~480px
-      const max = 480
-      const scale = Math.min(1, max / Math.max(video.videoWidth, video.videoHeight))
-      const c = document.createElement('canvas')
-      c.width = Math.round(video.videoWidth * scale); c.height = Math.round(video.videoHeight * scale)
-      c.getContext('2d')!.drawImage(video, 0, 0, c.width, c.height)
-      const blob: Blob = await new Promise((res, rej) => c.toBlob(b => b ? res(b) : rej(new Error('Capture failed')), 'image/jpeg', 0.6))
-      stopCamera()
-
-      const path = `${user.id}/${new Date().toISOString().slice(0, 10)}/${Date.now()}.jpg`
-      const { error } = await supabase.storage.from('attendance').upload(path, blob, { contentType: 'image/jpeg' })
-      if (error) throw error
-      await doPunch(path)
+      if (mode === 'enroll') {
+        enrollFrames.current.push(descriptor)
+        if (enrollFrames.current.length < 3) {
+          setBusy(false)
+          toast.success(`Captured ${enrollFrames.current.length}/3`, 'Hold still for the next shot')
+          return // keep the modal open for the next frame
+        }
+        await saveEnroll.mutateAsync({ userId: user.id, descriptor: averageDescriptors(enrollFrames.current) })
+        setMode(null); setBusy(false)
+        toast.success('Face enrolled', 'You can now punch with face verification')
+        return
+      }
+      // mode === 'punch'
+      let faceMatched: boolean | null = null, faceScore: number | null = null
+      if (faceOn && enrollment?.descriptor) {
+        faceScore = Number(similarity(descriptor, enrollment.descriptor).toFixed(4))
+        faceMatched = faceScore >= threshold
+        if (!faceMatched) {
+          setBusy(false)
+          toast.error('Face did not match', 'Try again in better light, facing the camera.')
+          return // keep modal open to retry
+        }
+      }
+      const path = await uploadSelfie(canvas)
+      setMode(null)
+      await doPunch(path, faceMatched, faceScore)
     } catch (e: any) {
-      toast.error('Selfie/punch failed', e.message)
-      setBusy(false)
+      toast.error('Punch failed', e.message); setBusy(false)
     }
   }
 
@@ -157,6 +160,12 @@ export default function AttendancePage() {
           {settings?.selfie_required && (
             <p className="text-[11px] text-white/55 mt-4 flex items-center justify-center gap-1">
               <Sym name="photo_camera" size={12} /> A selfie (camera) is required at each punch.
+            </p>
+          )}
+          {faceOn && (
+            <p className="text-[11px] text-white/55 mt-1 flex items-center justify-center gap-1">
+              <Sym name="face" size={12} />
+              {enrollment?.enrolled ? 'Face verification is on at each punch.' : 'First punch will enrol your face.'}
             </p>
           )}
         </div>
@@ -264,22 +273,14 @@ export default function AttendancePage() {
         </div>
       </div>
 
-      {/* Camera capture modal */}
-      {camOpen && (
-        <div className="fixed inset-0 bg-black/80 z-[70] flex flex-col items-center justify-center p-4">
-          <div className="w-full max-w-sm bg-black rounded-2xl overflow-hidden shadow-2xl">
-            <video ref={videoRef} playsInline muted className="w-full aspect-[3/4] object-cover bg-black" />
-            <div className="flex items-center justify-between gap-3 p-4 bg-[#111]">
-              <button onClick={stopCamera} className="px-4 py-2 text-sm border border-white/20 text-white rounded-lg hover:bg-white/10">Cancel</button>
-              <button onClick={captureAndPunch} disabled={busy}
-                className="flex items-center gap-2 px-5 py-2 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 disabled:opacity-50">
-                {busy ? <Sym name="progress_activity" size={16} className="animate-spin" /> : <Sym name="photo_camera" size={16} />}
-                Capture &amp; Punch
-              </button>
-            </div>
-          </div>
-          <p className="text-white/60 text-xs mt-3">Center your face, then Capture &amp; Punch.</p>
-        </div>
+      {mode && (
+        <FaceCapture
+          title={mode === 'enroll' ? `Enrol your face (${enrollFrames.current.length}/3) — center one face` : 'Center your face, then Punch'}
+          actionLabel={mode === 'enroll' ? 'Capture' : 'Capture & Punch'}
+          busy={busy}
+          onCapture={onCapture}
+          onCancel={() => { setMode(null); setBusy(false) }}
+        />
       )}
     </div>
   )

@@ -6,6 +6,7 @@ import { toast } from '@/components/shared/Toast'
 import { useAuth } from '@/contexts/AuthContext'
 import { Sym } from '@/components/shared/Sym'
 import { cn } from '@/lib/utils'
+import { useResetFaceEnrollment } from '@/hooks/useFaceEnrollment'
 
 const ROLES = ['executive', 'manager', 'director', 'accounts', 'super_admin'] as const
 type Role = typeof ROLES[number]
@@ -68,6 +69,13 @@ export default function UserManagementPage() {
   const [editUser, setEditUser] = useState<UserRow | null>(null)
   const [resetUser, setResetUser] = useState<UserRow | null>(null)
   const [newPwd, setNewPwd] = useState('')
+
+  const resetFace = useResetFaceEnrollment()
+  const onResetFace = async (id: string, name: string) => {
+    if (!confirm(`Clear ${name}'s face enrolment? They will re-enrol on their next punch.`)) return
+    try { await resetFace.mutateAsync(id); toast.success('Face enrolment cleared') }
+    catch (e: any) { toast.error('Failed', e.message) }
+  }
 
   const resetPassword = useMutation({
     mutationFn: async ({ id, password }: { id: string; password: string }) => {
@@ -225,6 +233,12 @@ export default function UserManagementPage() {
                             title="Reset password"
                           >
                             <Sym name="key" size={13} />
+                          </button>
+                        )}
+                        {profile?.role === 'super_admin' && (
+                          <button onClick={() => onResetFace(u.id, u.name)} title="Reset face enrolment"
+                            className="text-xs text-amber-700 hover:text-amber-800 flex items-center gap-1">
+                            <Sym name="face_retouching_off" size={13} /> Reset face
                           </button>
                         )}
                         {u.id !== profile?.id && (
