@@ -395,3 +395,5 @@ Reuses existing authority_queries (round) + query_points (points) tables.
    - Next query -> Doc Scrutinisation -> Query Raised again -> creates -Q2, etc.
 7. Approved / Rejected -> confirmation popup before applying (Approved still locks after).
 OPEN CONFIRMS: (a) point1 action is a button inside Doc Collection stage; (b) query no format = <project_code>-Q<n>.
+
+#### IMPLEMENTED & LIVE (2026-06-27) — refinements round 2 all done (mig 037). Verified on live DB + deployed.
