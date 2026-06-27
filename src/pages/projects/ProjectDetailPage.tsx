@@ -33,6 +33,17 @@ const TABS = [
 ] as const
 type TabKey = (typeof TABS)[number]['key']
 
+const PROJECT_TYPE_BADGE: Record<string, string> = {
+  'New Application': 'bg-blue-50 text-blue-700 border-blue-200',
+  'Renewal':         'bg-green-50 text-green-700 border-green-200',
+  'Modification':    'bg-amber-50 text-amber-700 border-amber-200',
+  'Annual Return':   'bg-purple-50 text-purple-700 border-purple-200',
+  'Form II':         'bg-indigo-50 text-indigo-700 border-indigo-200',
+  'Artwork':         'bg-pink-50 text-pink-700 border-pink-200',
+  'Claim Check':     'bg-teal-50 text-teal-700 border-teal-200',
+}
+const projectTypeBadge = (t?: string | null) => PROJECT_TYPE_BADGE[t ?? ''] ?? 'bg-gray-50 text-gray-600 border-gray-200'
+
 export default function ProjectDetailPage() {
   const { id }      = useParams<{ id: string }>()
   const navigate    = useNavigate()
@@ -258,7 +269,7 @@ export default function ProjectDetailPage() {
                   'bg-gray-100 text-gray-600'
                 )}>{project.status?.replace('_', ' ')}</span>
                 {project.service_type && (
-                  <span className="text-[10px] bg-[#F8FAFC] border border-border px-2 py-0.5 rounded">{project.service_type}</span>
+                  <span className={cn('text-[10px] border px-2 py-0.5 rounded font-medium', projectTypeBadge(project.service_type))}>{project.service_type}</span>
                 )}
                 {(project as any).awaiting_client_flag && (
                   <span className="text-[10px] bg-amber-100 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full font-medium">
@@ -266,7 +277,7 @@ export default function ProjectDetailPage() {
                   </span>
                 )}
               </div>
-              <h2 className="text-lg font-display font-bold text-brand-950 mt-1">{project.project_name}</h2>
+              <h2 className="text-lg font-display font-bold text-brand-950 mt-1">{project.project_name || project.service_type}</h2>
             </div>
             {project.active_clock && project.clock_switched_at && (
               <ClockBadge clock={project.active_clock} since={project.clock_switched_at} isBlocked={project.is_blocked ?? false} personName={executiveName} />
@@ -288,7 +299,8 @@ export default function ProjectDetailPage() {
             )}
           </div>
 
-          {/* App Ref No field */}
+          {/* App Ref No field — only for types that file with FSSAI */}
+          {['New Application','Renewal','Modification','Form II'].includes(project.service_type ?? '') && (
           <div className="mt-4 pt-4 border-t border-border flex items-center gap-3">
             <div className="flex items-center gap-2 flex-1">
               <Sym name="tag" size={12} className="text-muted-foreground" />
@@ -319,6 +331,7 @@ export default function ProjectDetailPage() {
               )}
             </RoleGuard>
           </div>
+          )}
 
           {project.notes && (
             <p className="mt-3 pt-3 border-t border-border text-xs text-muted-foreground">{project.notes}</p>

@@ -128,8 +128,15 @@ export function StageCard({ stage, projectId, isBlocked, serviceType, appRefNo, 
     setCapture(null)
   }
   const setFssaiStatus = async (status: string) => {
+    // Gating: cannot mark Approved while any query round is unanswered.
+    if (status === 'Approved') {
+      const { count } = await supabase.from('authority_queries')
+        .select('id', { count: 'exact', head: true })
+        .eq('project_id', projectId).is('response_submitted_date', null)
+      if ((count ?? 0) > 0) { toast.error('Open queries pending', 'Respond to all query rounds in the Queries tab before marking Approved.'); return }
+    }
     if (status === 'Query Raised') {
-      toast.info?.('Record the query', 'Open the Queries tab to log the query — required before this clears.')
+      toast.info?.('Record the query', 'Open the Queries tab and log the deficiency letter (date + points).')
     }
     const done = status === 'Approved'
     await patch({ fssai_status: status, status: done ? 'completed' : 'in_progress',
