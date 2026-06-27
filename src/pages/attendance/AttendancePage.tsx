@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { TopBar } from '@/components/layout/TopBar'
 import { Sym } from '@/components/shared/Sym'
 import { useAuth } from '@/contexts/AuthContext'
@@ -9,7 +9,7 @@ import {
 } from '@/hooks/useAttendance'
 import { FaceCapture } from './FaceCapture'
 import { useFaceEnrollment, useSaveFaceEnrollment } from '@/hooks/useFaceEnrollment'
-import { averageDescriptors, similarity } from '@/lib/faceEngine'
+import { averageDescriptors, similarity, preloadFaceEngine } from '@/lib/faceEngine'
 
 const fmtTime = (iso: string) =>
   new Date(iso).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' })
@@ -43,6 +43,10 @@ export default function AttendancePage() {
   const threshold = Number((settings as any)?.face_match_threshold ?? 0.5)
   const [mode, setMode] = useState<null | 'enroll' | 'punch'>(null)
   const enrollFrames = useRef<number[][]>([])
+
+  // Warm the face engine in the background as soon as we know face-match is on,
+  // so the first capture doesn't pay the model-load + shader-compile cost (~5-8s).
+  useEffect(() => { if (faceOn) preloadFaceEngine() }, [faceOn])
 
   const firstIn = today[0]
   const lastPunch = today[today.length - 1]

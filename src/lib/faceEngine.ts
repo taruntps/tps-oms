@@ -37,7 +37,7 @@ async function getHuman(): Promise<Human> {
         cacheModels: true,
         face: {
           enabled: true,
-          detector: { rotation: false, maxDetected: 5, minConfidence: 0.4 },
+          detector: { rotation: false, maxDetected: 2, minConfidence: 0.4 },
           description: { enabled: true },
           mesh: { enabled: false }, iris: { enabled: false },
           emotion: { enabled: false }, antispoof: { enabled: false }, liveness: { enabled: false },
@@ -69,6 +69,15 @@ export async function getDescriptor(
     if (!emb || emb.length === 0 || (face.score ?? 0) < 0.5) return { ok: false, reason: 'low_quality' }
     return { ok: true, descriptor: Array.from(emb) }
   } catch { return { ok: false, reason: 'engine' } }
+}
+
+/**
+ * Warm the engine in the background (load models + compile WebGL shaders) so the
+ * first real capture is near-instant. Call on the Attendance page mount when
+ * face-match is on. Safe to call repeatedly — getHuman() is cached.
+ */
+export function preloadFaceEngine(): void {
+  void getHuman().catch(() => {})
 }
 
 /** Average several descriptors element-wise (used at enrolment for robustness). */
