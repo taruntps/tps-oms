@@ -82,10 +82,24 @@ export default function ProjectDetailPage() {
   // Header clock reflects the CURRENT (first not-done) stage's own clock — per-stage now.
   const currentStage     = [...stages].sort((a: any, b: any) => a.stage_order - b.stage_order)
                              .find((s: any) => !['completed','skipped','not_required'].includes(s.status))
-  const activeClock      = ((currentStage as any)?.active_clock ?? project.active_clock ?? 'employee') as ClockType
+  // Doc Collection stays with the employee until the document list is sent to the client.
+  const activeClock      = (((currentStage as any)?.stage_kind === 'doc_collection' && !((currentStage as any)?.meta?.doc_request_sent))
+                             ? 'employee'
+                             : ((currentStage as any)?.active_clock ?? project.active_clock ?? 'employee')) as ClockType
   const appRefNo         = (project as any).app_ref_no as string | null | undefined
   const executiveName    = (project as any).profiles_assigned?.name as string | undefined
   const execFirstName    = executiveName?.trim().split(/\s+/)[0]
+
+  // Tab visibility by project type. Annual Return / Claim Check / Renewal don't
+  // use Documents, Queries or SOI Archive; Form II doesn't use SOI Archive.
+  const st = project.service_type ?? ''
+  const noExtra = ['Annual Return', 'Claim Check', 'Renewal'].includes(st)
+  const visibleTabs = TABS.filter(t => {
+    if (noExtra && ['documents', 'queries', 'soi'].includes(t.key)) return false
+    if (t.key === 'soi' && (st === 'Form II' || noExtra)) return false
+    return true
+  })
+  const effectiveTab = visibleTabs.some(t => t.key === activeTab) ? activeTab : 'overview'
 
   const canBlock   = ['executive','manager','director','super_admin'].includes(profile?.role ?? '')
   const canApprove = ['manager','director','super_admin'].includes(profile?.role ?? '')
@@ -375,7 +389,7 @@ export default function ProjectDetailPage() {
 
         {/* Tab bar */}
         <div className="flex gap-0.5 bg-white/10 p-1 rounded-xl border border-white/15 overflow-x-auto">
-          {TABS.map(t => (
+          {visibleTabs.map(t => (
             <button key={t.key} onClick={() => setActiveTab(t.key)}
               className={cn(
                 'px-4 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap transition-all',
@@ -386,7 +400,7 @@ export default function ProjectDetailPage() {
         </div>
 
         {/* Tab content */}
-        {activeTab === 'overview' && (
+        {effectiveTab === 'overview' && (
           <div className="bg-white rounded-xl border border-border p-5">
             <h3 className="font-display font-semibold text-brand-950 text-sm mb-4">Project Summary</h3>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
@@ -399,7 +413,7 @@ export default function ProjectDetailPage() {
             </div>
           </div>
         )}
-        {activeTab === 'stages' && (
+        {effectiveTab === 'stages' && (
           <StagesTab
             stages={stages}
             projectId={id!}
@@ -411,10 +425,10 @@ export default function ProjectDetailPage() {
           />
         )}
         {/* Once a project is completed/cancelled, only Payments stays editable. */}
-        {activeTab === 'payments'  && <PaymentsTab  projectId={id!} clientId={clientId} />}
-        {activeTab === 'documents' && <DocumentsTab projectId={id!} clientId={clientId} closed={isCompleted || isCancelled} />}
-        {activeTab === 'queries'   && <QueriesTab   projectId={id!} projectCode={project.project_code ?? ''} closed={isCompleted || isCancelled} />}
-        {activeTab === 'soi'       && <SoiTab       projectId={id!} clientId={clientId} closed={isCompleted || isCancelled} />}
+        {effectiveTab === 'payments'  && <PaymentsTab  projectId={id!} clientId={clientId} />}
+        {effectiveTab === 'documents' && <DocumentsTab projectId={id!} clientId={clientId} closed={isCompleted || isCancelled} />}
+        {effectiveTab === 'queries'   && <QueriesTab   projectId={id!} projectCode={project.project_code ?? ''} closed={isCompleted || isCancelled} />}
+        {effectiveTab === 'soi'       && <SoiTab       projectId={id!} clientId={clientId} closed={isCompleted || isCancelled} />}
       </div>
 
       {/* Modals */}

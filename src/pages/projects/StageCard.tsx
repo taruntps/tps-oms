@@ -33,8 +33,10 @@ const needsAppRef     = (st?: string) => !!st && ['New Application', 'Modificati
 export function StageCard({ stage, projectId, isBlocked, serviceType, appRefNo, clientId, assigneeName, locked }: Props) {
   const employeeLabel = assigneeName?.trim().split(/\s+/)[0] || 'Employee'
   const kind = (stage as any).stage_kind as string
-  const clock = ((stage as any).active_clock ?? 'employee') as ClockType
   const meta = ((stage as any).meta ?? {}) as Record<string, any>
+  // Document Collection stays with the employee until the doc list is sent to the client.
+  const rawClock = ((stage as any).active_clock ?? 'employee') as ClockType
+  const clock = (kind === 'doc_collection' && !meta.doc_request_sent) ? 'employee' : rawClock
   const docStatus = (stage as any).doc_status as string | null
 
   const [open, setOpen] = useState(false)
