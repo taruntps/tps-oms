@@ -92,13 +92,16 @@ export function LicenseForm({ clientId, license, onClose }: Props) {
 
   const onSubmit = async (data: FormData) => {
     if (categories.length === 0) { toast.error('Add at least one FBO Category'); return }
+    // When a password is provided, fall back to the licence number as username
+    // so CredentialReveal always has a non-null username to display.
+    const effectiveUsername = data.credential_username || (credentialPassword ? (data.license_number || null) : null)
     const payload = {
       ...data,
       categories,
       category: categories[0], // backward compat
       issue_date:  data.issue_date  || null,
       expiry_date: data.expiry_date || null,
-      credential_username: data.credential_username || null,
+      credential_username: effectiveUsername,
     }
     try {
       let savedId = license?.id
@@ -108,12 +111,10 @@ export function LicenseForm({ clientId, license, onClose }: Props) {
         const saved = await create.mutateAsync({ client_id: clientId, created_by: profile?.id, ...payload })
         savedId = saved.id
       }
-      // Store credential password in Vault if provided. Username is optional —
-      // default it to the licence number so the portal login still has one.
       if (credentialPassword && savedId) {
         await storeCredential.mutateAsync({
           licenseId: savedId,
-          username:  data.credential_username || data.license_number || '',
+          username:  effectiveUsername ?? '',
           password:  credentialPassword,
         })
       }

@@ -35,14 +35,17 @@ async function getHuman(): Promise<Human> {
       const h = new (Human as any)({
         modelBasePath: '/models',
         cacheModels: true,
+        // Only one face needed; lower minConfidence → faster first detection.
         face: {
           enabled: true,
-          detector: { rotation: false, maxDetected: 2, minConfidence: 0.4 },
+          detector: { rotation: false, maxDetected: 1, minConfidence: 0.3, skipFrames: 0 },
           description: { enabled: true },
           mesh: { enabled: false }, iris: { enabled: false },
           emotion: { enabled: false }, antispoof: { enabled: false }, liveness: { enabled: false },
         },
         body: { enabled: false }, hand: { enabled: false }, object: { enabled: false }, gesture: { enabled: false },
+        // Tune for speed: smaller internal canvas.
+        filter: { enabled: false },
       })
       await h.load()
       await h.warmup()

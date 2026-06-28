@@ -46,14 +46,14 @@ export function FaceCapture({ title, actionLabel, busy, autoCapture, onCapture, 
     return () => { cancelled = true; streamRef.current?.getTracks().forEach(t => t.stop()); streamRef.current = null }
   }, [])
 
-  // Auto-capture: poll for a face every 800ms, trigger after 5s timeout
+  // Auto-capture: poll for a face every 350ms, trigger after 8s timeout
   useEffect(() => {
     if (!autoCapture || !ready) return
     let cancelled = false
     let timerId: number
     const startMs = performance.now()
-    const TIMEOUT = 5000
-    const POLL    = 800
+    const TIMEOUT = 8000
+    const POLL    = 350
 
     const poll = async () => {
       if (cancelled || working || busy) return
@@ -79,7 +79,7 @@ export function FaceCapture({ title, actionLabel, busy, autoCapture, onCapture, 
       if (!cancelled) timerId = window.setTimeout(poll, POLL)
     }
 
-    timerId = window.setTimeout(poll, 600)
+    timerId = window.setTimeout(poll, 200)
     return () => { cancelled = true; clearTimeout(timerId) }
   }, [ready, autoCapture]) // eslint-disable-line react-hooks/exhaustive-deps
 

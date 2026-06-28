@@ -40,7 +40,7 @@ export default function AttendancePage() {
   const { data: enrollment } = useFaceEnrollment(user?.id)
   const saveEnroll = useSaveFaceEnrollment()
   const faceOn = !!(settings as any)?.face_match_required
-  const threshold = Number((settings as any)?.face_match_threshold ?? 0.5)
+  const threshold = Number((settings as any)?.face_match_threshold ?? 0.40)
   const [mode, setMode] = useState<null | 'enroll' | 'punch'>(null)
   const enrollFrames = useRef<number[][]>([])
 

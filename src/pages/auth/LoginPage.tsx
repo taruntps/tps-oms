@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { Sym } from '@/components/shared/Sym'
 import { cn } from '@/lib/utils'
 import { FaceCapture } from '@/pages/attendance/FaceCapture'
+import { preloadFaceEngine } from '@/lib/faceEngine'
 
 export default function LoginPage() {
   const navigate = useNavigate()
@@ -17,10 +18,11 @@ export default function LoginPage() {
   const [faceScanOpen, setFaceScanOpen] = useState(false)
   const [faceScanBusy, setFaceScanBusy] = useState(false)
 
-  // Request camera + location permissions on mount so they're remembered
+  // Request camera + location permissions on mount so they're remembered.
+  // Also kick off face model loading so Face ID tap is near-instant.
   useEffect(() => {
     navigator.mediaDevices?.getUserMedia({ video: true, audio: false })
-      .then(s => s.getTracks().forEach(t => t.stop()))
+      .then(s => { s.getTracks().forEach(t => t.stop()); preloadFaceEngine() })
       .catch(() => {})
     navigator.geolocation?.getCurrentPosition(() => {}, () => {})
   }, [])
