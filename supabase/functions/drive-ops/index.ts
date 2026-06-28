@@ -51,6 +51,7 @@ async function makeJWT(sa: { client_email: string; private_key: string; token_ur
   const header  = b64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }))
   const payload = b64url(JSON.stringify({
     iss: sa.client_email,
+    sub: 'tarun@tpsxpert.com',
     scope: 'https://www.googleapis.com/auth/drive',
     aud: sa.token_uri,
     iat: now,
