@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import type { Tables } from '@/types/database'
@@ -10,6 +10,9 @@ export function useNotifications() {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [loading, setLoading] = useState(true)
+  // Unique channel name per hook instance so two callers (Sidebar + NotificationPanel)
+  // don't collide on the same already-subscribed channel.
+  const channelName = useRef(`notif:${Math.random().toString(36).slice(2)}`).current
 
   useEffect(() => {
     if (!user) return
@@ -33,7 +36,7 @@ export function useNotifications() {
 
     // Real-time subscription
     const channel = supabase
-      .channel(`notifications:${user.id}`)
+      .channel(channelName)
       .on('postgres_changes', {
         event: 'INSERT',
         schema: 'public',
