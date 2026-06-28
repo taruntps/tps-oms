@@ -5,6 +5,7 @@ import { ProtectedRoute, RoleGuard } from '@/components/shared/ProtectedRoute'
 import { AppShell } from '@/components/layout/AppShell'
 import { RoleBasedRedirect } from '@/components/shared/RoleBasedRedirect'
 import { ToastProvider } from '@/components/shared/Toast'
+import { ErrorBoundary } from '@/components/shared/ErrorBoundary'
 import LoginPage from '@/pages/auth/LoginPage'
 import DashboardPage from '@/pages/dashboard/DashboardPage'
 import ClientsPage from '@/pages/clients/ClientsPage'
@@ -33,6 +34,7 @@ const queryClient = new QueryClient({
 
 export default function App() {
   return (
+    <ErrorBoundary>
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <ToastProvider />
@@ -123,6 +125,7 @@ export default function App() {
         </BrowserRouter>
       </AuthProvider>
     </QueryClientProvider>
+    </ErrorBoundary>
   )
 }
 

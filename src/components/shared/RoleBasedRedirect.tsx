@@ -8,7 +8,7 @@ const ROLE_HOME: Record<string, string> = {
   executive:   '/dashboard',
   accounts:    '/dashboard',
   hr:          '/employees',
-  auditor:     '/reports',
+  auditor:     '/reports/performance',
 }
 
 export function RoleBasedRedirect() {
