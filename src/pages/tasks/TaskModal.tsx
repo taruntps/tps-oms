@@ -57,14 +57,15 @@ export function TaskModal({ task, me, isAdmin, staff, projects, clients, onClose
   const saveCore = async () => {
     if (!title.trim()) { toast.error('Task title is required'); return }
     if (!assignedTo)   { toast.error('Pick who the task is for'); return }
+    if (!dueDate)      { toast.error('Due date is required'); return }
     const payload = {
       title: title.trim(), description: description.trim() || null,
       assigned_to: assignedTo, project_id: projectId || null, client_id: clientId || null,
-      priority, due_date: dueDate || null,
+      priority, due_date: dueDate,
     }
     try {
       if (creating) {
-        await createTask.mutateAsync({ ...payload, assigned_by: me })
+        await createTask.mutateAsync({ ...payload, assigned_by: me, status: 'pending' })
         toast.success('Task created')
       } else {
         if (status === 'done' && task!.status !== 'done' &&
@@ -123,7 +124,16 @@ export function TaskModal({ task, me, isAdmin, staff, projects, clients, onClose
       <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl p-6 space-y-4 max-h-[92vh] overflow-y-auto">
         <div className="flex items-center justify-between">
           <h2 className="font-display font-semibold text-brand-950">
-            {creating ? 'New Task' : 'Task Details'}
+            {creating ? 'New Task' : (
+              <span className="flex items-center gap-2">
+                Task Details
+                {(task as any)?.task_no && (
+                  <span className="font-mono text-xs font-medium bg-brand-50 text-brand-700 border border-brand-200 px-1.5 py-0.5 rounded">
+                    #{String((task as any).task_no).padStart(3, '0')}
+                  </span>
+                )}
+              </span>
+            )}
           </h2>
           {lockedForViewer && (
             <span className="inline-flex items-center gap-1 text-[11px] text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded">
