@@ -127,9 +127,9 @@ export function TaskModal({ task, me, isAdmin, staff, projects, clients, onClose
             {creating ? 'New Task' : (
               <span className="flex items-center gap-2">
                 Task Details
-                {(task as any)?.task_no && (
+                {(task as any)?.task_code && (
                   <span className="font-mono text-xs font-medium bg-brand-50 text-brand-700 border border-brand-200 px-1.5 py-0.5 rounded">
-                    #{String((task as any).task_no).padStart(3, '0')}
+                    {(task as any).task_code}
                   </span>
                 )}
               </span>
@@ -208,7 +208,7 @@ export function TaskModal({ task, me, isAdmin, staff, projects, clients, onClose
             </p>
 
             {/* assignee can request when not done and nothing pending */}
-            {isAssignee && !canEditCore && !lockedForViewer && !pending && (
+            {isAssignee && !isAssigner && !lockedForViewer && !pending && (
               <div className="flex flex-wrap items-end gap-2 mb-2">
                 <div className="w-20">
                   <label className="block text-[10px] text-muted-foreground mb-0.5">Extra days</label>

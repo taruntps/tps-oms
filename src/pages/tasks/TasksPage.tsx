@@ -131,9 +131,9 @@ export default function TasksPage() {
                   <span className={cn('w-2.5 h-2.5 rounded-full shrink-0', PRIORITY_DOT[t.priority])} title={`${t.priority} priority`} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      {(t as any).task_no && (
+                      {(t as any).task_code && (
                         <span className="font-mono text-[10px] font-medium text-muted-foreground shrink-0">
-                          #{String((t as any).task_no).padStart(3, '0')}
+                          {(t as any).task_code}
                         </span>
                       )}
                       <p className={cn('font-semibold text-sm', t.status === 'done' ? 'text-muted-foreground line-through' : 'text-brand-950')}>{t.title}</p>
