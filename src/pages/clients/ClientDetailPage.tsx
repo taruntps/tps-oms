@@ -15,6 +15,7 @@ import { ClientForm } from './ClientForm'
 import { LicenseForm } from './LicenseForm'
 import { CredentialReveal } from './CredentialReveal'
 import { ClientDocuments } from './ClientDocuments'
+import { DriveTab } from '@/components/shared/DriveTab'
 import { formatDate, getExpiryStatus, daysUntil, cn } from '@/lib/utils'
 
 const EXPIRY_CONFIG = {
@@ -251,6 +252,23 @@ export default function ClientDetailPage() {
 
         {/* Documents */}
         <ClientDocuments clientId={id!} canEdit={canEdit} />
+
+        {/* Google Drive */}
+        <div className="bg-white rounded-xl border border-border overflow-hidden">
+          <div className="flex items-center gap-2 px-5 py-3 border-b border-border bg-[#F8FAFC]">
+            <Sym name="folder" size={14} className="text-amber-500" />
+            <h3 className="text-sm font-semibold text-brand-950">Google Drive</h3>
+          </div>
+          <div className="p-4">
+            <DriveTab
+              folderId={(client as any).drive_folder_id}
+              entityId={id!}
+              entityTable="clients"
+              entityName={client.company_name}
+              readOnly={!canEdit}
+            />
+          </div>
+        </div>
       </div>
 
       {editClient && <ClientForm client={client} onClose={() => setEditClient(false)} />}

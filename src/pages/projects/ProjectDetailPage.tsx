@@ -9,6 +9,7 @@ import { PaymentsTab }     from './tabs/PaymentsTab'
 import { DocumentsTab }    from './tabs/DocumentsTab'
 import { QueriesTab }      from './tabs/QueriesTab'
 import { SoiTab }          from './tabs/SoiTab'
+import { DriveTab }        from '@/components/shared/DriveTab'
 import { BlockRequestForm } from './BlockRequestForm'
 import { TransferProjectButton } from './ProjectTransfer'
 import {
@@ -30,6 +31,7 @@ const TABS = [
   { key: 'documents',  label: 'Documents'   },
   { key: 'queries',    label: 'Queries'     },
   { key: 'soi',        label: 'SOI Archive' },
+  { key: 'drive',      label: 'Drive'       },
 ] as const
 type TabKey = (typeof TABS)[number]['key']
 
@@ -432,6 +434,15 @@ export default function ProjectDetailPage() {
         {effectiveTab === 'documents' && <DocumentsTab projectId={id!} clientId={clientId} closed={isCompleted || isCancelled} />}
         {effectiveTab === 'queries'   && <QueriesTab   projectId={id!} projectCode={project.project_code ?? ''} closed={isCompleted || isCancelled} />}
         {effectiveTab === 'soi'       && <SoiTab       projectId={id!} clientId={clientId} clientName={(project as any).clients?.company_name} closed={isCompleted || isCancelled} />}
+        {effectiveTab === 'drive' && (
+          <DriveTab
+            folderId={(project as any).drive_folder_id}
+            entityId={id!}
+            entityTable="projects"
+            entityName={project.project_code ?? project.project_name}
+            parentFolderId={(project as any).clients?.drive_folder_id}
+          />
+        )}
       </div>
 
       {/* Modals */}
