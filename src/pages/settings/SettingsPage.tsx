@@ -7,6 +7,7 @@ import { Sym } from '@/components/shared/Sym'
 import { cn } from '@/lib/utils'
 import { AttendanceSettingsSection } from './AttendanceSettingsSection'
 import { ReminderSettingsSection } from './ReminderSettingsSection'
+import { NotificationControlsSection } from './NotificationControlsSection'
 
 type BSP = 'interakt' | 'wati' | 'aisensy'
 
@@ -164,6 +165,9 @@ export default function SettingsPage() {
 
         {/* Email & Reminders (task digest + urgent alerts) */}
         <ReminderSettingsSection />
+
+        {/* Notification Controls — which types + per-user subscriptions */}
+        <NotificationControlsSection />
 
         {/* WhatsApp Notifications */}
         <section className="bg-white rounded-xl border border-border">

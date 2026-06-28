@@ -4,21 +4,34 @@ import { toast } from '@/components/shared/Toast'
 import { Sym } from '@/components/shared/Sym'
 import { cn } from '@/lib/utils'
 
-// Controls the reminder engine (daily-reminders + urgent-alerts edge functions),
-// backed by the reminder_settings singleton (row id = true).
+const DIGEST_HOURS = [
+  { value: 7,  label: '7:00 AM IST' },
+  { value: 8,  label: '8:00 AM IST' },
+  { value: 9,  label: '9:00 AM IST (default)' },
+  { value: 10, label: '10:00 AM IST' },
+  { value: 11, label: '11:00 AM IST' },
+  { value: 18, label: '6:00 PM IST' },
+]
+
 export function ReminderSettingsSection() {
-  const [email, setEmail] = useState(true)
-  const [whatsapp, setWhatsapp] = useState(false)
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
+  const [email,      setEmail]      = useState(true)
+  const [whatsapp,   setWhatsapp]   = useState(false)
+  const [digestHour, setDigestHour] = useState(9)
+  const [loading,    setLoading]    = useState(true)
+  const [saving,     setSaving]     = useState(false)
 
   useEffect(() => { load() }, [])
 
   async function load() {
-    const { data } = await supabase.from('reminder_settings').select('*').eq('id', true).maybeSingle()
+    const { data } = await supabase
+      .from('reminder_settings')
+      .select('email_enabled, whatsapp_enabled, digest_hour_ist')
+      .eq('id', true)
+      .maybeSingle()
     if (data) {
       setEmail(data.email_enabled ?? true)
       setWhatsapp(data.whatsapp_enabled ?? false)
+      setDigestHour(data.digest_hour_ist ?? 9)
     }
     setLoading(false)
   }
@@ -26,8 +39,9 @@ export function ReminderSettingsSection() {
   async function save() {
     setSaving(true)
     try {
-      const { error } = await supabase.from('reminder_settings')
-        .update({ email_enabled: email, whatsapp_enabled: whatsapp })
+      const { error } = await supabase
+        .from('reminder_settings')
+        .update({ email_enabled: email, whatsapp_enabled: whatsapp, digest_hour_ist: digestHour })
         .eq('id', true)
       if (error) throw error
       toast.success('Reminder settings saved')
@@ -44,14 +58,14 @@ export function ReminderSettingsSection() {
         </div>
         <div>
           <h2 className="text-sm font-semibold text-brand-950">Email & Reminders</h2>
-          <p className="text-[11px] text-muted-foreground">Daily task digest (9:00 AM IST) + instant alerts</p>
+          <p className="text-[11px] text-muted-foreground">Daily digest delivery + instant urgent alerts</p>
         </div>
       </div>
 
       <div className="p-5 space-y-5">
         <Toggle
           label="Email reminders"
-          hint="Daily 9 AM digest of open/overdue tasks, plus instant emails on task assignment and licence expiry. Sent via ZeptoMail."
+          hint="Daily digest of open/overdue tasks + instant emails on assignment and licence expiry. Sent via ZeptoMail."
           on={email} disabled={loading}
           onClick={() => setEmail(v => !v)}
           color="bg-brand-600"
@@ -59,20 +73,45 @@ export function ReminderSettingsSection() {
 
         <Toggle
           label="WhatsApp reminders"
-          hint="Same alerts over WhatsApp. Inactive until the AiSensy business number is approved — the switch is saved but has no effect yet."
+          hint="Same alerts over WhatsApp. Inactive until the AiSensy business number is approved."
           on={whatsapp} disabled={loading}
           onClick={() => setWhatsapp(v => !v)}
           color="bg-green-500"
           badge="Coming soon"
         />
 
-        <div className="flex items-start gap-2 text-[11px] text-muted-foreground bg-[#F8FAFC] border border-border rounded-lg p-3">
-          <Sym name="schedule" size={13} className="mt-0.5 shrink-0" />
-          <span>The daily digest runs automatically at <strong>9:00 AM IST</strong>; urgent alerts are checked hourly. No manual action needed.</span>
+        {/* Digest hour picker */}
+        <div>
+          <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+            Daily digest time
+          </label>
+          <div className="flex flex-wrap gap-1.5 mt-1.5">
+            {DIGEST_HOURS.map(h => (
+              <button
+                key={h.value}
+                onClick={() => setDigestHour(h.value)}
+                disabled={loading}
+                className={cn(
+                  'px-3 py-1.5 text-xs font-medium rounded-lg border transition-all',
+                  digestHour === h.value
+                    ? 'bg-brand-600 text-white border-brand-700'
+                    : 'border-border text-muted-foreground hover:border-brand-300 hover:text-brand-700',
+                )}
+              >
+                {h.label}
+              </button>
+            ))}
+          </div>
+          <p className="text-[11px] text-muted-foreground mt-1">
+            Urgent alerts (overdue, expiry) are checked hourly regardless of this setting.
+          </p>
         </div>
 
-        <button onClick={save} disabled={saving || loading}
-          className="w-full py-2 text-sm font-medium bg-brand-600 text-white rounded-lg hover:bg-brand-700 disabled:opacity-50 transition-colors">
+        <button
+          onClick={save}
+          disabled={saving || loading}
+          className="w-full py-2 text-sm font-medium bg-brand-600 text-white rounded-lg hover:bg-brand-700 disabled:opacity-50 transition-colors"
+        >
           {saving ? 'Saving…' : 'Save Reminder Settings'}
         </button>
       </div>
@@ -92,10 +131,14 @@ function Toggle({ label, hint, on, onClick, disabled, color, badge }: {
         </p>
         <p className="text-xs text-muted-foreground mt-0.5">{hint}</p>
       </div>
-      <button onClick={onClick} disabled={disabled}
-        className={cn('relative w-11 h-6 rounded-full transition-colors shrink-0 disabled:opacity-50', on ? color : 'bg-gray-200')}>
+      <button
+        onClick={onClick}
+        disabled={disabled}
+        className={cn('relative w-11 h-6 rounded-full transition-colors shrink-0 disabled:opacity-50', on ? color : 'bg-gray-200')}
+      >
         <span className={cn('absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform', on && 'translate-x-5')} />
       </button>
     </div>
   )
 }
+
