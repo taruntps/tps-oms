@@ -149,7 +149,9 @@ export function useDirectorStats() {
     queryFn: async () => {
       const [projectsRes, paymentsRes, clientsRes, blockRes] = await Promise.all([
         supabase.from('projects').select('status, active_clock, is_blocked, quoted_amount, paid_amount'),
-        supabase.from('payments').select('amount'),
+        // Exclude govt-fee payments (Client-paid / TPS-paid) — those are pass-through costs,
+        // not consulting revenue. Only count client payments: NEFT, UPI, Cash, Cheque.
+        supabase.from('payments').select('amount').not('payment_mode', 'in', '(Client-paid,TPS-paid)'),
         supabase.from('clients').select('id, is_active'),
         supabase.from('block_requests').select('id').is('approved', null),
       ])

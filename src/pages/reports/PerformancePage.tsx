@@ -34,13 +34,14 @@ function KPI({ icon, label, value, color }: { icon: string; label: string; value
 }
 
 // ── Tab type ─────────────────────────────────────────────────────────────────
-type ReportTab = 'performance' | 'pending_payments' | 'queries' | 'referrals'
+type ReportTab = 'performance' | 'pending_payments' | 'queries' | 'referrals' | 'govt_fees'
 
 const TABS: { key: ReportTab; label: string; icon: string }[] = [
   { key: 'performance',      label: 'Performance',       icon: 'bar_chart' },
   { key: 'pending_payments', label: 'Pending Payments',  icon: 'payments' },
   { key: 'queries',          label: 'Queries Report',    icon: 'fact_check' },
   { key: 'referrals',        label: 'Referrals',         icon: 'handshake' },
+  { key: 'govt_fees',        label: 'Govt Fees',         icon: 'account_balance' },
 ]
 
 // ── Page shell ───────────────────────────────────────────────────────────────
@@ -77,6 +78,7 @@ export default function PerformancePage() {
       {tab === 'pending_payments' && <PendingPaymentsTab />}
       {tab === 'queries'          && <QueriesTab />}
       {tab === 'referrals'        && <ReferralsTab />}
+      {tab === 'govt_fees'        && <GovtFeesTab />}
     </div>
   )
 }
@@ -971,6 +973,183 @@ function ReferralsTab() {
                 Cancel
               </button>
             </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TAB 5 — Govt Fees
+// ══════════════════════════════════════════════════════════════════════════════
+
+interface GovtFeeRow {
+  id: string
+  amount: number
+  payment_date: string
+  payment_mode: string
+  notes: string | null
+  projects: { project_code: string | null; project_name: string | null } | null
+  clients:  { company_name: string | null } | null
+}
+
+function GovtFeesTab() {
+  const [paidByFilter, setPaidByFilter] = useState<'all' | 'Client' | 'TPS'>('all')
+  const [fromDate,     setFromDate]     = useState('')
+  const [toDate,       setToDate]       = useState('')
+  const [company,      setCompany]      = useState('')
+
+  const { data: rows = [], isLoading } = useQuery({
+    queryKey: ['govt_fees_report'],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from('payments')
+        .select(`
+          id, amount, payment_date, payment_mode, notes,
+          projects(project_code, project_name),
+          clients(company_name)
+        `)
+        .in('payment_mode', ['Client-paid', 'TPS-paid'])
+        .order('payment_date', { ascending: false })
+      if (error) throw error
+      return (data ?? []) as GovtFeeRow[]
+    },
+    staleTime: 5 * 60 * 1000,
+  })
+
+  const filtered = useMemo(() => {
+    return rows.filter(r => {
+      if (paidByFilter === 'Client' && r.payment_mode !== 'Client-paid') return false
+      if (paidByFilter === 'TPS'    && r.payment_mode !== 'TPS-paid')    return false
+      if (fromDate && r.payment_date < fromDate) return false
+      if (toDate   && r.payment_date > toDate)   return false
+      if (company) {
+        const name = r.clients?.company_name?.toLowerCase() ?? ''
+        if (!name.includes(company.toLowerCase())) return false
+      }
+      return true
+    })
+  }, [rows, paidByFilter, fromDate, toDate, company])
+
+  const totalByClient = filtered.filter(r => r.payment_mode === 'Client-paid').reduce((s, r) => s + r.amount / 100, 0)
+  const totalByTPS    = filtered.filter(r => r.payment_mode === 'TPS-paid').reduce((s, r) => s + r.amount / 100, 0)
+
+  return (
+    <div className="p-6 space-y-5 animate-fade-up">
+
+      {/* KPIs */}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+        <KPI icon="account_balance" label="Total Entries"  value={filtered.length}             color="text-brand-600" />
+        <KPI icon="person"          label="Paid by Client" value={formatRupees(totalByClient)} color="text-green-600" />
+        <KPI icon="business"        label="Paid by TPS"    value={formatRupees(totalByTPS)}    color="text-amber-600" />
+      </div>
+
+      {/* Filters */}
+      <div className="bg-white rounded-xl border border-border p-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div>
+            <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1 block">Paid By</label>
+            <select
+              value={paidByFilter}
+              onChange={e => setPaidByFilter(e.target.value as any)}
+              className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-600/20"
+            >
+              <option value="all">All</option>
+              <option value="Client">Client</option>
+              <option value="TPS">TPS</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1 block">Company</label>
+            <input
+              type="text"
+              placeholder="Filter by company…"
+              value={company}
+              onChange={e => setCompany(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-600/20"
+            />
+          </div>
+          <div>
+            <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1 block">From Date</label>
+            <input
+              type="date"
+              value={fromDate}
+              onChange={e => setFromDate(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-600/20"
+            />
+          </div>
+          <div>
+            <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1 block">To Date</label>
+            <input
+              type="date"
+              value={toDate}
+              onChange={e => setToDate(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-600/20"
+            />
+          </div>
+        </div>
+        {(paidByFilter !== 'all' || company || fromDate || toDate) && (
+          <button
+            onClick={() => { setPaidByFilter('all'); setCompany(''); setFromDate(''); setToDate('') }}
+            className="mt-3 text-xs text-brand-600 hover:text-brand-700 flex items-center gap-1"
+          >
+            <Sym name="close" size={12} /> Clear filters
+          </button>
+        )}
+      </div>
+
+      {/* Table */}
+      {isLoading ? (
+        <div className="space-y-2">
+          {Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-12 bg-white rounded-xl border border-border animate-pulse" />)}
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="bg-white rounded-xl border border-border p-12 text-center">
+          <Sym name="account_balance" size={32} className="text-muted-foreground/40 mx-auto" />
+          <p className="text-sm text-muted-foreground mt-3">No govt fee records found.</p>
+        </div>
+      ) : (
+        <div className="bg-white rounded-xl border border-border overflow-hidden">
+          <div className="px-5 py-3 border-b border-border flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Sym name="account_balance" size={14} className="text-muted-foreground" />
+              <h3 className="text-sm font-semibold text-brand-950">Govt Fee Payments</h3>
+            </div>
+            <span className="text-xs text-muted-foreground">{filtered.length} records</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead className="bg-[#F8FAFC]">
+                <tr className="text-left">
+                  {['Company', 'Project', 'Date', 'Amount', 'Paid By', 'Stage'].map(h => (
+                    <th key={h} className="px-5 py-2.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {filtered.map(r => {
+                  const byTPS = r.payment_mode === 'TPS-paid'
+                  return (
+                    <tr key={r.id} className={cn('hover:bg-[#F8FAFC]', byTPS && 'bg-amber-50/30')}>
+                      <td className="px-5 py-3 font-medium text-brand-950">{r.clients?.company_name ?? '—'}</td>
+                      <td className="px-5 py-3 font-mono text-muted-foreground text-[11px]">{r.projects?.project_code ?? '—'}</td>
+                      <td className="px-5 py-3 text-muted-foreground">{r.payment_date}</td>
+                      <td className="px-5 py-3 font-mono font-semibold text-brand-950">{formatRupees(r.amount / 100)}</td>
+                      <td className="px-5 py-3">
+                        <span className={cn(
+                          'px-2 py-0.5 rounded-full text-[10px] font-semibold',
+                          byTPS ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'
+                        )}>
+                          {byTPS ? 'TPS' : 'Client'}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3 text-muted-foreground max-w-[200px] truncate">{r.notes ?? '—'}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
