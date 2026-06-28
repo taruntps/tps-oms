@@ -291,7 +291,11 @@ export default function ProjectDetailPage() {
                   </span>
                 )}
               </div>
-              <h2 className="text-lg font-display font-bold text-brand-950 mt-1">{project.project_name || project.service_type}</h2>
+              <h2 className="text-lg font-display font-bold text-brand-950 mt-1">
+                {project.service_type && (project as any).clients?.company_name
+                  ? `${project.service_type} — ${(project as any).clients.company_name}`
+                  : project.project_name || project.service_type}
+              </h2>
             </div>
             {project.active_clock && project.clock_switched_at && (
               <ClockBadge clock={project.active_clock} since={project.clock_switched_at} isBlocked={project.is_blocked ?? false} personName={executiveName} />
@@ -299,7 +303,6 @@ export default function ProjectDetailPage() {
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 pt-4 border-t border-border">
-            <Detail icon="person"        label="Client"     value={(project as any).clients?.company_name} />
             <Detail icon="call"          label="Phone"      value={(project as any).clients?.contact_phone} />
             <Detail icon="groups"        label="Executive"  value={(project as any).profiles_assigned?.name} />
             <Detail icon="groups"        label="Manager"    value={(project as any).profiles_manager?.name} />

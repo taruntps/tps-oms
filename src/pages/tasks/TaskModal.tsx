@@ -43,7 +43,7 @@ export function TaskModal({ task, me, isAdmin, staff, projects, clients, onClose
   const [clientId, setClientId] = useState(task?.client_id ?? '')
   const [priority, setPriority] = useState<TaskPriority>(task?.priority ?? 'normal')
   const [dueDate, setDueDate] = useState(task?.due_date ?? '')
-  const [status, setStatus] = useState<TaskStatus>(task?.status ?? 'open')
+  const [status, setStatus] = useState<TaskStatus>((task?.status as TaskStatus) ?? 'pending')
 
   const [comment, setComment] = useState('')
   const [extDays, setExtDays] = useState('')
@@ -182,8 +182,7 @@ export function TaskModal({ task, me, isAdmin, staff, projects, clients, onClose
             <Field label="Status">
               <select className={ic} value={status} disabled={lockedForViewer}
                 onChange={e => canEditCore ? setStatus(e.target.value as TaskStatus) : applyStatus(e.target.value as TaskStatus)}>
-                <option value="open">Open</option>
-                <option value="in_progress">In Progress</option>
+                <option value="pending">Pending</option>
                 <option value="done">Done</option>
                 {canEditCore && <option value="cancelled">Cancelled</option>}
               </select>

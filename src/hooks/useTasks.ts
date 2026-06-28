@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase'
 import type { Tables, TablesInsert, TablesUpdate } from '@/types/database'
 
 export type Task = Tables<'tasks'>
-export type TaskStatus   = Task['status']
+export type TaskStatus   = 'pending' | 'done' | 'cancelled'
 export type TaskPriority = Task['priority']
 
 export type TaskWithRelations = Task & {
@@ -30,7 +30,7 @@ export function useTasks() {
       const { data, error } = await supabase
         .from('tasks')
         .select(SELECT)
-        .order('status', { ascending: true })          // open first
+        .order('status', { ascending: true })          // pending first
         .order('due_date', { ascending: true, nullsFirst: false })
         .order('created_at', { ascending: false })
       if (error) throw error

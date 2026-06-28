@@ -17,10 +17,9 @@ import { TaskModal } from './TaskModal'
 type Tab = 'mine' | 'byme' | 'all'
 
 const STATUS_META: Record<TaskStatus, { label: string; cls: string }> = {
-  open:        { label: 'Open',        cls: 'bg-blue-50 text-blue-700 border-blue-200' },
-  in_progress: { label: 'In Progress', cls: 'bg-amber-50 text-amber-700 border-amber-200' },
-  done:        { label: 'Done',        cls: 'bg-green-50 text-green-700 border-green-200' },
-  cancelled:   { label: 'Cancelled',   cls: 'bg-gray-100 text-gray-500 border-gray-200' },
+  pending:   { label: 'Pending',   cls: 'bg-blue-50 text-blue-700 border-blue-200' },
+  done:      { label: 'Done',      cls: 'bg-green-50 text-green-700 border-green-200' },
+  cancelled: { label: 'Cancelled', cls: 'bg-gray-100 text-gray-500 border-gray-200' },
 }
 const PRIORITY_DOT: Record<TaskPriority, string> = {
   high: 'bg-red-500', normal: 'bg-blue-400', low: 'bg-gray-300',
@@ -48,7 +47,7 @@ export default function TasksPage() {
   })
 
   const [tab, setTab] = useState<Tab>('mine')
-  const [statusFilter, setStatusFilter] = useState<TaskStatus | 'all'>('open')
+  const [statusFilter, setStatusFilter] = useState<TaskStatus | 'all'>('pending')
   const [editing, setEditing] = useState<TaskWithRelations | null>(null)
   const [creating, setCreating] = useState(false)
 
@@ -101,9 +100,8 @@ export default function TasksPage() {
           </div>
           <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as any)}
             className="px-3 py-2 text-sm border border-border rounded-lg bg-white">
-            <option value="all">All statuses</option>
-            <option value="open">Open</option>
-            <option value="in_progress">In Progress</option>
+            <option value="all">All</option>
+            <option value="pending">Pending</option>
             <option value="done">Done</option>
             <option value="cancelled">Cancelled</option>
           </select>
@@ -154,9 +152,8 @@ export default function TasksPage() {
                   <select value={t.status} disabled={lockedRow}
                     onClick={e => e.stopPropagation()}
                     onChange={e => { e.stopPropagation(); changeStatus(t, e.target.value as TaskStatus) }}
-                    className={cn('text-xs px-2 py-1 rounded border font-medium shrink-0', STATUS_META[t.status].cls, lockedRow ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer')}>
-                    <option value="open">Open</option>
-                    <option value="in_progress">In Progress</option>
+                    className={cn('text-xs px-2 py-1 rounded border font-medium shrink-0', STATUS_META[t.status as TaskStatus]?.cls, lockedRow ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer')}>
+                    <option value="pending">Pending</option>
                     <option value="done">Done</option>
                     <option value="cancelled">Cancelled</option>
                   </select>
