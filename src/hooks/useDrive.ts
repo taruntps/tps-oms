@@ -77,6 +77,21 @@ export function useCreateDriveFolder() {
   })
 }
 
+export function useUnlinkDriveFolder(entityId: string, entityTable: 'clients' | 'projects') {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async () => {
+      await (supabase as any).from(entityTable).update({ drive_folder_id: null }).eq('id', entityId)
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['clients', entityId] })
+      qc.invalidateQueries({ queryKey: ['clients'] })
+      qc.invalidateQueries({ queryKey: ['projects', entityId] })
+      qc.invalidateQueries({ queryKey: ['projects'] })
+    },
+  })
+}
+
 export function useCreateSubfolder(parentFolderId: string) {
   const qc = useQueryClient()
   return useMutation({

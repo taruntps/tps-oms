@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils'
 import {
   useDriveFiles, useCreateDriveFolder, useCreateSubfolder,
   useTrashDriveItem, useUploadDriveFile, useMainFolderId,
-  useCreateGDoc, useCreateGSheet, driveDownload,
+  useCreateGDoc, useCreateGSheet, useUnlinkDriveFolder, driveDownload,
   type DriveFile,
 } from '@/hooks/useDrive'
 
@@ -149,13 +149,14 @@ export function DriveTab({ folderId: initialFolderId, entityId, entityTable, ent
     if (initialFolderId && !currentId) setCurrentId(initialFolderId)
   }, [initialFolderId, currentId])
 
-  const { data: files = [], isLoading, refetch } = useDriveFiles(currentId)
+  const { data: files = [], isLoading, isError, error, refetch } = useDriveFiles(currentId)
   const createFolder = useCreateDriveFolder()
   const createSub    = useCreateSubfolder(currentId ?? '')
   const createDoc    = useCreateGDoc(currentId ?? '')
   const createSheet  = useCreateGSheet(currentId ?? '')
   const trash        = useTrashDriveItem(currentId ?? '')
   const upload       = useUploadDriveFile(currentId ?? '')
+  const unlink       = useUnlinkDriveFolder(entityId, entityTable)
 
   const handleCreateRootFolder = async () => {
     const parentId = entityTable === 'clients' ? mainFolderId : parentFolderId
@@ -226,6 +227,16 @@ export function DriveTab({ folderId: initialFolderId, entityId, entityTable, ent
     setNewDocName('')
   }
 
+  const handleUnlink = async () => {
+    if (!confirm('Unlink this Drive folder from the portal? The folder will NOT be deleted from Google Drive. You can then create a new linked folder.')) return
+    try {
+      await unlink.mutateAsync()
+      setCurrentId(null)
+      setHistory([])
+      toast.success('Drive folder unlinked')
+    } catch (e: any) { toast.error('Could not unlink', e.message) }
+  }
+
   // ── No folder yet ──────────────────────────────────────────────
   if (!initialFolderId && !currentId) {
     const canCreate = entityTable === 'projects' ? !!parentFolderId : !!mainFolderId
@@ -253,6 +264,31 @@ export function DriveTab({ folderId: initialFolderId, entityId, entityTable, ent
   }
 
   const isAtRoot = history.length === 0
+
+  // Stale folder — deleted from Drive but still linked in DB
+  if (isError && isAtRoot) {
+    const errMsg = (error as Error)?.message ?? ''
+    return (
+      <div className="text-center py-10">
+        <Sym name="folder_off" size={36} className="mx-auto text-red-400/60 mb-3" />
+        <p className="font-semibold text-sm text-brand-950 mb-1">Drive folder not found</p>
+        <p className="text-xs text-muted-foreground mb-1 max-w-xs mx-auto">
+          The linked folder no longer exists in Google Drive (it may have been renamed or deleted).
+        </p>
+        {errMsg && <p className="text-[10px] text-red-500 mb-4 font-mono">{errMsg}</p>}
+        {!readOnly && (
+          <button
+            onClick={handleUnlink}
+            disabled={unlink.isPending}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:opacity-50"
+          >
+            <Sym name="link_off" size={14} />
+            {unlink.isPending ? 'Unlinking…' : 'Unlink & Recreate'}
+          </button>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div>
@@ -295,6 +331,12 @@ export function DriveTab({ folderId: initialFolderId, entityId, entityTable, ent
                 <Sym name="upload" size={12} />
                 {upload.isPending ? 'Uploading…' : 'Upload'}
               </button>
+              {isAtRoot && (
+                <button onClick={handleUnlink} disabled={unlink.isPending} title="Unlink Drive folder"
+                  className="p-1.5 text-muted-foreground/50 hover:text-red-600 rounded hover:bg-red-50 transition-colors">
+                  <Sym name="link_off" size={13} />
+                </button>
+              )}
             </>
           )}
           <a href={`https://drive.google.com/drive/folders/${currentId ?? initialFolderId}`}
