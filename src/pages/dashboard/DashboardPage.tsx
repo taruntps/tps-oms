@@ -110,11 +110,11 @@ export default function DashboardPage() {
           <Chip icon="folder_open" label="My Projects"   value={myProjects.length}    color="brand"
             onClick={() => navigate('/projects')} />
           <Chip icon="warning"     label="Overdue"       value={overdue.length}        color={overdue.length > 0 ? 'red' : 'gray'}
-            onClick={() => navigate('/projects')} />
+            onClick={() => navigate('/projects?due=overdue')} />
           <Chip icon="schedule"    label="Due This Week" value={dueThisWeek.length}    color={dueThisWeek.length > 0 ? 'amber' : 'gray'}
-            onClick={() => navigate('/projects')} />
+            onClick={() => navigate('/projects?due=week')} />
           <Chip icon="block"       label="Blocked"       value={blocked.length}        color="gray"
-            onClick={() => navigate('/projects')} />
+            onClick={() => navigate('/projects?blocked=1')} />
         </div>
 
         {/* Director KPIs — admin only */}

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Sym } from '@/components/shared/Sym'
 import { TopBar } from '@/components/layout/TopBar'
 import { ClockBadge } from '@/components/shared/ClockBadge'
@@ -42,12 +42,17 @@ const STATUS_BADGE: Record<ProjectStatus, string> = {
 
 export default function ProjectsPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { profile } = useAuth()
   const { data: projects = [], isLoading } = useProjects()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<ProjectStatus | 'all'>('all')
   const [scope, setScope] = useState<'mine' | 'all'>('mine')
   const [showForm, setShowForm] = useState(false)
+
+  // URL-driven filters from dashboard chips
+  const dueParam     = searchParams.get('due')      // 'week' | 'overdue'
+  const blockedParam = searchParams.get('blocked')  // '1'
 
   // Visibility flag gates the "Overall" view; everyone has "My Projects".
   const canViewAll = profile?.role === 'super_admin'
@@ -67,6 +72,7 @@ export default function ProjectsPage() {
   const effectiveScope = canViewAll ? scope : 'mine'
   const scoped = effectiveScope === 'mine' ? projects.filter(isMine) : projects
 
+  const todayMs = Date.now()
   const filtered = scoped.filter(p => {
     const matchStatus = statusFilter === 'all' || p.status === statusFilter
     const q = search.toLowerCase()
@@ -75,6 +81,18 @@ export default function ProjectsPage() {
       p.project_name?.toLowerCase().includes(q) ||
       p.clients?.company_name?.toLowerCase().includes(q) ||
       p.service_type?.toLowerCase().includes(q)
+    // Dashboard chip filters
+    if (dueParam === 'week') {
+      if (!p.target_date || p.status === 'completed' || p.status === 'cancelled') return false
+      const diff = (new Date(p.target_date).getTime() - todayMs) / 86_400_000
+      if (diff < 0 || diff > 7) return false
+    }
+    if (dueParam === 'overdue') {
+      if (!p.target_date || p.status === 'completed' || p.status === 'cancelled') return false
+      const diff = (new Date(p.target_date).getTime() - todayMs) / 86_400_000
+      if (diff >= 0) return false
+    }
+    if (blockedParam === '1' && !p.is_blocked) return false
     return matchStatus && matchSearch
   })
 
@@ -114,6 +132,21 @@ export default function ProjectsPage() {
           <p className="text-[11px] text-white/60 -mt-2">
             Viewing all projects (read-only) — you can only edit projects assigned to you.
           </p>
+        )}
+
+        {/* Active quick-filter banner from dashboard chip */}
+        {(dueParam || blockedParam) && (
+          <div className="flex items-center gap-2 bg-white/15 border border-white/20 rounded-lg px-4 py-2 text-sm text-white">
+            <Sym name="filter_list" size={14} className="text-white/70" />
+            <span className="flex-1">
+              {dueParam === 'week'    && 'Showing projects due within 7 days'}
+              {dueParam === 'overdue' && 'Showing overdue projects'}
+              {blockedParam === '1'   && 'Showing blocked projects'}
+            </span>
+            <button onClick={() => navigate('/projects')} className="text-white/60 hover:text-white text-xs underline">
+              Clear filter
+            </button>
+          </div>
         )}
 
         {/* Search + filter + new */}

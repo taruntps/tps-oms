@@ -148,7 +148,7 @@ export function useDirectorStats() {
     queryKey: ['director-stats'],
     queryFn: async () => {
       const [projectsRes, paymentsRes, clientsRes, blockRes] = await Promise.all([
-        supabase.from('projects').select('status, active_clock, is_blocked, quoted_amount, paid_amount'),
+        supabase.from('projects').select('status, active_clock, is_blocked, quoted_amount, paid_amount, payment_status'),
         // Exclude govt-fee payments (Client-paid / TPS-paid) — those are pass-through costs,
         // not consulting revenue. Only count client payments: NEFT, UPI, Cash, Cheque.
         supabase.from('payments').select('amount').not('payment_mode', 'in', '(Client-paid,TPS-paid)'),
@@ -170,7 +170,10 @@ export function useDirectorStats() {
       const totalRevenue   = (paymentsRes.data ?? []).reduce((s, p) => s + p.amount, 0)
       const quotedTotal    = projects.reduce((s, p) => s + (p.quoted_amount ?? 0), 0)
       const paidTotal      = projects.reduce((s, p) => s + (p.paid_amount ?? 0), 0)
-      const pendingPayment = quotedTotal - paidTotal
+      // Only count unpaid/partial projects — exclude payment_status='paid' to match Reports tab logic
+      const pendingPayment = projects
+        .filter(p => (p as any).payment_status !== 'paid')
+        .reduce((s, p) => s + Math.max(0, (p.quoted_amount ?? 0) - (p.paid_amount ?? 0)), 0)
 
       const activeClients = (clientsRes.data ?? []).filter(c => c.is_active).length
       const pendingBlocks = blockRes.data?.length ?? 0
