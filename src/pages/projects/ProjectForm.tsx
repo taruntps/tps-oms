@@ -104,7 +104,11 @@ export function ProjectForm({ onClose }: Props) {
             <Field label="Client *" error={errors.client_id?.message} className="col-span-2">
               <select {...register('client_id')} className={ic(!!errors.client_id)}>
                 <option value="">Select client…</option>
-                {clients.map(c => <option key={c.id} value={c.id}>{c.company_name}</option>)}
+                {clients.map(c => (
+                  <option key={c.id} value={c.id}>
+                    {c.company_name}{c.city || c.state ? ` — ${[c.city, c.state].filter(Boolean).join(', ')}` : ''}
+                  </option>
+                ))}
               </select>
             </Field>
 

@@ -286,8 +286,8 @@ export default function DashboardPage() {
                 <SectionHeader title="Pending Payments" count={pendingPayments.length} icon="payments" />
                 <div className="space-y-1.5">
                   {pendingPayments.slice(0, 5).map((p: any) => {
-                    const pend = (p.quoted_amount ?? 0) - (p.paid_amount ?? 0)
                     const isOverduePayment = p.completed_date && new Date(p.completed_date) < new Date()
+                    const loc = [p.clients?.city, p.clients?.state].filter(Boolean).join(', ')
                     return (
                       <div
                         key={p.id}
@@ -300,14 +300,13 @@ export default function DashboardPage() {
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
                             <p className="text-xs font-medium text-white truncate">{p.project_name}</p>
-                            <p className="text-[10px] text-white/55 truncate">{p.clients?.company_name}</p>
-                          </div>
-                          <div className="text-right shrink-0">
-                            <p className={cn('text-xs font-bold font-mono', isOverduePayment ? 'text-red-300' : 'text-warning-amber')}>
-                              {formatRupees(pend)}
+                            <p className="text-[10px] text-white/55 truncate">
+                              {p.clients?.company_name}{loc ? ` · ${loc}` : ''}
                             </p>
-                            {isOverduePayment && <p className="text-[9px] text-red-400">OVERDUE</p>}
                           </div>
+                          {isOverduePayment && (
+                            <p className="text-[9px] text-red-400 shrink-0">OVERDUE</p>
+                          )}
                         </div>
                       </div>
                     )

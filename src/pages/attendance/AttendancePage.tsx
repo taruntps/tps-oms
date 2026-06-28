@@ -279,8 +279,9 @@ export default function AttendancePage() {
 
       {mode && (
         <FaceCapture
-          title={mode === 'enroll' ? `Enrol your face (${enrollFrames.current.length}/3) — center one face` : 'Center your face, then Punch'}
+          title={mode === 'enroll' ? `Enrol your face (${enrollFrames.current.length}/3) — center one face` : 'Hold still — face auto-detected'}
           actionLabel={mode === 'enroll' ? 'Capture' : 'Capture & Punch'}
+          autoCapture={mode === 'punch'}
           busy={busy}
           onCapture={onCapture}
           onCancel={() => { setMode(null); setBusy(false) }}

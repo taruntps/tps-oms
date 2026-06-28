@@ -6,7 +6,7 @@ import { ClockBadge } from '@/components/shared/ClockBadge'
 import { ProjectForm } from './ProjectForm'
 import { useProjects } from '@/hooks/useProjects'
 import { useAuth } from '@/contexts/AuthContext'
-import { formatDate, formatRupees, cn } from '@/lib/utils'
+import { formatDate, cn } from '@/lib/utils'
 import type { Database } from '@/types/database'
 
 type ProjectStatus = Database['public']['Enums']['project_status']
@@ -222,6 +222,12 @@ export default function ProjectsPage() {
                     <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
                       {p.service_type && <span className={cn('text-[10px] border px-1.5 py-0.5 rounded font-medium', projectTypeBadge(p.service_type))}>{p.service_type}</span>}
                       <span>{p.clients?.company_name}</span>
+                      {(p.clients as any)?.city || (p.clients as any)?.state
+                        ? <span className="flex items-center gap-0.5">
+                            <span>📍</span>
+                            {[(p.clients as any).city, (p.clients as any).state].filter(Boolean).join(', ')}
+                          </span>
+                        : null}
                       {p.profiles_assigned && <span>Executive: {p.profiles_assigned.name}</span>}
                       {p.target_date && <span>Due {formatDate(p.target_date)}</span>}
                     </div>
@@ -235,9 +241,6 @@ export default function ProjectsPage() {
                         isBlocked={p.is_blocked ?? false}
                         personName={(p as any).profiles_assigned?.name}
                       />
-                    )}
-                    {p.quoted_amount && (
-                      <span className="text-xs font-mono text-muted-foreground">{formatRupees(p.quoted_amount)}</span>
                     )}
                   </div>
                 </div>

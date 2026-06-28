@@ -310,12 +310,11 @@ export default function ProjectDetailPage() {
             <Detail icon="groups"        label="Manager"    value={(project as any).profiles_manager?.name} />
             <Detail icon="calendar_today" label="Target"    value={formatDate(project.target_date)} />
             <Detail icon="schedule"      label="Created"    value={formatDate(project.created_at)} />
-            {project.quoted_amount > 0 && (
-              <Detail icon="check_circle" label="Quoted" value={formatRupees(project.quoted_amount)} />
-            )}
-            {project.paid_amount > 0 && (
-              <Detail icon="check_circle" label="Paid" value={formatRupees(project.paid_amount)} />
-            )}
+            {(() => {
+              const c = (project as any).clients
+              const loc = [c?.city, c?.state].filter(Boolean).join(', ')
+              return loc ? <Detail icon="location_on" label="Location" value={loc} /> : null
+            })()}
           </div>
 
           {/* App Ref No field — only for types that file with FSSAI */}
@@ -413,7 +412,6 @@ export default function ProjectDetailPage() {
               <Stat label="Completed"      value={stages.filter((s: any) => s.status === 'completed').length} />
               <Stat label="In Progress"    value={stages.filter((s: any) => s.status === 'in_progress').length} />
               <Stat label="Payment Status" value={project.payment_status?.replace('_', ' ') ?? '—'} capitalize />
-              <Stat label="Quoted"         value={project.quoted_amount > 0 ? formatRupees(project.quoted_amount) : '—'} />
               <Stat label="Paid"           value={project.paid_amount   > 0 ? formatRupees(project.paid_amount)   : '—'} />
             </div>
           </div>
@@ -439,7 +437,7 @@ export default function ProjectDetailPage() {
             folderId={(project as any).drive_folder_id}
             entityId={id!}
             entityTable="projects"
-            entityName={project.project_code ?? project.project_name}
+            entityName={`${project.project_code} - ${project.project_name ?? project.service_type ?? 'Project'}`}
             parentFolderId={(project as any).clients?.drive_folder_id}
           />
         )}

@@ -264,8 +264,7 @@ export default function ClientDetailPage() {
               folderId={(client as any).drive_folder_id}
               entityId={id!}
               entityTable="clients"
-              entityName={client.company_name}
-              readOnly={!canEdit}
+              entityName={`${client.company_name}${(client as any).client_code ? ` - ${(client as any).client_code}` : ''}`}
             />
           </div>
         </div>

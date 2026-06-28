@@ -14,9 +14,20 @@ async function driveOp(action: string, params: Record<string, unknown>) {
   const { data, error } = await supabase.functions.invoke('drive-ops', {
     body: { action, ...params },
   })
-  if (error) throw error
+  if (error) {
+    let msg = error.message
+    try {
+      const body = await (error as any).context?.json?.()
+      if (body?.error) msg = body.error
+    } catch { /* ignore */ }
+    throw new Error(msg)
+  }
   if (data?.error) throw new Error(data.error)
   return data
+}
+
+export async function driveDownload(fileId: string, mimeType: string): Promise<{ base64: string; contentType: string }> {
+  return driveOp('download', { fileId, mimeType })
 }
 
 export function useMainFolderId() {
@@ -71,6 +82,22 @@ export function useCreateSubfolder(parentFolderId: string) {
   return useMutation({
     mutationFn: (name: string) => driveOp('create-folder', { name, parentId: parentFolderId }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['drive-files', parentFolderId] }),
+  })
+}
+
+export function useCreateGDoc(currentFolderId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (name: string) => driveOp('create-gdoc', { name, folderId: currentFolderId }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['drive-files', currentFolderId] }),
+  })
+}
+
+export function useCreateGSheet(currentFolderId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (name: string) => driveOp('create-gsheet', { name, folderId: currentFolderId }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['drive-files', currentFolderId] }),
   })
 }
 

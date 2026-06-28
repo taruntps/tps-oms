@@ -110,7 +110,7 @@ export default function ClientsPage() {
                 {/* City/footer */}
                 <div className="text-[11px] text-muted-foreground/70 flex items-center gap-1 border-t border-border pt-2 mt-auto">
                   <Sym name="location_on" size={11} />
-                  <span className="truncate">{client.city ?? client.state ?? '—'}</span>
+                  <span className="truncate">{[client.city, client.state].filter(Boolean).join(', ') || '—'}</span>
                   <Sym name="chevron_right" size={13} className="ml-auto text-muted-foreground/40 group-hover:text-brand-600 transition-colors shrink-0" />
                 </div>
               </div>

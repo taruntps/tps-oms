@@ -70,7 +70,7 @@ export function usePendingPayments() {
         .select(`
           id, project_code, project_name, quoted_amount, paid_amount,
           payment_status, completed_date, target_date,
-          clients(company_name)
+          clients(company_name, city, state)
         `)
         .neq('payment_status', 'paid')
         .gt('quoted_amount', 0)

@@ -21,7 +21,7 @@ export function useProjects() {
         .from('projects')
         .select(`
           *,
-          clients(company_name, contact_phone),
+          clients(company_name, contact_phone, city, state, client_code),
           profiles_assigned:profiles!projects_assigned_to_fkey(name),
           profiles_manager:profiles!projects_manager_id_fkey(name)
         `)
@@ -40,7 +40,7 @@ export function useProject(id: string) {
         .from('projects')
         .select(`
           *,
-          clients(company_name, contact_phone, contact_email, drive_folder_id),
+          clients(company_name, contact_phone, contact_email, drive_folder_id, city, state, client_code),
           profiles_assigned:profiles!projects_assigned_to_fkey(id, name),
           profiles_manager:profiles!projects_manager_id_fkey(id, name),
           stages(*),
