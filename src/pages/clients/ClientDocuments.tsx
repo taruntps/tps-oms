@@ -118,7 +118,7 @@ export function ClientDocuments({ clientId, canEdit }: Props) {
       {canEdit && (
         <p className="text-[11px] text-muted-foreground mb-3">
           PDF, JPG or PNG · max {Math.round(MAX_DOC_BYTES / 1024 / 1024)} MB. Stored encrypted in Supabase Storage
-          (<code className="text-[10px]">documents/clients/{'{id}'}/</code>).
+          (<code className="text-[10px]">documents/clients/{clientId}/</code>).
         </p>
       )}
 
