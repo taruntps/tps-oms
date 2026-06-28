@@ -48,7 +48,7 @@ export default function TasksPage() {
   })
 
   const [tab, setTab] = useState<Tab>('mine')
-  const [statusFilter, setStatusFilter] = useState<TaskStatus | 'all'>('all')
+  const [statusFilter, setStatusFilter] = useState<TaskStatus | 'all'>('open')
   const [editing, setEditing] = useState<TaskWithRelations | null>(null)
   const [creating, setCreating] = useState(false)
 

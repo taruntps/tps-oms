@@ -2,26 +2,81 @@ import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 
-// ── Employee: my assigned projects ─────────────────────────────────────────
+// ── Employee: my assigned projects (all statuses) ──────────────────────────
 export function useMyProjects() {
   const { profile } = useAuth()
+  const isAdmin = ['super_admin', 'director'].includes(profile?.role ?? '')
   return useQuery({
-    queryKey: ['my-projects', profile?.id],
+    queryKey: ['my-projects', profile?.id, isAdmin],
     enabled: !!profile?.id,
     queryFn: async () => {
-      const { data, error } = await supabase
+      let q = supabase
         .from('projects')
         .select(`
           id, project_code, project_name, service_type, status,
           active_clock, clock_switched_at, is_blocked, target_date,
           clients(company_name)
         `)
-        .eq('assigned_to', profile!.id)
-        .neq('status', 'completed')
-        .neq('status', 'cancelled')
         .order('target_date', { ascending: true, nullsFirst: false })
+
+      if (!isAdmin) {
+        q = q.eq('assigned_to', profile!.id)
+      }
+
+      const { data, error } = await q
       if (error) throw error
       return data
+    },
+  })
+}
+
+// ── Today's attendance punches ──────────────────────────────────────────────
+export function useTodayPunches() {
+  const { profile } = useAuth()
+  const isAdmin = ['super_admin', 'director'].includes(profile?.role ?? '')
+  return useQuery({
+    queryKey: ['today-punches', profile?.id],
+    enabled: !!profile?.id,
+    queryFn: async () => {
+      const today = new Date().toISOString().split('T')[0]
+      let q = supabase
+        .from('attendance_punches')
+        .select(`
+          id, punch_time, punch_type, office_name,
+          profiles!attendance_punches_user_id_fkey(name, role)
+        `)
+        .gte('punch_time', `${today}T00:00:00`)
+        .lte('punch_time', `${today}T23:59:59`)
+        .order('punch_time', { ascending: true }) as any
+
+      if (!isAdmin) {
+        q = q.eq('user_id', profile!.id)
+      }
+
+      const { data, error } = await q
+      if (error) throw error
+      return (data ?? []) as any[]
+    },
+  })
+}
+
+// ── Pending payments (projects with quoted > paid and payment_status != paid) ─
+export function usePendingPayments() {
+  return useQuery({
+    queryKey: ['pending-payments-dashboard'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('projects')
+        .select(`
+          id, project_code, project_name, quoted_amount, paid_amount,
+          payment_status, completed_date, target_date,
+          clients(company_name)
+        `)
+        .neq('payment_status', 'paid')
+        .gt('quoted_amount', 0)
+        .order('completed_date', { ascending: true, nullsFirst: false })
+      if (error) throw error
+      return (data ?? []).filter((p: any) => (p.quoted_amount ?? 0) > (p.paid_amount ?? 0))
     },
   })
 }

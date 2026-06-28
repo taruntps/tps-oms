@@ -3,7 +3,7 @@ import { Sym } from '@/components/shared/Sym'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { usePayments, useCreatePayment } from '@/hooks/usePayments'
+import { usePayments, useCreatePayment, useMarkPaymentComplete } from '@/hooks/usePayments'
 import { RoleGuard } from '@/components/shared/ProtectedRoute'
 import { useAuth } from '@/contexts/AuthContext'
 import { toast } from '@/components/shared/Toast'
@@ -21,15 +21,24 @@ const schema = z.object({
 })
 type FormData = z.infer<typeof schema>
 
-interface Props { projectId: string; clientId: string }
+interface Props {
+  projectId: string
+  clientId: string
+  quotedAmount?: number
+  paymentStatus?: string
+}
 
-export function PaymentsTab({ projectId, clientId }: Props) {
+export function PaymentsTab({ projectId, clientId, quotedAmount = 0, paymentStatus = 'pending' }: Props) {
   const { profile } = useAuth()
   const { data: payments = [], isLoading } = usePayments(projectId)
   const createPayment = useCreatePayment()
+  const markComplete = useMarkPaymentComplete()
   const [showForm, setShowForm] = useState(false)
+  const [confirmComplete, setConfirmComplete] = useState(false)
 
-  const total = payments.reduce((s, p) => s + p.amount, 0)
+  const totalReceived = payments.reduce((s, p) => s + p.amount, 0)
+  const pending = quotedAmount > 0 ? Math.max(0, quotedAmount - totalReceived) : 0
+  const isComplete = paymentStatus === 'paid'
 
   const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -56,17 +65,52 @@ export function PaymentsTab({ projectId, clientId }: Props) {
     }
   }
 
+  const handleMarkComplete = async () => {
+    try {
+      await markComplete.mutateAsync(projectId)
+      toast.success('Payment marked as complete')
+      setConfirmComplete(false)
+    } catch (e: any) {
+      toast.error('Failed', e.message)
+    }
+  }
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Sym name="currency_rupee" size={15} className="text-emerald-300" />
-          <span className="text-sm font-semibold text-white">Total Received: {formatRupees(total)}</span>
-        </div>
+      {/* Summary bar */}
+      <div className="grid grid-cols-3 gap-3">
+        <SummaryCard label="Quoted" amount={quotedAmount} color="text-brand-700" />
+        <SummaryCard label="Received" amount={totalReceived} color="text-emerald-700" />
+        <SummaryCard
+          label={isComplete ? 'Status' : 'Pending'}
+          amount={isComplete ? 0 : pending}
+          color={isComplete ? 'text-green-600' : pending > 0 ? 'text-red-600' : 'text-muted-foreground'}
+          badge={isComplete ? '✓ PAID' : undefined}
+        />
+      </div>
+
+      {/* Action bar */}
+      <div className="flex items-center justify-end flex-wrap gap-3">
+        {!isComplete && (
+          <RoleGuard roles={['super_admin','director','accounts']}>
+            <button
+              onClick={() => setConfirmComplete(true)}
+              className="flex items-center gap-1.5 text-sm text-green-700 font-medium border border-green-300 bg-green-50 hover:bg-green-100 px-3 py-1.5 rounded-lg transition-colors"
+            >
+              <Sym name="check_circle" size={14} />
+              Mark Payment Complete
+            </button>
+          </RoleGuard>
+        )}
+        {isComplete && (
+          <span className="flex items-center gap-1.5 text-sm text-green-700 font-medium">
+            <Sym name="verified" size={14} /> Payment Complete
+          </span>
+        )}
         <RoleGuard roles={['super_admin','director','manager','accounts']}>
           <button
             onClick={() => setShowForm(s => !s)}
-            className="flex items-center gap-1.5 text-sm text-white font-medium hover:text-white/80"
+            className="flex items-center gap-1.5 text-sm text-white font-medium bg-brand-600 hover:bg-brand-700 px-3 py-1.5 rounded-lg transition-colors"
           >
             <Sym name="add" size={13} />
             Record Payment
@@ -90,13 +134,13 @@ export function PaymentsTab({ projectId, clientId }: Props) {
                 {PAYMENT_MODES.map(m => <option key={m}>{m}</option>)}
               </select>
             </Field>
-            <Field label="Invoice No." error={errors.invoice_no?.message}>
+            <Field label="Invoice No.">
               <input {...register('invoice_no')} className={ic(false)} placeholder="INV-001" />
             </Field>
-            <Field label="Reference / UTR" error={errors.reference_no?.message} className="col-span-2">
+            <Field label="Reference / UTR" className="col-span-2">
               <input {...register('reference_no')} className={ic(false)} placeholder="Transaction reference" />
             </Field>
-            <Field label="Notes" error={errors.notes?.message} className="col-span-2">
+            <Field label="Notes" className="col-span-2">
               <textarea {...register('notes')} rows={2} className={ic(false)} />
             </Field>
           </div>
@@ -117,7 +161,7 @@ export function PaymentsTab({ projectId, clientId }: Props) {
         <div className="space-y-2 animate-pulse">{[1,2].map(i => <div key={i} className="h-14 glass-panel rounded-xl" />)}</div>
       ) : payments.length === 0 ? (
         <div className="glass-panel rounded-xl border-dashed !border-white/20 p-8 text-center">
-          <p className="text-xs text-white/60">No payments recorded yet.</p>
+          <p className="text-xs text-white/60">No payments recorded yet. Use "Record Payment" to add one.</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -139,6 +183,46 @@ export function PaymentsTab({ projectId, clientId }: Props) {
           ))}
         </div>
       )}
+
+      {/* Confirm mark complete modal */}
+      {confirmComplete && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-6">
+            <h2 className="font-display font-semibold text-brand-950 mb-1">Mark Payment as Complete?</h2>
+            <p className="text-xs text-muted-foreground mb-4">
+              This will mark the project as fully paid. No pending payment will be shown going forward.
+              {quotedAmount > 0 && totalReceived < quotedAmount && (
+                <span className="block mt-2 text-amber-700 font-medium">
+                  Received ({formatRupees(totalReceived)}) is less than quoted ({formatRupees(quotedAmount)}).
+                  Proceed only if the remaining amount is waived or settled offline.
+                </span>
+              )}
+              {quotedAmount > 0 && totalReceived > quotedAmount && (
+                <span className="block mt-2 text-blue-700 font-medium">
+                  Received ({formatRupees(totalReceived)}) exceeds quoted ({formatRupees(quotedAmount)}).
+                </span>
+              )}
+            </p>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setConfirmComplete(false)}
+                className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-[#F8FAFC]">Cancel</button>
+              <button onClick={handleMarkComplete} disabled={markComplete.isPending}
+                className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50">
+                {markComplete.isPending ? 'Saving…' : 'Yes, Mark Complete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function SummaryCard({ label, amount, color, badge }: { label: string; amount: number; color: string; badge?: string }) {
+  return (
+    <div className="bg-white rounded-xl border border-border px-4 py-3">
+      <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">{label}</p>
+      <p className={cn('text-base font-bold font-mono mt-1', color)}>{badge ?? formatRupees(amount)}</p>
     </div>
   )
 }

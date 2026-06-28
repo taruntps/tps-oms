@@ -2,6 +2,7 @@ import { NavLink } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/AuthContext'
 import { Sym } from '@/components/shared/Sym'
+import { useNotifications } from '@/hooks/useNotifications'
 import type { UserRole } from '@/types'
 
 interface NavItem {
@@ -15,6 +16,7 @@ const NAV: NavItem[] = [
   { href: '/dashboard',          label: 'My Dashboard',   icon: 'dashboard',               roles: ['super_admin','director','manager','executive','accounts','hr','auditor'] },
   { href: '/attendance',         label: 'Attendance',     icon: 'fingerprint',             roles: ['super_admin','director','manager','executive','accounts','hr','auditor'] },
   { href: '/tasks',              label: 'Tasks',          icon: 'task_alt',                roles: ['super_admin','director','manager','executive','accounts','hr','auditor'] },
+  { href: '/notifications',      label: 'Notifications',  icon: 'notifications',           roles: ['super_admin','director','manager','executive','accounts','hr','auditor'] },
   { href: '/director',           label: 'Director View',  icon: 'trending_up',             roles: ['super_admin','director'] },
   { href: '/operations',         label: 'Operations',     icon: 'shield',                  roles: ['super_admin','director','manager'] },
   { href: '/clients',            label: 'Clients',        icon: 'apartment',               roles: ['super_admin','director','manager','executive','accounts','auditor'] },
@@ -23,7 +25,6 @@ const NAV: NavItem[] = [
   { href: '/employees',          label: 'Employees',      icon: 'badge',                   roles: ['super_admin','director','manager','hr'] },
   { href: '/knowledge',          label: 'Knowledge Base', icon: 'menu_book',               roles: ['super_admin','director','manager','executive','auditor'] },
   { href: '/reports/performance',label: 'Reports',        icon: 'bar_chart',               roles: ['super_admin','director','manager'] },
-  { href: '/reports/queries',    label: 'Queries Report', icon: 'fact_check',              roles: ['super_admin','director','manager'] },
   { href: '/settings',           label: 'Settings',       icon: 'settings',                roles: ['super_admin'] },
   { href: '/admin/users',        label: 'User Management',icon: 'admin_panel_settings',    roles: ['super_admin','director'] },
 ]
@@ -31,6 +32,7 @@ const NAV: NavItem[] = [
 export function Sidebar() {
   const { profile, signOut } = useAuth()
   const role = profile?.role as UserRole | undefined
+  const { unreadCount } = useNotifications()
 
   return (
     <aside className="w-60 min-h-screen glass-panel border-r-0 flex flex-col shrink-0">
@@ -62,7 +64,12 @@ export function Sidebar() {
             {({ isActive }) => (
               <>
                 <Sym name={item.icon} size={18} fill={isActive} className="shrink-0" />
-                <span>{item.label}</span>
+                <span className="flex-1">{item.label}</span>
+                {item.href === '/notifications' && unreadCount > 0 && (
+                  <span className="text-[9px] bg-red-500 text-white rounded-full min-w-[16px] h-4 px-1 flex items-center justify-center font-bold shrink-0">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
               </>
             )}
           </NavLink>

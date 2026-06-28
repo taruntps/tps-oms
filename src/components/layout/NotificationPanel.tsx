@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { useNotifications } from '@/hooks/useNotifications'
 import { formatDate } from '@/lib/utils'
@@ -18,6 +19,7 @@ const TYPE_COLOR: Record<string, string> = {
 export function NotificationPanel() {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+  const navigate = useNavigate()
   const { notifications, unreadCount, loading, markAllRead, markRead } = useNotifications()
 
   useEffect(() => {
@@ -32,7 +34,10 @@ export function NotificationPanel() {
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(o => !o)}
-        className="relative w-9 h-9 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center hover:bg-white/20 transition-colors"
+        className={cn(
+          'relative w-9 h-9 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center hover:bg-white/20 transition-colors',
+          unreadCount > 0 && 'animate-pulse-bell'
+        )}
         aria-label="Notifications"
       >
         <Sym name="notifications" size={18} className="text-white/85" />
@@ -58,6 +63,12 @@ export function NotificationPanel() {
                   Mark all read
                 </button>
               )}
+              <button
+                onClick={() => { setOpen(false); navigate('/notifications') }}
+                className="text-[11px] text-brand-600 hover:text-brand-700"
+              >
+                View all
+              </button>
               <button onClick={() => setOpen(false)} className="text-muted-foreground hover:text-foreground">
                 <Sym name="close" size={14} />
               </button>

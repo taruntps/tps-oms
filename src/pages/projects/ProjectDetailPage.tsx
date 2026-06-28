@@ -425,7 +425,7 @@ export default function ProjectDetailPage() {
           />
         )}
         {/* Once a project is completed/cancelled, only Payments stays editable. */}
-        {effectiveTab === 'payments'  && <PaymentsTab  projectId={id!} clientId={clientId} />}
+        {effectiveTab === 'payments'  && <PaymentsTab  projectId={id!} clientId={clientId} quotedAmount={(project as any).quoted_amount ?? 0} paymentStatus={(project as any).payment_status ?? 'pending'} />}
         {effectiveTab === 'documents' && <DocumentsTab projectId={id!} clientId={clientId} closed={isCompleted || isCancelled} />}
         {effectiveTab === 'queries'   && <QueriesTab   projectId={id!} projectCode={project.project_code ?? ''} closed={isCompleted || isCancelled} />}
         {effectiveTab === 'soi'       && <SoiTab       projectId={id!} clientId={clientId} closed={isCompleted || isCancelled} />}

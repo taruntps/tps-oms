@@ -2,6 +2,24 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import type { TablesInsert } from '@/types/database'
 
+export function useMarkPaymentComplete() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (projectId: string) => {
+      const { error } = await supabase
+        .from('projects')
+        .update({ payment_status: 'paid' } as any)
+        .eq('id', projectId)
+      if (error) throw error
+    },
+    onSuccess: (_d, projectId) => {
+      qc.invalidateQueries({ queryKey: ['payments', projectId] })
+      qc.invalidateQueries({ queryKey: ['projects', projectId] })
+      qc.invalidateQueries({ queryKey: ['projects'] })
+    },
+  })
+}
+
 export function usePayments(projectId: string) {
   return useQuery({
     queryKey: ['payments', projectId],

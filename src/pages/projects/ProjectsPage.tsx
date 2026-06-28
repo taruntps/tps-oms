@@ -187,8 +187,8 @@ export default function ProjectsPage() {
                     </div>
                     <h3 className="font-semibold text-brand-950 mt-1">{p.project_name?.trim() || p.service_type}</h3>
                     <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
-                      <span>{p.clients?.company_name}</span>
                       {p.service_type && <span className={cn('text-[10px] border px-1.5 py-0.5 rounded font-medium', projectTypeBadge(p.service_type))}>{p.service_type}</span>}
+                      <span>{p.clients?.company_name}</span>
                       {p.profiles_assigned && <span>Executive: {p.profiles_assigned.name}</span>}
                       {p.target_date && <span>Due {formatDate(p.target_date)}</span>}
                     </div>

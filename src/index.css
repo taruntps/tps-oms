@@ -37,13 +37,13 @@
 
   body {
     @apply text-foreground font-sans;
-    /* Arctic Precision mesh-gradient backdrop (fixed so it covers the viewport) */
-    background-color: #004c6e;
+    /* Theme-aware mesh-gradient backdrop (fixed so it covers the viewport) */
+    background-color: var(--theme-base, #004c6e);
     background-image:
-      radial-gradient(at 0% 0%, #006591 0px, transparent 50%),
-      radial-gradient(at 100% 0%, #10B981 0px, transparent 50%),
-      radial-gradient(at 100% 100%, #004c6e 0px, transparent 50%),
-      radial-gradient(at 0% 100%, #6366F1 0px, transparent 50%);
+      radial-gradient(at 0% 0%, var(--theme-tl, #006591) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, var(--theme-tr, #10B981) 0px, transparent 50%),
+      radial-gradient(at 100% 100%, var(--theme-br, #004c6e) 0px, transparent 50%),
+      radial-gradient(at 0% 100%, var(--theme-bl, #6366F1) 0px, transparent 50%);
     background-attachment: fixed;
     background-size: cover;
     font-feature-settings: "rlig" 1, "calt" 1;
@@ -151,3 +151,50 @@
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { @apply bg-border rounded-full; }
 ::-webkit-scrollbar-thumb:hover { @apply bg-muted-foreground/30; }
+
+/* ── Dashboard Themes ───────────────────────────────────────────────────── */
+:root,
+[data-theme="ocean"] {
+  --theme-base: #004c6e;
+  --theme-tl: #006591;
+  --theme-tr: #10B981;
+  --theme-br: #004c6e;
+  --theme-bl: #6366F1;
+}
+[data-theme="slate"] {
+  --theme-base: #0f172a;
+  --theme-tl: #1e293b;
+  --theme-tr: #334155;
+  --theme-br: #0f172a;
+  --theme-bl: #1e3a5f;
+}
+[data-theme="sand"] {
+  --theme-base: #292524;
+  --theme-tl: #78350f;
+  --theme-tr: #92400e;
+  --theme-br: #1c1917;
+  --theme-bl: #b45309;
+}
+[data-theme="forest"] {
+  --theme-base: #052e16;
+  --theme-tl: #14532d;
+  --theme-tr: #166534;
+  --theme-br: #052e16;
+  --theme-bl: #064e3b;
+}
+[data-theme="white"] {
+  --theme-base: #1e293b;
+  --theme-tl: #334155;
+  --theme-tr: #475569;
+  --theme-br: #1e293b;
+  --theme-bl: #2d3748;
+}
+
+/* ── Bell pulse animation ───────────────────────────────────────────────── */
+@keyframes pulse-bell {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255,255,255,0.5); }
+  50%       { box-shadow: 0 0 0 6px rgba(255,255,255,0); }
+}
+.animate-pulse-bell {
+  animation: pulse-bell 2s ease-in-out infinite;
+}
