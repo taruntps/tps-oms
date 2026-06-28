@@ -1,14 +1,14 @@
 import { useState } from 'react'
 import * as XLSX from 'xlsx'
 import { Sym } from '@/components/shared/Sym'
-import { useSoiArchive } from '@/hooks/useAuthorityQueries'
+import { useSoiArchive, useDeleteSoi } from '@/hooks/useAuthorityQueries'
 import { RoleGuard } from '@/components/shared/ProtectedRoute'
 import { useAuth } from '@/contexts/AuthContext'
 import { toast } from '@/components/shared/Toast'
 import { supabase } from '@/lib/supabase'
 import { formatDate } from '@/lib/utils'
 
-interface Props { projectId: string; clientId: string; closed?: boolean }
+interface Props { projectId: string; clientId: string; clientName?: string; closed?: boolean }
 
 type SoiType = 'domestic' | 'export'
 interface ColDef { key: string; label: string }
@@ -85,9 +85,10 @@ function parseFssaiTable(raw: string, type: SoiType): ParsedRow[] {
   return out
 }
 
-export function SoiTab({ projectId, clientId, closed }: Props) {
+export function SoiTab({ projectId, clientId, clientName, closed }: Props) {
   const { profile } = useAuth()
   const { data: sois = [], isLoading } = useSoiArchive(clientId)
+  const deleteSoi = useDeleteSoi()
 
   const [mode, setMode] = useState<'list' | 'paste' | 'preview'>('list')
   const [soiType, setSoiType] = useState<SoiType>('domestic')
@@ -179,8 +180,18 @@ export function SoiTab({ projectId, clientId, closed }: Props) {
       ws['!cols'] = header.map((h, i) => ({ wch: i === 0 ? 6 : Math.min(60, Math.max(14, h.length + 4)) }))
       const wb = XLSX.utils.book_new()
       XLSX.utils.book_append_sheet(wb, ws, 'SOI')
-      XLSX.writeFile(wb, `SOI_${s.soi_type}_V${s.version_no ?? 1}_${s.soi_date}.xlsx`)
+      const nameSlug = (clientName ?? 'client').replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_|_$/g, '')
+      XLSX.writeFile(wb, `SOI_${nameSlug}_${s.soi_type}_V${s.version_no ?? 1}_${s.soi_date}.xlsx`)
     } catch (e: any) { toast.error('Download failed', e.message) }
+  }
+
+  const handleDelete = async (s: any) => {
+    if (!confirm(`Delete SOI V${s.version_no ?? 1} (${s.description ?? s.soi_type})? This cannot be undone.`)) return
+    try {
+      await deleteSoi.mutateAsync({ soiId: s.id, clientId })
+      toast.success('SOI deleted')
+      if (expandedSoi === s.id) setExpandedSoi(null)
+    } catch (e: any) { toast.error('Delete failed', e.message) }
   }
 
   return (
@@ -346,6 +357,14 @@ export function SoiTab({ projectId, clientId, closed }: Props) {
                         className="flex items-center gap-1 text-[11px] text-green-700 hover:text-green-800 border border-green-200 bg-green-50 rounded px-2 py-1">
                         <Sym name="download" size={12} /> Excel
                       </button>
+                      {!closed && (
+                        <RoleGuard roles={['super_admin','director','manager']}>
+                          <button onClick={(e) => { e.stopPropagation(); handleDelete(s) }} title="Delete SOI entry"
+                            className="flex items-center gap-1 text-[11px] text-red-600 hover:text-red-700 border border-red-200 bg-red-50 rounded px-2 py-1">
+                            <Sym name="delete" size={12} /> Delete
+                          </button>
+                        </RoleGuard>
+                      )}
                       <button onClick={() => toggleSoi(s.id)}>
                         <Sym name="add" size={13} className={`text-muted-foreground ${isOpen ? 'rotate-45' : ''}`} />
                       </button>

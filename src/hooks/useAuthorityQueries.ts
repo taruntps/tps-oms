@@ -112,3 +112,16 @@ export function useCreateSoi() {
     onSuccess: (d) => qc.invalidateQueries({ queryKey: ['soi_archive', d.client_id] }),
   })
 }
+
+export function useDeleteSoi() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ soiId, clientId }: { soiId: string; clientId: string }) => {
+      await (supabase as any).from('soi_products').delete().eq('soi_id', soiId)
+      const { error } = await (supabase as any).from('soi_archive').delete().eq('id', soiId)
+      if (error) throw error
+      return clientId
+    },
+    onSuccess: (clientId) => qc.invalidateQueries({ queryKey: ['soi_archive', clientId] }),
+  })
+}
