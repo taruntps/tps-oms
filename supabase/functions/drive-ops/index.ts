@@ -4,7 +4,13 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
-import { encodeBase64 } from 'https://deno.land/std@0.177.0/encoding/base64.ts'
+
+function toBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer)
+  let str = ''
+  for (const b of bytes) str += String.fromCharCode(b)
+  return btoa(str)
+}
 
 const SUPABASE_URL  = Deno.env.get('SUPABASE_URL')!
 const SERVICE_KEY   = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -241,7 +247,7 @@ serve(async (req) => {
 
       const responseContentType = isGWorkspace ? 'application/pdf' : (dlRes.headers.get('content-type') ?? mimeType)
       const buffer = await dlRes.arrayBuffer()
-      const base64 = encodeBase64(buffer)
+      const base64 = toBase64(buffer)
 
       return new Response(JSON.stringify({ base64, contentType: responseContentType }), {
         headers: { ...CORS, 'Content-Type': 'application/json' },
