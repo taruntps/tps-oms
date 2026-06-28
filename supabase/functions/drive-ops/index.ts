@@ -1,9 +1,10 @@
 // Edge Function: drive-ops
 // Handles all Google Drive operations using a service account stored in Supabase Vault.
-// Actions: create-folder | list-files | trash | upload
+// Actions: create-folder | list-files | trash | upload | create-gdoc | create-gsheet | download
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
+import { encodeBase64 } from 'https://deno.land/std@0.177.0/encoding/base64.ts'
 
 const SUPABASE_URL  = Deno.env.get('SUPABASE_URL')!
 const SERVICE_KEY   = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -122,6 +123,34 @@ serve(async (req) => {
       })
     }
 
+    // ── create-gdoc ───────────────────────────────────────────────────────────
+    if (action === 'create-gdoc') {
+      const { name, folderId } = params as { name: string; folderId: string }
+      const result = await drivePost('/files?fields=id,name,webViewLink', token, {
+        name,
+        mimeType: 'application/vnd.google-apps.document',
+        parents: [folderId],
+      })
+      if (!result.id) throw new Error(`Drive error: ${JSON.stringify(result)}`)
+      return new Response(JSON.stringify({ fileId: result.id, webViewLink: result.webViewLink }), {
+        headers: { ...CORS, 'Content-Type': 'application/json' },
+      })
+    }
+
+    // ── create-gsheet ─────────────────────────────────────────────────────────
+    if (action === 'create-gsheet') {
+      const { name, folderId } = params as { name: string; folderId: string }
+      const result = await drivePost('/files?fields=id,name,webViewLink', token, {
+        name,
+        mimeType: 'application/vnd.google-apps.spreadsheet',
+        parents: [folderId],
+      })
+      if (!result.id) throw new Error(`Drive error: ${JSON.stringify(result)}`)
+      return new Response(JSON.stringify({ fileId: result.id, webViewLink: result.webViewLink }), {
+        headers: { ...CORS, 'Content-Type': 'application/json' },
+      })
+    }
+
     // ── list-files ────────────────────────────────────────────────────────────
     if (action === 'list-files') {
       const { folderId } = params as { folderId: string }
@@ -183,6 +212,38 @@ serve(async (req) => {
       const result = await res.json()
       if (!result.id) throw new Error(`Upload error: ${JSON.stringify(result)}`)
       return new Response(JSON.stringify({ fileId: result.id, name: result.name, webViewLink: result.webViewLink }), {
+        headers: { ...CORS, 'Content-Type': 'application/json' },
+      })
+    }
+
+    // ── download (for in-portal preview) ─────────────────────────────────────
+    if (action === 'download') {
+      const { fileId, mimeType } = params as { fileId: string; mimeType: string }
+
+      const isGDoc   = mimeType === 'application/vnd.google-apps.document'
+      const isGSheet = mimeType === 'application/vnd.google-apps.spreadsheet'
+      const isGSlide = mimeType === 'application/vnd.google-apps.presentation'
+      const isGWorkspace = isGDoc || isGSheet || isGSlide
+
+      // Google Workspace files must be exported; regular files downloaded directly
+      const downloadUrl = isGWorkspace
+        ? `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=application/pdf`
+        : `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`
+
+      const dlRes = await fetch(downloadUrl, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+
+      if (!dlRes.ok) {
+        const err = await dlRes.text()
+        throw new Error(`Download failed (${dlRes.status}): ${err}`)
+      }
+
+      const responseContentType = isGWorkspace ? 'application/pdf' : (dlRes.headers.get('content-type') ?? mimeType)
+      const buffer = await dlRes.arrayBuffer()
+      const base64 = encodeBase64(buffer)
+
+      return new Response(JSON.stringify({ base64, contentType: responseContentType }), {
         headers: { ...CORS, 'Content-Type': 'application/json' },
       })
     }
