@@ -16,7 +16,6 @@ type ProjectStatus = Database['public']['Enums']['project_status']
 type FilterValue = 'all' | 'pending' | 'tps' | 'with_client' | 'authority' | 'on_hold' | 'completed' | 'cancelled'
 
 const STATUS_FILTERS: { label: string; value: FilterValue }[] = [
-  { label: 'All',       value: 'all' },
   { label: 'Pending',   value: 'pending' },    // all active (TPS + Client + FSSAI)
   { label: 'TPS',       value: 'tps' },         // active, at least one employee-clock stage
   { label: 'Client',    value: 'with_client' }, // active, at least one client-clock stage
@@ -24,6 +23,7 @@ const STATUS_FILTERS: { label: string; value: FilterValue }[] = [
   { label: 'On Hold',   value: 'on_hold' },
   { label: 'Completed', value: 'completed' },
   { label: 'Cancelled', value: 'cancelled' },
+  { label: 'All',       value: 'all' },
 ]
 
 // Distinct colour per project (service) type so the type reads at a glance.
