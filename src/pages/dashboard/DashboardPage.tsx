@@ -126,22 +126,22 @@ export default function DashboardPage() {
                     const isOverdue = days !== null && days < 0
                     const chips = computeStageClocks(p as any)
                     const bucket = clockBucket(p as any)
-                    const tint =
-                      bucket === 'authority' ? '!bg-blue-500/10 !border-blue-400/30' :
-                      bucket === 'client'    ? '!bg-amber-500/10 !border-amber-400/30' :
-                                              '!bg-green-500/10 !border-green-400/30'
+                    const cardBg =
+                      bucket === 'authority' ? 'bg-blue-50 border-blue-200 hover:border-blue-300' :
+                      bucket === 'client'    ? 'bg-amber-50 border-amber-200 hover:border-amber-300' :
+                                              'bg-green-50 border-green-200 hover:border-green-300'
                     return (
                       <div
                         key={p.id}
                         onClick={() => navigate(`/projects/${p.id}`)}
-                        className={cn('glass-panel rounded-xl px-3.5 py-2.5 cursor-pointer hover:bg-white/[0.18] transition-all', tint)}
+                        className={cn('rounded-xl border px-3.5 py-2.5 cursor-pointer hover:shadow-sm transition-all', cardBg)}
                       >
-                        {/* Line 1: code + status (left) · clock (right) */}
+                        {/* Line 1: code (left) · clock (right) */}
                         <div className="flex items-center justify-between gap-3">
                           <div className="flex items-center gap-2 min-w-0">
-                            <span className="font-mono text-[11px] text-white/55 shrink-0">{p.project_code}</span>
+                            <span className="font-mono text-[11px] text-muted-foreground shrink-0">{p.project_code}</span>
                             {p.is_blocked && (
-                              <span className="text-[10px] bg-red-500/20 text-red-300 px-1.5 py-0.5 rounded-full font-medium shrink-0">BLOCKED</span>
+                              <span className="text-[10px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded-full font-medium shrink-0">BLOCKED</span>
                             )}
                           </div>
                           <div className="flex items-center gap-1.5 shrink-0">
@@ -153,14 +153,14 @@ export default function DashboardPage() {
                         </div>
                         {/* Line 2: company (left) · due (right) */}
                         <div className="flex items-center justify-between gap-3 mt-1">
-                          <p className="text-sm font-medium text-white truncate">
+                          <p className="text-sm font-medium text-brand-950 truncate">
                             {(p as any).clients?.company_name}
-                            {p.service_type ? <span className="text-white/55 font-normal"> — {p.service_type}</span> : null}
+                            {p.service_type ? <span className="text-muted-foreground font-normal"> — {p.service_type}</span> : null}
                           </p>
                           {p.target_date && (
                             <span className={cn(
                               'text-[11px] font-medium shrink-0',
-                              isOverdue ? 'text-red-300' : days !== null && days <= 7 ? 'text-warning-amber' : 'text-white/55'
+                              isOverdue ? 'text-red-600' : days !== null && days <= 7 ? 'text-amber-600' : 'text-muted-foreground'
                             )}>
                               {isOverdue ? `${Math.abs(days!)}d overdue` : days === 0 ? 'Due today' : `Due ${formatDate(p.target_date)}`}
                             </span>
