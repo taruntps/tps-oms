@@ -6,7 +6,6 @@ import { RoleGuard }       from '@/components/shared/ProtectedRoute'
 import { ClockBadge }      from '@/components/shared/ClockBadge'
 import { StagesTab }       from './tabs/StagesTab'
 import { PaymentsTab }     from './tabs/PaymentsTab'
-import { DocumentsTab }    from './tabs/DocumentsTab'
 import { QueriesTab }      from './tabs/QueriesTab'
 import { SoiTab }          from './tabs/SoiTab'
 import { DriveTab }        from '@/components/shared/DriveTab'
@@ -28,7 +27,6 @@ const TABS = [
   { key: 'overview',   label: 'Overview'    },
   { key: 'stages',     label: 'Stages'      },
   { key: 'payments',   label: 'Payments'    },
-  { key: 'documents',  label: 'Documents'   },
   { key: 'queries',    label: 'Queries'     },
   { key: 'soi',        label: 'SOI Archive' },
   { key: 'drive',      label: 'Drive'       },
@@ -97,7 +95,7 @@ export default function ProjectDetailPage() {
   const st = project.service_type ?? ''
   const noExtra = ['Annual Return', 'Claim Check', 'Renewal'].includes(st)
   const visibleTabs = TABS.filter(t => {
-    if (noExtra && ['documents', 'queries', 'soi'].includes(t.key)) return false
+    if (noExtra && ['queries', 'soi'].includes(t.key)) return false
     if (t.key === 'soi' && (st === 'Form II' || st === 'Artwork' || noExtra)) return false
     return true
   })
@@ -429,7 +427,6 @@ export default function ProjectDetailPage() {
         )}
         {/* Once a project is completed/cancelled, only Payments stays editable. */}
         {effectiveTab === 'payments'  && <PaymentsTab  projectId={id!} clientId={clientId} quotedAmount={(project as any).quoted_amount ?? 0} paymentStatus={(project as any).payment_status ?? 'pending'} />}
-        {effectiveTab === 'documents' && <DocumentsTab projectId={id!} clientId={clientId} closed={isCompleted || isCancelled} />}
         {effectiveTab === 'queries'   && <QueriesTab   projectId={id!} projectCode={project.project_code ?? ''} closed={isCompleted || isCancelled} />}
         {effectiveTab === 'soi'       && <SoiTab       projectId={id!} clientId={clientId} clientName={(project as any).clients?.company_name} closed={isCompleted || isCancelled} />}
         {effectiveTab === 'drive' && (
@@ -439,6 +436,8 @@ export default function ProjectDetailPage() {
             entityTable="projects"
             entityName={`${project.project_code} - ${project.project_name ?? project.service_type ?? 'Project'}`}
             parentFolderId={(project as any).clients?.drive_folder_id}
+            clientId={clientId}
+            clientName={`${(project as any).clients?.company_name ?? 'Client'}${(project as any).clients?.client_code ? ` - ${(project as any).clients.client_code}` : ''}`}
           />
         )}
       </div>

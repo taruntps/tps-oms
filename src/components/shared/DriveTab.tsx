@@ -16,6 +16,10 @@ interface Props {
   entityName: string
   parentFolderId?: string | null
   readOnly?: boolean
+  // For projects only: lets us bootstrap the client's Drive folder (one-time)
+  // from the project page when it doesn't exist yet.
+  clientId?: string
+  clientName?: string
 }
 
 function fileIcon(mimeType: string): { icon: string; color: string } {
@@ -132,7 +136,7 @@ function FileViewer({ file, onClose }: { file: DriveFile; onClose: () => void })
 }
 
 // ── DriveTab ──────────────────────────────────────────────────────────────────
-export function DriveTab({ folderId: initialFolderId, entityId, entityTable, entityName, parentFolderId, readOnly }: Props) {
+export function DriveTab({ folderId: initialFolderId, entityId, entityTable, entityName, parentFolderId, readOnly, clientId, clientName }: Props) {
   const { data: mainFolderId } = useMainFolderId()
 
   const [currentId,       setCurrentId]       = useState<string | null>(initialFolderId ?? null)
@@ -169,6 +173,17 @@ export function DriveTab({ folderId: initialFolderId, entityId, entityTable, ent
       setCurrentId(newId)
       toast.success('Drive folder created')
     } catch (e: any) { toast.error('Could not create folder', e.message) }
+  }
+
+  // Bootstrap the client's Drive folder (one-time) from the project page so a
+  // project whose client has no folder yet isn't stuck. Shared by all the
+  // client's future projects once created.
+  const handleCreateClientFolder = async () => {
+    if (!clientId || !clientName || !mainFolderId) return
+    try {
+      await createFolder.mutateAsync({ name: clientName, parentId: mainFolderId, entityId: clientId, entityTable: 'clients' })
+      toast.success('Client Drive folder created', 'Now create this project’s folder below.')
+    } catch (e: any) { toast.error('Could not create client folder', e.message) }
   }
 
   const handleOpenFolder = (file: DriveFile) => {
@@ -239,17 +254,33 @@ export function DriveTab({ folderId: initialFolderId, entityId, entityTable, ent
 
   // ── No folder yet ──────────────────────────────────────────────
   if (!initialFolderId && !currentId) {
+    // Project whose client has no Drive folder yet → offer to create it here.
+    const needClientFolder = entityTable === 'projects' && !parentFolderId
     const canCreate = entityTable === 'projects' ? !!parentFolderId : !!mainFolderId
     return (
       <div className="text-center py-10">
         <Sym name="folder_open" size={36} className="mx-auto text-muted-foreground/30 mb-3" />
         <p className="font-semibold text-sm text-brand-950 mb-1">No Drive folder yet</p>
         <p className="text-xs text-muted-foreground mb-4 max-w-xs mx-auto">
-          {entityTable === 'projects' && !parentFolderId
-            ? 'Create the client Drive folder first, then come back here.'
+          {needClientFolder
+            ? 'This client has no Drive folder yet. Create it once below — it’s then shared by all of this client’s projects.'
             : `Create a Google Drive folder for this ${entityTable === 'clients' ? 'client' : 'project'} to store all documents.`}
         </p>
-        {canCreate && !readOnly && (
+
+        {/* One-time client-folder bootstrap from the project page */}
+        {needClientFolder && clientId && clientName && mainFolderId && !readOnly && (
+          <button
+            onClick={handleCreateClientFolder}
+            disabled={createFolder.isPending}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 disabled:opacity-50"
+          >
+            <Sym name="create_new_folder" size={14} />
+            {createFolder.isPending ? 'Creating…' : 'Create Client Drive Folder'}
+          </button>
+        )}
+
+        {/* Normal client/project root-folder creation */}
+        {!needClientFolder && canCreate && !readOnly && (
           <button
             onClick={handleCreateRootFolder}
             disabled={createFolder.isPending}
