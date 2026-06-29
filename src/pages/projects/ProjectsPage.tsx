@@ -13,14 +13,14 @@ import { toast } from '@/components/shared/Toast'
 import type { Database } from '@/types/database'
 
 type ProjectStatus = Database['public']['Enums']['project_status']
-type FilterValue = 'all' | 'pending' | 'with_client' | 'authority' | 'on_hold' | 'completed' | 'cancelled'
+type FilterValue = 'all' | 'pending' | 'tps' | 'with_client' | 'authority' | 'on_hold' | 'completed' | 'cancelled'
 
 const STATUS_FILTERS: { label: string; value: FilterValue }[] = [
   { label: 'All',       value: 'all' },
-  // "Pending" = active & actionable (NOT solely waiting on FSSAI). Default view.
-  { label: 'Pending',   value: 'pending' },
-  { label: 'Client',    value: 'with_client' }, // active & clock with client
-  { label: 'FSSAI',     value: 'authority' },   // active & waiting on authority
+  { label: 'Pending',   value: 'pending' },    // all active (TPS + Client + FSSAI)
+  { label: 'TPS',       value: 'tps' },         // active, at least one employee-clock stage
+  { label: 'Client',    value: 'with_client' }, // active, at least one client-clock stage
+  { label: 'FSSAI',     value: 'authority' },   // active, solely waiting on authority
   { label: 'On Hold',   value: 'on_hold' },
   { label: 'Completed', value: 'completed' },
   { label: 'Cancelled', value: 'cancelled' },
@@ -84,9 +84,10 @@ export default function ProjectsPage() {
   const filtered = scoped.filter(p => {
     const matchStatus =
       statusFilter === 'all'         ? true :
-      statusFilter === 'pending'     ? (p.status === 'active' && !isAuthorityOnly(p as any)) :
-      statusFilter === 'with_client' ? (p.status === 'active' && clockBucket(p as any) === 'client') :
-      statusFilter === 'authority'   ? (p.status === 'active' && clockBucket(p as any) === 'authority') :
+      statusFilter === 'pending'     ? p.status === 'active' :
+      statusFilter === 'tps'         ? (p.status === 'active' && computeStageClocks(p as any).some(c => c.clock === 'employee')) :
+      statusFilter === 'with_client' ? (p.status === 'active' && computeStageClocks(p as any).some(c => c.clock === 'client')) :
+      statusFilter === 'authority'   ? (p.status === 'active' && isAuthorityOnly(p as any)) :
       p.status === statusFilter
     const matchType = typeFilter === 'all' || p.service_type === typeFilter
     const q = search.toLowerCase()
@@ -228,11 +229,21 @@ export default function ProjectsPage() {
               const execFirst = (p as any).profiles_assigned?.name?.trim().split(/\s+/)[0]
               const loc = [(p.clients as any)?.city, (p.clients as any)?.state].filter(Boolean).join(', ')
               const withSomeoneElse = chips.length > 0 && chips.every(c => c.clock !== 'employee')
+              const cardBg = (() => {
+                if (p.status === 'on_hold')   return 'bg-slate-50 border-slate-200 hover:border-slate-300'
+                if (p.status === 'completed') return 'bg-teal-50 border-teal-200 hover:border-teal-300'
+                if (p.status === 'cancelled') return 'bg-rose-50 border-rose-200 hover:border-rose-300'
+                if (p.status !== 'active')    return 'bg-white border-border hover:border-brand-300'
+                const bucket = clockBucket(p as any)
+                if (bucket === 'authority')   return 'bg-blue-50 border-blue-200 hover:border-blue-300'
+                if (bucket === 'client')      return 'bg-amber-50 border-amber-200 hover:border-amber-300'
+                return 'bg-green-50 border-green-200 hover:border-green-300'
+              })()
               return (
                 <div
                   key={p.id}
                   onClick={() => navigate(`/projects/${p.id}`)}
-                  className="bg-white rounded-xl border border-border px-4 py-3 cursor-pointer hover:border-brand-300 hover:shadow-sm transition-all"
+                  className={cn('rounded-xl border px-4 py-3 cursor-pointer hover:shadow-sm transition-all', cardBg)}
                 >
                   {/* Line 1: code + status (left) · clock + executive (right) */}
                   <div className="flex items-center justify-between gap-3">
