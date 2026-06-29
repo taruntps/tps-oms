@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { Sym }             from '@/components/shared/Sym'
 import { TopBar }          from '@/components/layout/TopBar'
 import { RoleGuard }       from '@/components/shared/ProtectedRoute'
@@ -61,7 +61,8 @@ export default function ProjectDetailPage() {
   const [showAppRefEdit,  setShowAppRefEdit]  = useState(false)
   const [cancelReason,    setCancelReason]    = useState('')
   const [appRefDraft,     setAppRefDraft]     = useState('')
-  const [activeTab,       setActiveTab]       = useState<TabKey>('overview')
+  const [searchParams] = useSearchParams()
+  const [activeTab,       setActiveTab]       = useState<TabKey>((searchParams.get('tab') as TabKey) || 'overview')
 
   if (isLoading) {
     return (

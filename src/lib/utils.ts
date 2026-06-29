@@ -80,7 +80,7 @@ export function getInitials(name: string): string {
 
 // ── Clock type helpers ────────────────────────────────────────────────────────
 export const CLOCK_CONFIG = {
-  EMPLOYEE:  { color: 'text-clock-employee',  dot: 'clock-dot-employee',  label: 'Employee',        bg: 'bg-green-50',  border: 'border-green-200' },
+  EMPLOYEE:  { color: 'text-clock-employee',  dot: 'clock-dot-employee',  label: 'TPS',             bg: 'bg-green-50',  border: 'border-green-200' },
   CLIENT:    { color: 'text-clock-client',    dot: 'clock-dot-client',    label: 'Pending: Client',  bg: 'bg-amber-50',  border: 'border-amber-200' },
   AUTHORITY: { color: 'text-clock-authority', dot: 'clock-dot-authority', label: 'Pending: FSSAI',   bg: 'bg-blue-50',   border: 'border-blue-200'  },
 } as const

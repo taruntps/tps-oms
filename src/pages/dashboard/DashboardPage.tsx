@@ -22,6 +22,8 @@ export default function DashboardPage() {
   const { profile } = useAuth()
   const navigate = useNavigate()
   const isAdmin = ['super_admin', 'director'].includes(profile?.role ?? '')
+  // Who may open payment details from the dashboard pending-payments list.
+  const canViewPayments = ['super_admin', 'director', 'manager', 'accounts'].includes(profile?.role ?? '')
   useTheme()  // applies the saved/default dashboard theme (switcher removed)
   const [creatingTask, setCreatingTask] = useState(false)
 
@@ -80,15 +82,15 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Summary chips — all clickable */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <Chip icon="folder_open" label="My Projects"   value={myProjects.length}    color="brand"
-            onClick={() => navigate('/projects')} />
-          <Chip icon="warning"     label="Overdue"       value={overdue.length}        color={overdue.length > 0 ? 'red' : 'gray'}
-            onClick={() => navigate('/projects?due=overdue')} />
-          <Chip icon="schedule"    label="Due This Week" value={dueThisWeek.length}    color={dueThisWeek.length > 0 ? 'amber' : 'gray'}
-            onClick={() => navigate('/projects?due=week')} />
-          <Chip icon="block"       label="Blocked"       value={blocked.length}        color="gray"
+        {/* Summary stats — one box split into four */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 glass-panel-heavy rounded-2xl overflow-hidden">
+          <StatCell icon="folder_open" label="My Projects"   value={myProjects.length}  color="brand"
+            onClick={() => navigate('/projects')} border />
+          <StatCell icon="warning"     label="Overdue"       value={overdue.length}     color={overdue.length > 0 ? 'red' : 'gray'}
+            onClick={() => navigate('/projects?due=overdue')} border />
+          <StatCell icon="schedule"    label="Due This Week" value={dueThisWeek.length} color={dueThisWeek.length > 0 ? 'amber' : 'gray'}
+            onClick={() => navigate('/projects?due=week')} border />
+          <StatCell icon="block"       label="Blocked"       value={blocked.length}     color="gray"
             onClick={() => navigate('/projects?blocked=1')} />
         </div>
 
@@ -118,7 +120,7 @@ export default function DashboardPage() {
               ) : activeProjects.length === 0 ? (
                 <EmptyState message="No active projects assigned to you." />
               ) : (
-                <div className="space-y-2 max-h-[340px] overflow-y-auto pr-1">
+                <div className="space-y-2 max-h-[calc(100vh-320px)] min-h-[220px] overflow-y-auto pr-1">
                   {activeProjects.map(p => {
                     const days = daysUntil(p.target_date)
                     const isOverdue = days !== null && days < 0
@@ -245,16 +247,17 @@ export default function DashboardPage() {
             {pendingPayments.length > 0 && (
               <div>
                 <SectionHeader title="Pending Payments" count={pendingPayments.length} icon="payments" />
-                <div className="space-y-1.5">
-                  {pendingPayments.slice(0, 5).map((p: any) => {
+                <div className="space-y-1.5 max-h-[300px] overflow-y-auto pr-1">
+                  {pendingPayments.map((p: any) => {
                     const isOverduePayment = p.completed_date && new Date(p.completed_date) < new Date()
                     const loc = [p.clients?.city, p.clients?.state].filter(Boolean).join(', ')
                     return (
                       <div
                         key={p.id}
-                        onClick={() => navigate(`/projects/${p.id}`)}
+                        onClick={canViewPayments ? () => navigate(`/projects/${p.id}?tab=payments`) : undefined}
                         className={cn(
-                          'glass-panel rounded-xl px-4 py-2.5 cursor-pointer hover:bg-white/[0.15] transition-all',
+                          'glass-panel rounded-xl px-4 py-2.5 transition-all',
+                          canViewPayments && 'cursor-pointer hover:bg-white/[0.15]',
                           isOverduePayment && '!border-red-400/30 !bg-red-500/10'
                         )}
                       >
@@ -272,11 +275,6 @@ export default function DashboardPage() {
                       </div>
                     )
                   })}
-                  {pendingPayments.length > 5 && (
-                    <button onClick={() => navigate('/reports/performance')} className="w-full glass-panel rounded-xl py-2 text-xs text-white/60 hover:text-white hover:bg-white/10 transition-all">
-                      View all {pendingPayments.length} pending →
-                    </button>
-                  )}
                 </div>
               </div>
             )}
@@ -302,21 +300,25 @@ export default function DashboardPage() {
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
-function Chip({ icon, label, value, color, onClick }: {
+function StatCell({ icon, label, value, color, onClick, border }: {
   icon: string; label: string; value: number
   color: 'brand' | 'red' | 'amber' | 'gray'
-  onClick?: () => void
+  onClick?: () => void; border?: boolean
 }) {
   const iconColor = { brand: 'text-primary-fixed-dim', red: 'text-red-300', amber: 'text-warning-amber', gray: 'text-white/50' }[color]
   return (
     <button
       onClick={onClick}
-      className="glass-panel-heavy rounded-xl px-3 py-2.5 text-left hover:bg-white/[0.22] transition-all w-full flex items-center gap-3"
+      className={cn(
+        'text-left px-4 py-3.5 flex items-center gap-3 hover:bg-white/[0.07] transition-all',
+        'border-b border-white/10 sm:border-b-0',
+        border && 'sm:border-r border-white/10'
+      )}
     >
-      <Sym name={icon} size={18} fill className={cn('shrink-0', iconColor)} />
+      <Sym name={icon} size={20} fill className={cn('shrink-0', iconColor)} />
       <div className="min-w-0">
-        <p className="text-xl font-display font-bold text-white leading-none">{value}</p>
-        <p className="text-[10px] font-medium mt-1 text-white/55 truncate">{label}</p>
+        <p className="text-2xl font-display font-bold text-white leading-none">{value}</p>
+        <p className="text-[11px] font-medium mt-1.5 text-white/60 truncate">{label}</p>
       </div>
     </button>
   )

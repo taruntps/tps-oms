@@ -10,7 +10,7 @@ import { formatDate, daysUntil, cn } from '@/lib/utils'
 
 const CLOCK_TABS = [
   { key: 'all',       label: 'All Active' },
-  { key: 'employee',  label: '🟢 Employee' },
+  { key: 'employee',  label: '🟢 TPS' },
   { key: 'client',    label: '🟡 Client' },
   { key: 'authority', label: '🔵 FSSAI' },
 ] as const
@@ -53,7 +53,7 @@ export default function OperationsPage() {
 
         {/* ── Clock summary strip ── */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <SummaryCard label="Employee Clock" value={counts.employee} color="green"  detail="Work in our hands" />
+          <SummaryCard label="TPS Clock" value={counts.employee} color="green"  detail="Work in our hands" />
           <SummaryCard label="Client Pending" value={counts.client}   color="amber"  detail="Awaiting client action" />
           <SummaryCard label="FSSAI Pending"  value={counts.authority} color="blue"  detail="Waiting on authority" />
           <SummaryCard label="Blocked"        value={counts.blocked}  color="red"    detail="Needs manager action" />
