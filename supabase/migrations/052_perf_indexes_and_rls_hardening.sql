@@ -35,7 +35,7 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS stages_assigned_to_idx
 
 -- stages.due_date — cron job for overdue stage alerts
 CREATE INDEX CONCURRENTLY IF NOT EXISTS stages_due_date_idx
-  ON stages(due_date) WHERE status NOT IN ('completed', 'skipped', 'cancelled');
+  ON stages(due_date) WHERE status NOT IN ('completed', 'skipped', 'not_required');
 
 -- payments.client_id — FK with no index
 CREATE INDEX CONCURRENTLY IF NOT EXISTS payments_client_id_idx
