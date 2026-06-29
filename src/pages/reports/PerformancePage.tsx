@@ -59,8 +59,8 @@ export default function PerformancePage() {
       <TopBar title="Reports" subtitle="Performance, payments, queries & referrals" />
 
       {/* Tab bar */}
-      <div className="px-6 pt-4">
-        <div className="flex gap-1 p-1 bg-white/10 rounded-xl w-fit">
+      <div className="px-6 pt-4 overflow-x-auto">
+        <div className="flex gap-1 p-1 bg-white/10 rounded-xl w-max">
           {TABS.map(t => (
             <button
               key={t.key}
