@@ -65,3 +65,16 @@ export function isAuthorityOnly(p: ProjectLite): boolean {
   const chips = computeStageClocks(p)
   return chips.length > 0 && chips.every(c => c.clock === 'authority')
 }
+
+/**
+ * Single bucket for count/filter views (Operations KPIs & pills, Reports):
+ *   - 'authority' → waiting only on FSSAI (nothing actionable here)
+ *   - 'client'    → otherwise, if anything is currently with the client
+ *   - 'employee'  → otherwise (something is in our hands)
+ */
+export function clockBucket(p: ProjectLite): ClockType {
+  const chips = computeStageClocks(p)
+  if (chips.length > 0 && chips.every(c => c.clock === 'authority')) return 'authority'
+  if (chips.some(c => c.clock === 'client')) return 'client'
+  return 'employee'
+}

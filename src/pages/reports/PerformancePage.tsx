@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { toast } from '@/components/shared/Toast'
 import { formatRupees, cn } from '@/lib/utils'
+import { clockBucket } from '@/lib/projectClock'
 import { Sym } from '@/components/shared/Sym'
 import { useReferralBreakdown, useUpsertReferral, type ReferralBreakdown } from '@/hooks/useReferrals'
 
@@ -112,14 +113,14 @@ async function computeReport(
 
   let closedQ = supabase
     .from('projects')
-    .select('id, assigned_to, target_date, completed_date, active_clock, client_id')
+    .select('id, assigned_to, target_date, completed_date, active_clock, client_id, stages(active_clock, status, started_at)')
     .eq('status', 'completed')
     .gte('completed_date', from.split('T')[0])
     .lte('completed_date', to.split('T')[0])
 
   let activeQ = supabase
     .from('projects')
-    .select('id, active_clock, client_id')
+    .select('id, active_clock, client_id, stages(active_clock, status, started_at)')
     .in('status', ['active', 'on_hold'])
     .lte('created_at', to)
 
@@ -159,9 +160,9 @@ async function computeReport(
 
   const allProjects = [...closedArr, ...activeArr]
   const total       = allProjects.length || 1
-  const empCount    = allProjects.filter((p: any) => p.active_clock === 'employee').length
-  const cliCount    = allProjects.filter((p: any) => p.active_clock === 'client').length
-  const authCount   = allProjects.filter((p: any) => p.active_clock === 'authority').length
+  const empCount    = allProjects.filter((p: any) => clockBucket(p) === 'employee').length
+  const cliCount    = allProjects.filter((p: any) => clockBucket(p) === 'client').length
+  const authCount   = allProjects.filter((p: any) => clockBucket(p) === 'authority').length
 
   const execMap = new Map<string, ExecRow>()
   for (const p of closedArr as any[]) {

@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
+import { clockBucket } from '@/lib/projectClock'
 
 // ── Employee: my assigned projects (all statuses) ──────────────────────────
 export function useMyProjects() {
@@ -114,7 +115,8 @@ export function useActiveProjects() {
           is_blocked, target_date, service_type,
           clients(company_name),
           profiles_assigned:profiles!projects_assigned_to_fkey(name),
-          profiles_manager:profiles!projects_manager_id_fkey(name)
+          profiles_manager:profiles!projects_manager_id_fkey(name),
+          stages(active_clock, status, started_at)
         `)
         .eq('status', 'active')
         .order('target_date', { ascending: true, nullsFirst: false })
@@ -150,7 +152,7 @@ export function useDirectorStats() {
     queryKey: ['director-stats'],
     queryFn: async () => {
       const [projectsRes, paymentsRes, clientsRes, blockRes] = await Promise.all([
-        supabase.from('projects').select('status, active_clock, is_blocked, quoted_amount, paid_amount, payment_status'),
+        supabase.from('projects').select('status, active_clock, is_blocked, quoted_amount, paid_amount, payment_status, stages(active_clock, status, started_at)'),
         // Exclude govt-fee payments (Client-paid / TPS-paid) — those are pass-through costs,
         // not consulting revenue. Only count client payments: NEFT, UPI, Cash, Cheque.
         supabase.from('payments').select('amount').not('payment_mode', 'in', '(Client-paid,TPS-paid)'),
@@ -165,9 +167,11 @@ export function useDirectorStats() {
       const active      = projects.filter(p => p.status === 'active').length
       const completed   = projects.filter(p => p.status === 'completed').length
       const blocked     = projects.filter(p => p.is_blocked).length
-      const onEmployee  = projects.filter(p => p.active_clock === 'employee' && p.status === 'active').length
-      const onClient    = projects.filter(p => p.active_clock === 'client'   && p.status === 'active').length
-      const onAuthority = projects.filter(p => p.active_clock === 'authority' && p.status === 'active').length
+      // Clock buckets derived from actual stage state (not the stale project column).
+      const activeProj  = projects.filter(p => p.status === 'active')
+      const onEmployee  = activeProj.filter(p => clockBucket(p as any) === 'employee').length
+      const onClient    = activeProj.filter(p => clockBucket(p as any) === 'client').length
+      const onAuthority = activeProj.filter(p => clockBucket(p as any) === 'authority').length
 
       const totalRevenue   = (paymentsRes.data ?? []).reduce((s, p) => s + p.amount, 0)
       const quotedTotal    = projects.reduce((s, p) => s + (p.quoted_amount ?? 0), 0)

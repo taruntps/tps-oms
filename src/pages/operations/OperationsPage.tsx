@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { Sym } from '@/components/shared/Sym'
 import { TopBar } from '@/components/layout/TopBar'
 import { ClockBadge } from '@/components/shared/ClockBadge'
+import { computeStageClocks, clockBucket } from '@/lib/projectClock'
 import { useActiveProjects, useBlockRequestInbox } from '@/hooks/useDashboard'
 import { useApproveBlockRequest } from '@/hooks/useProjects'
 import { toast } from '@/components/shared/Toast'
@@ -25,7 +26,7 @@ export default function OperationsPage() {
   const approveBlock = useApproveBlockRequest()
   const [clockFilter, setClockFilter] = useState<ClockFilter>('all')
 
-  const filtered = clockFilter === 'all' ? projects : projects.filter(p => p.active_clock === clockFilter)
+  const filtered = clockFilter === 'all' ? projects : projects.filter(p => clockBucket(p as any) === clockFilter)
 
   const handleApprove = async (requestId: string, approved: boolean, projectId: string) => {
     try {
@@ -38,9 +39,9 @@ export default function OperationsPage() {
 
   // Clock summary counts
   const counts = {
-    employee:  projects.filter(p => p.active_clock === 'employee').length,
-    client:    projects.filter(p => p.active_clock === 'client').length,
-    authority: projects.filter(p => p.active_clock === 'authority').length,
+    employee:  projects.filter(p => clockBucket(p as any) === 'employee').length,
+    client:    projects.filter(p => clockBucket(p as any) === 'client').length,
+    authority: projects.filter(p => clockBucket(p as any) === 'authority').length,
     blocked:   projects.filter(p => p.is_blocked).length,
   }
 
@@ -128,7 +129,7 @@ export default function OperationsPage() {
                 >
                   {t.label}
                   <span className="ml-1 text-[10px] opacity-60">
-                    {t.key === 'all' ? projects.length : projects.filter(p => p.active_clock === t.key).length}
+                    {t.key === 'all' ? projects.length : projects.filter(p => clockBucket(p as any) === t.key).length}
                   </span>
                 </button>
               ))}
@@ -172,9 +173,9 @@ export default function OperationsPage() {
                           )}
                         </div>
                       </div>
-                      {p.active_clock && p.clock_switched_at && (
-                        <ClockBadge clock={p.active_clock} since={p.clock_switched_at} isBlocked={p.is_blocked ?? false} personName={(p as any).profiles_assigned?.name} />
-                      )}
+                      {computeStageClocks(p as any).map((chip, i) => (
+                        <ClockBadge key={chip.clock + i} clock={chip.clock} since={chip.since} isBlocked={(p.is_blocked ?? false) && i === 0} personName={(p as any).profiles_assigned?.name} />
+                      ))}
                     </div>
                   </div>
                 )

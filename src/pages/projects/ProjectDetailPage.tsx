@@ -297,9 +297,13 @@ export default function ProjectDetailPage() {
                   : project.project_name || project.service_type}
               </h2>
             </div>
-            {project.active_clock && project.clock_switched_at && (
-              <ClockBadge clock={project.active_clock} since={project.clock_switched_at} isBlocked={project.is_blocked ?? false} personName={executiveName} />
-            )}
+            {/* Header badge uses the CURRENT stage's clock (matches the status bar below). */}
+            <ClockBadge
+              clock={activeClock}
+              since={(currentStage as any)?.started_at ?? project.clock_switched_at ?? project.created_at}
+              isBlocked={project.is_blocked ?? false}
+              personName={executiveName}
+            />
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 pt-4 border-t border-border">
