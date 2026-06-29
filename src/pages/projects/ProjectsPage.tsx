@@ -3,7 +3,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Sym } from '@/components/shared/Sym'
 import { TopBar } from '@/components/layout/TopBar'
 import { ClockBadge } from '@/components/shared/ClockBadge'
-import { computeStageClocks, isAuthorityOnly } from '@/lib/projectClock'
+import { computeStageClocks, isAuthorityOnly, clockBucket } from '@/lib/projectClock'
+import { SERVICE_TYPES } from '@/data/india'
 import { ProjectForm } from './ProjectForm'
 import { useProjects } from '@/hooks/useProjects'
 import { useAuth } from '@/contexts/AuthContext'
@@ -11,17 +12,18 @@ import { formatDate, cn } from '@/lib/utils'
 import type { Database } from '@/types/database'
 
 type ProjectStatus = Database['public']['Enums']['project_status']
-type FilterValue = 'all' | 'pending' | 'authority' | 'on_hold' | 'completed' | 'cancelled'
+type FilterValue = 'all' | 'pending' | 'with_me' | 'with_client' | 'authority' | 'on_hold' | 'completed' | 'cancelled'
 
 const STATUS_FILTERS: { label: string; value: FilterValue }[] = [
-  { label: 'All',        value: 'all' },
-  // "Pending" = active & actionable by us/client (NOT solely waiting on FSSAI).
-  { label: 'Pending',    value: 'pending' },
-  // "Authority" = active & currently waiting only on FSSAI.
-  { label: 'Authority',  value: 'authority' },
-  { label: 'On Hold',    value: 'on_hold' },
-  { label: 'Completed',  value: 'completed' },
-  { label: 'Cancelled',  value: 'cancelled' },
+  { label: 'All',         value: 'all' },
+  // "Pending" = active & actionable (NOT solely waiting on FSSAI). Default view.
+  { label: 'Pending',     value: 'pending' },
+  { label: 'With Me',     value: 'with_me' },     // active & clock with us
+  { label: 'With Client', value: 'with_client' }, // active & clock with client
+  { label: 'At FSSAI',    value: 'authority' },   // active & waiting on authority
+  { label: 'On Hold',     value: 'on_hold' },
+  { label: 'Completed',   value: 'completed' },
+  { label: 'Cancelled',   value: 'cancelled' },
 ]
 
 // Distinct colour per project (service) type so the type reads at a glance.
@@ -51,7 +53,8 @@ export default function ProjectsPage() {
   const { profile } = useAuth()
   const { data: projects = [], isLoading } = useProjects()
   const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState<FilterValue>('all')
+  const [statusFilter, setStatusFilter] = useState<FilterValue>('pending')
+  const [typeFilter, setTypeFilter] = useState<string>('all')
   const [scope, setScope] = useState<'mine' | 'all'>('mine')
   const [showForm, setShowForm] = useState(false)
 
@@ -80,10 +83,13 @@ export default function ProjectsPage() {
   const todayMs = Date.now()
   const filtered = scoped.filter(p => {
     const matchStatus =
-      statusFilter === 'all'       ? true :
-      statusFilter === 'pending'   ? (p.status === 'active' && !isAuthorityOnly(p as any)) :
-      statusFilter === 'authority' ? (p.status === 'active' &&  isAuthorityOnly(p as any)) :
+      statusFilter === 'all'         ? true :
+      statusFilter === 'pending'     ? (p.status === 'active' && !isAuthorityOnly(p as any)) :
+      statusFilter === 'with_me'     ? (p.status === 'active' && clockBucket(p as any) === 'employee') :
+      statusFilter === 'with_client' ? (p.status === 'active' && clockBucket(p as any) === 'client') :
+      statusFilter === 'authority'   ? (p.status === 'active' && clockBucket(p as any) === 'authority') :
       p.status === statusFilter
+    const matchType = typeFilter === 'all' || p.service_type === typeFilter
     const q = search.toLowerCase()
     const matchSearch = !q ||
       p.project_code?.toLowerCase().includes(q) ||
@@ -102,7 +108,7 @@ export default function ProjectsPage() {
       if (diff >= 0) return false
     }
     if (blockedParam === '1' && !p.is_blocked) return false
-    return matchStatus && matchSearch
+    return matchStatus && matchSearch && matchType
   })
 
   return (
@@ -158,42 +164,52 @@ export default function ProjectsPage() {
           </div>
         )}
 
-        {/* Search + filter + new */}
+        {/* Search + type + new */}
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
             <Sym name="search" size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Search by code, name, client…"
+              placeholder="Search by code, project or client name…"
               className="w-full pl-8 pr-3 py-2 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-600/20 focus:border-brand-600"
             />
           </div>
 
-          <div className="flex gap-1 bg-white/10 p-1 rounded-lg border border-white/15">
-            {STATUS_FILTERS.map(f => (
-              <button
-                key={f.value}
-                onClick={() => setStatusFilter(f.value)}
-                className={cn(
-                  'px-3 py-1 text-xs font-medium rounded-md transition-all',
-                  statusFilter === f.value ? 'bg-white/20 text-white' : 'text-white/60 hover:text-white'
-                )}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
+          <select
+            value={typeFilter}
+            onChange={e => setTypeFilter(e.target.value)}
+            className="px-3 py-2 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-600/20 focus:border-brand-600"
+          >
+            <option value="all">All types</option>
+            {SERVICE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
 
           {canAssign && (
             <button
               onClick={() => setShowForm(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700"
+              className="flex items-center gap-2 px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 shrink-0"
             >
               <Sym name="add" size={16} />
               New Project
             </button>
           )}
+        </div>
+
+        {/* Status / clock filter pills */}
+        <div className="flex flex-wrap gap-1 bg-white/10 p-1 rounded-lg border border-white/15 w-fit">
+          {STATUS_FILTERS.map(f => (
+            <button
+              key={f.value}
+              onClick={() => setStatusFilter(f.value)}
+              className={cn(
+                'px-3 py-1 text-xs font-medium rounded-md transition-all',
+                statusFilter === f.value ? 'bg-white/20 text-white' : 'text-white/60 hover:text-white'
+              )}
+            >
+              {f.label}
+            </button>
+          ))}
         </div>
 
         {/* Project list */}
@@ -207,55 +223,60 @@ export default function ProjectsPage() {
             <p className="text-sm text-white/60">No projects found</p>
           </div>
         ) : (
-          <div className="space-y-3">
-            {filtered.map(p => (
-              <div
-                key={p.id}
-                onClick={() => navigate(`/projects/${p.id}`)}
-                className="bg-white rounded-xl border border-border p-5 cursor-pointer hover:border-brand-300 hover:shadow-sm transition-all"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-mono text-xs text-muted-foreground bg-[#F8FAFC] border border-border px-2 py-0.5 rounded">
+          <div className="space-y-2">
+            {filtered.map(p => {
+              const chips = computeStageClocks(p as any)
+              const execFirst = (p as any).profiles_assigned?.name?.trim().split(/\s+/)[0]
+              const loc = [(p.clients as any)?.city, (p.clients as any)?.state].filter(Boolean).join(', ')
+              const withSomeoneElse = chips.length > 0 && chips.every(c => c.clock !== 'employee')
+              return (
+                <div
+                  key={p.id}
+                  onClick={() => navigate(`/projects/${p.id}`)}
+                  className="bg-white rounded-xl border border-border px-4 py-3 cursor-pointer hover:border-brand-300 hover:shadow-sm transition-all"
+                >
+                  {/* Line 1: code + status (left) · clock + executive (right) */}
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="font-mono text-[11px] text-muted-foreground bg-[#F8FAFC] border border-border px-1.5 py-0.5 rounded shrink-0">
                         {p.project_code}
                       </span>
-                      <span className={cn('text-[10px] px-2 py-0.5 rounded-full font-medium capitalize', STATUS_BADGE[p.status as ProjectStatus])}>
+                      <span className={cn('text-[10px] px-2 py-0.5 rounded-full font-medium capitalize shrink-0', STATUS_BADGE[p.status as ProjectStatus])}>
                         {p.status?.replace('_', ' ')}
                       </span>
                       {p.is_blocked && (
-                        <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-red-100 text-red-700">BLOCKED</span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-red-100 text-red-700 shrink-0">BLOCKED</span>
                       )}
                     </div>
-                    <h3 className="font-semibold text-brand-950 mt-1">{p.project_name?.trim() || p.service_type}</h3>
-                    <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
-                      {p.service_type && <span className={cn('text-[10px] border px-1.5 py-0.5 rounded font-medium', projectTypeBadge(p.service_type))}>{p.service_type}</span>}
-                      <span>{p.clients?.company_name}</span>
-                      {(p.clients as any)?.city || (p.clients as any)?.state
-                        ? <span className="flex items-center gap-0.5">
-                            <span>📍</span>
-                            {[(p.clients as any).city, (p.clients as any).state].filter(Boolean).join(', ')}
-                          </span>
-                        : null}
-                      {p.profiles_assigned && <span>Executive: {p.profiles_assigned.name}</span>}
-                      {p.target_date && <span>Due {formatDate(p.target_date)}</span>}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {chips.map((chip, i) => (
+                        <ClockBadge key={chip.clock + i} clock={chip.clock} since={chip.since}
+                          isBlocked={(p.is_blocked ?? false) && i === 0} personName={(p as any).profiles_assigned?.name} />
+                      ))}
+                      {withSomeoneElse && execFirst && (
+                        <span className="text-[11px] text-muted-foreground hidden sm:inline">· {execFirst}</span>
+                      )}
                     </div>
                   </div>
 
-                  <div className="flex flex-col items-end gap-2 shrink-0">
-                    {computeStageClocks(p as any).map((chip, i) => (
-                      <ClockBadge
-                        key={chip.clock + i}
-                        clock={chip.clock}
-                        since={chip.since}
-                        isBlocked={(p.is_blocked ?? false) && i === 0}
-                        personName={(p as any).profiles_assigned?.name}
-                      />
-                    ))}
+                  {/* Line 2: type + company (left) · location · due (right) */}
+                  <div className="flex items-center justify-between gap-3 mt-1.5">
+                    <div className="flex items-center gap-2 min-w-0">
+                      {p.service_type && (
+                        <span className={cn('text-[10px] border px-1.5 py-0.5 rounded font-medium shrink-0', projectTypeBadge(p.service_type))}>
+                          {p.service_type}
+                        </span>
+                      )}
+                      <span className="text-sm font-medium text-brand-950 truncate">{p.clients?.company_name}</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-[11px] text-muted-foreground shrink-0">
+                      {loc && <span className="hidden sm:inline">📍 {loc}</span>}
+                      {p.target_date && <span>Due {formatDate(p.target_date)}</span>}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>

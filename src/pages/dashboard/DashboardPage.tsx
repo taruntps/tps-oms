@@ -144,61 +144,50 @@ export default function DashboardPage() {
               ) : activeProjects.length === 0 ? (
                 <EmptyState message="No active projects assigned to you." />
               ) : (
-                <div className="space-y-2">
-                  {activeProjects.slice(0, 8).map(p => {
+                <div className="space-y-2 max-h-[340px] overflow-y-auto pr-1">
+                  {activeProjects.map(p => {
                     const days = daysUntil(p.target_date)
                     const isOverdue = days !== null && days < 0
+                    const chips = computeStageClocks(p as any)
                     return (
                       <div
                         key={p.id}
                         onClick={() => navigate(`/projects/${p.id}`)}
-                        className="glass-panel rounded-xl p-4 cursor-pointer hover:bg-white/[0.18] transition-all"
+                        className="glass-panel rounded-xl px-3.5 py-2.5 cursor-pointer hover:bg-white/[0.18] transition-all"
                       >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-mono text-[11px] text-white/55">{p.project_code}</span>
-                              {p.is_blocked && (
-                                <span className="text-[10px] bg-red-500/20 text-red-300 px-1.5 py-0.5 rounded-full font-medium">BLOCKED</span>
-                              )}
-                            </div>
-                            <p className="text-sm font-medium text-white mt-0.5 truncate">{p.project_name}</p>
-                            <p className="text-xs text-white/60 mt-0.5">{(p as any).clients?.company_name}</p>
-                          </div>
-                          <div className="flex flex-col items-end gap-1.5 shrink-0">
-                            {computeStageClocks(p as any).map((chip, i) => (
-                              <ClockBadge
-                                key={chip.clock + i}
-                                clock={chip.clock}
-                                since={chip.since}
-                                isBlocked={(p.is_blocked ?? false) && i === 0}
-                                personName={(p as any).profiles_assigned?.name ?? ''}
-                              />
-                            ))}
-                            {p.target_date && (
-                              <span className={cn(
-                                'text-[11px] font-medium',
-                                isOverdue ? 'text-red-300' : days !== null && days <= 7 ? 'text-warning-amber' : 'text-white/55'
-                              )}>
-                                {isOverdue
-                                  ? `${Math.abs(days!)}d overdue`
-                                  : days === 0 ? 'Due today'
-                                  : `Due ${formatDate(p.target_date)}`}
-                              </span>
+                        {/* Line 1: code + status (left) · clock (right) */}
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="font-mono text-[11px] text-white/55 shrink-0">{p.project_code}</span>
+                            {p.is_blocked && (
+                              <span className="text-[10px] bg-red-500/20 text-red-300 px-1.5 py-0.5 rounded-full font-medium shrink-0">BLOCKED</span>
                             )}
                           </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {chips.map((chip, i) => (
+                              <ClockBadge key={chip.clock + i} clock={chip.clock} since={chip.since}
+                                isBlocked={(p.is_blocked ?? false) && i === 0} personName={(p as any).profiles_assigned?.name ?? ''} />
+                            ))}
+                          </div>
+                        </div>
+                        {/* Line 2: company (left) · due (right) */}
+                        <div className="flex items-center justify-between gap-3 mt-1">
+                          <p className="text-sm font-medium text-white truncate">
+                            {(p as any).clients?.company_name}
+                            {p.service_type ? <span className="text-white/55 font-normal"> — {p.service_type}</span> : null}
+                          </p>
+                          {p.target_date && (
+                            <span className={cn(
+                              'text-[11px] font-medium shrink-0',
+                              isOverdue ? 'text-red-300' : days !== null && days <= 7 ? 'text-warning-amber' : 'text-white/55'
+                            )}>
+                              {isOverdue ? `${Math.abs(days!)}d overdue` : days === 0 ? 'Due today' : `Due ${formatDate(p.target_date)}`}
+                            </span>
+                          )}
                         </div>
                       </div>
                     )
                   })}
-                  {activeProjects.length > 8 && (
-                    <button
-                      onClick={() => navigate('/projects')}
-                      className="w-full glass-panel rounded-xl py-2.5 text-xs text-white/60 hover:text-white hover:bg-white/10 transition-all"
-                    >
-                      View all {activeProjects.length} active projects →
-                    </button>
-                  )}
                 </div>
               )}
             </div>
