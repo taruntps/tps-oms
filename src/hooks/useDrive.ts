@@ -65,7 +65,11 @@ export function useCreateDriveFolder() {
     }: { name: string; parentId: string; entityId: string; entityTable: 'clients' | 'projects' }) => {
       const d = await driveOp('create-folder', { name, parentId })
       const folderId = d.folderId as string
-      await (supabase as any).from(entityTable).update({ drive_folder_id: folderId }).eq('id', entityId)
+      // Link via narrow RPC (all-staff-except-auditor) — avoids a broad UPDATE grant.
+      const { error } = await (supabase as any).rpc('set_entity_drive_folder', {
+        p_table: entityTable, p_id: entityId, p_folder_id: folderId,
+      })
+      if (error) throw error
       return folderId
     },
     onSuccess: (_fid, vars) => {
@@ -81,7 +85,10 @@ export function useUnlinkDriveFolder(entityId: string, entityTable: 'clients' | 
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async () => {
-      await (supabase as any).from(entityTable).update({ drive_folder_id: null }).eq('id', entityId)
+      const { error } = await (supabase as any).rpc('set_entity_drive_folder', {
+        p_table: entityTable, p_id: entityId, p_folder_id: null,
+      })
+      if (error) throw error
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['clients', entityId] })

@@ -107,7 +107,7 @@ export function PaymentsTab({ projectId, clientId, quotedAmount = 0, paymentStat
             <Sym name="verified" size={14} /> Payment Complete
           </span>
         )}
-        <RoleGuard roles={['super_admin','director','manager','accounts']}>
+        <RoleGuard roles={['super_admin','director','manager','executive','accounts','hr']}>
           <button
             onClick={() => setShowForm(s => !s)}
             className="flex items-center gap-1.5 text-sm text-white font-medium bg-brand-600 hover:bg-brand-700 px-3 py-1.5 rounded-lg transition-colors"

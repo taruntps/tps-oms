@@ -26,8 +26,15 @@ interface Props {
 }
 
 // FSSAI status values per service type (status_fssai stage)
-const FSSAI_STATUSES_DEFAULT = ['Document Scrutinisation', 'Pending at IO', 'Inspection Marked', 'Query Raised', 'Approved', 'Rejected']
-const FSSAI_STATUSES_FORM2   = ['Document Scrutinisation', 'Technical Committee', 'Query Raised', 'Approved', 'Rejected']
+// Extra portal application-tracking statuses, shared by all service types.
+const FSSAI_STATUSES_EXTRA = [
+  'Document to be Scrutinized by IO',
+  'Forwarded to Advisor',
+  'Approval Pending by Initial Authority',
+  'Eligible for Grant of License',
+]
+const FSSAI_STATUSES_DEFAULT = ['Document Scrutinisation', 'Pending at IO', 'Inspection Marked', 'Query Raised', ...FSSAI_STATUSES_EXTRA, 'Approved', 'Rejected']
+const FSSAI_STATUSES_FORM2   = ['Document Scrutinisation', 'Technical Committee', 'Query Raised', ...FSSAI_STATUSES_EXTRA, 'Approved', 'Rejected']
 const needsProductKob = (st?: string) => !!st && ['New Application', 'Modification'].includes(st)
 const needsAppRef     = (st?: string) => !!st && ['New Application', 'Modification', 'Renewal', 'Form II'].includes(st)
 
@@ -392,7 +399,11 @@ export function StageCard({ stage, projectId, isBlocked, serviceType, appRefNo, 
           <ActionBtn label="Submit to FSSAI" icon="send" color="blue" onClick={() => openCapture('fee_submit', { paid_by: 'TPS', kob_added: 'no' })} />
         </>
       case 'fee':
-        return <ActionBtn label="Record Fee & Complete" icon="payments" color="green" onClick={() => openCapture('fee', { paid_by: 'TPS' })} />
+        return <>
+          {clock === 'employee' && <ActionBtn label="Move to Client" icon="swap_horiz" color="amber" onClick={() => setClock('client')} />}
+          {clock === 'client' && <ActionBtn label="Received from Client" icon="inbox" color="green" onClick={() => setClock('employee')} />}
+          <ActionBtn label="Record Fee & Complete" icon="payments" color="green" onClick={() => openCapture('fee', { paid_by: 'TPS' })} />
+        </>
       case 'fee_optional':
         return <>
           <ActionBtn label="Not Applicable" icon="block" color="gray" onClick={() => patch({ status: 'not_required' }, 'Marked not required')} />

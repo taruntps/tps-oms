@@ -14,7 +14,6 @@ import { useLicenses } from '@/hooks/useLicenses'
 import { ClientForm } from './ClientForm'
 import { LicenseForm } from './LicenseForm'
 import { CredentialReveal } from './CredentialReveal'
-import { ClientDocuments } from './ClientDocuments'
 import { DriveTab } from '@/components/shared/DriveTab'
 import { formatDate, getExpiryStatus, daysUntil, cn } from '@/lib/utils'
 
@@ -174,7 +173,7 @@ export default function ClientDetailPage() {
         <div>
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-display font-semibold text-white">FSSAI Licences</h3>
-            <RoleGuard roles={['super_admin','director','manager']}>
+            <RoleGuard roles={['super_admin','director','manager','executive','accounts','hr']}>
               <button
                 onClick={() => setAddLicense(true)}
                 className="flex items-center gap-1.5 text-sm text-white/70 hover:text-white font-medium"
@@ -234,7 +233,7 @@ export default function ClientDetailPage() {
                         </div>
                       </div>
 
-                      <RoleGuard roles={['super_admin','director','manager']}>
+                      <RoleGuard roles={['super_admin','director','manager','executive','accounts','hr']}>
                         <button
                           onClick={() => setEditLicense(lic.id)}
                           className="text-muted-foreground hover:text-brand-600 shrink-0"
@@ -250,8 +249,7 @@ export default function ClientDetailPage() {
           )}
         </div>
 
-        {/* Documents */}
-        <ClientDocuments clientId={id!} canEdit={canEdit} />
+        {/* Client documents now live entirely in Google Drive (below). */}
 
         {/* Google Drive */}
         <div className="bg-white rounded-xl border border-border overflow-hidden">
