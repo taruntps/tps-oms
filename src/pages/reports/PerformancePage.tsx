@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { TopBar } from '@/components/layout/TopBar'
 import { supabase } from '@/lib/supabase'
@@ -36,13 +36,17 @@ function KPI({ icon, label, value, color }: { icon: string; label: string; value
 
 // ── Tab type ─────────────────────────────────────────────────────────────────
 type ReportTab = 'performance' | 'pending_payments' | 'queries' | 'referrals' | 'govt_fees'
+  | 'project_timeline' | 'stage_perf' | 'employee_timeline'
 
 const TABS: { key: ReportTab; label: string; icon: string }[] = [
-  { key: 'performance',      label: 'Performance',       icon: 'bar_chart' },
-  { key: 'pending_payments', label: 'Pending Payments',  icon: 'payments' },
-  { key: 'queries',          label: 'Queries Report',    icon: 'fact_check' },
-  { key: 'referrals',        label: 'Referrals',         icon: 'handshake' },
-  { key: 'govt_fees',        label: 'Govt Fees',         icon: 'account_balance' },
+  { key: 'performance',       label: 'Performance',       icon: 'bar_chart' },
+  { key: 'pending_payments',  label: 'Pending Payments',  icon: 'payments' },
+  { key: 'queries',           label: 'Queries Report',    icon: 'fact_check' },
+  { key: 'referrals',         label: 'Referrals',         icon: 'handshake' },
+  { key: 'govt_fees',         label: 'Govt Fees',         icon: 'account_balance' },
+  { key: 'project_timeline',  label: 'Project Timeline',  icon: 'timeline' },
+  { key: 'stage_perf',        label: 'Stage Performance', icon: 'stacked_bar_chart' },
+  { key: 'employee_timeline', label: 'Employee Timeline', icon: 'person_pin_circle' },
 ]
 
 // ── Page shell ───────────────────────────────────────────────────────────────
@@ -77,9 +81,12 @@ export default function PerformancePage() {
 
       {tab === 'performance'      && <PerformanceTab />}
       {tab === 'pending_payments' && <PendingPaymentsTab />}
-      {tab === 'queries'          && <QueriesTab />}
-      {tab === 'referrals'        && <ReferralsTab />}
-      {tab === 'govt_fees'        && <GovtFeesTab />}
+      {tab === 'queries'           && <QueriesTab />}
+      {tab === 'referrals'         && <ReferralsTab />}
+      {tab === 'govt_fees'         && <GovtFeesTab />}
+      {tab === 'project_timeline'  && <ProjectTimelineTab />}
+      {tab === 'stage_perf'        && <StagePerformanceTab />}
+      {tab === 'employee_timeline' && <EmployeeTimelineTab />}
     </div>
   )
 }
@@ -1153,6 +1160,524 @@ function GovtFeesTab() {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TAB 6 — Project Timeline
+// ══════════════════════════════════════════════════════════════════════════════
+
+type TimelineRow = {
+  stage_order: number; stage_name: string; stage_code: string
+  stage_status: string; stage_due_date: string | null
+  clock_type: string; assignee_name: string | null
+  started_at: string; ended_at: string | null
+  duration_days: number; is_open: boolean
+}
+
+type ProjectOption = { id: string; project_code: string; project_name: string | null; service_type: string }
+
+const CLOCK_COLORS: Record<string, string> = {
+  employee:  'bg-green-100 text-green-700',
+  client:    'bg-amber-100 text-amber-700',
+  authority: 'bg-blue-100 text-blue-700',
+}
+const CLOCK_LABEL: Record<string, string> = {
+  employee: 'TPS', client: 'Client', authority: 'FSSAI',
+}
+
+function fmtDays(d: number | null) {
+  if (d == null) return '—'
+  if (d < 1) return `${Math.round(d * 24)}h`
+  return `${d.toFixed(1)}d`
+}
+
+
+function ProjectTimelineTab() {
+  const [projects, setProjects] = useState<ProjectOption[]>([])
+  const [selectedId, setSelectedId] = useState<string>('')
+  const [rows, setRows] = useState<TimelineRow[]>([])
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    supabase.from('projects').select('id, project_code, project_name, service_type')
+      .order('created_at', { ascending: false })
+      .then(({ data }) => { if (data) setProjects(data) })
+  }, [])
+
+  async function loadTimeline(pid: string) {
+    setSelectedId(pid); setLoading(true)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data } = await (supabase.rpc as any)('rpc_project_timeline', { p_project_id: pid })
+    setRows((data as TimelineRow[]) ?? [])
+    setLoading(false)
+  }
+
+  // Aggregate per stage for the summary table
+  const stageSummary = useMemo(() => {
+    const map = new Map<string, { stage_order: number; stage_name: string; stage_code: string; stage_status: string; stage_due_date: string | null; tps: number; client: number; fssai: number; total: number; assignees: Set<string> }>()
+    for (const r of rows) {
+      const key = r.stage_code + '_' + r.stage_order
+      if (!map.has(key)) map.set(key, { stage_order: r.stage_order, stage_name: r.stage_name, stage_code: r.stage_code, stage_status: r.stage_status, stage_due_date: r.stage_due_date, tps: 0, client: 0, fssai: 0, total: 0, assignees: new Set() })
+      const s = map.get(key)!
+      s.total += r.duration_days
+      if (r.clock_type === 'employee')  s.tps    += r.duration_days
+      if (r.clock_type === 'client')    s.client  += r.duration_days
+      if (r.clock_type === 'authority') s.fssai   += r.duration_days
+      if (r.assignee_name) s.assignees.add(r.assignee_name)
+    }
+    return Array.from(map.values()).sort((a, b) => a.stage_order - b.stage_order)
+  }, [rows])
+
+  const totals = useMemo(() => stageSummary.reduce((acc, s) => ({
+    tps: acc.tps + s.tps, client: acc.client + s.client,
+    fssai: acc.fssai + s.fssai, total: acc.total + s.total
+  }), { tps: 0, client: 0, fssai: 0, total: 0 }), [stageSummary])
+
+  return (
+    <div className="p-6 space-y-5 animate-fade-up">
+      <div className="flex items-center gap-3">
+        <select
+          value={selectedId}
+          onChange={e => loadTimeline(e.target.value)}
+          className="px-3 py-2 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-600/20"
+        >
+          <option value="">— Select project —</option>
+          {projects.map(p => (
+            <option key={p.id} value={p.id}>
+              {p.project_code} · {p.service_type} · {p.project_name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {loading && <div className="animate-pulse h-40 glass-panel rounded-xl" />}
+
+      {!loading && rows.length > 0 && (
+        <>
+          {/* Summary cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {[
+              { label: 'Total days', val: totals.total, cls: 'text-white' },
+              { label: 'TPS clock', val: totals.tps, cls: 'text-success-emerald' },
+              { label: 'Client clock', val: totals.client, cls: 'text-warning-amber' },
+              { label: 'FSSAI clock', val: totals.fssai, cls: 'text-primary-fixed-dim' },
+            ].map(c => (
+              <div key={c.label} className="glass-panel-heavy rounded-xl p-4">
+                <p className={cn('text-2xl font-display font-bold', c.cls)}>{fmtDays(c.val)}</p>
+                <p className="text-xs text-white/60 mt-1">{c.label}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Stage summary table */}
+          <div className="bg-white rounded-xl border border-border overflow-hidden">
+            <div className="px-5 py-3 border-b border-border">
+              <h3 className="text-sm font-semibold text-brand-950">Stage breakdown</h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-[#F8FAFC] text-[11px] text-muted-foreground uppercase tracking-wide">
+                    <th className="px-4 py-2.5 text-left">#</th>
+                    <th className="px-4 py-2.5 text-left">Stage</th>
+                    <th className="px-4 py-2.5 text-left">Handled by</th>
+                    <th className="px-4 py-2.5 text-right">TPS</th>
+                    <th className="px-4 py-2.5 text-right">Client</th>
+                    <th className="px-4 py-2.5 text-right">FSSAI</th>
+                    <th className="px-4 py-2.5 text-right">Total</th>
+                    <th className="px-4 py-2.5 text-left">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {stageSummary.map(s => (
+                    <tr key={s.stage_code + s.stage_order} className="border-t border-border hover:bg-[#F8FAFC]">
+                      <td className="px-4 py-3 text-muted-foreground">{s.stage_order}</td>
+                      <td className="px-4 py-3 font-medium text-brand-950">{s.stage_name}</td>
+                      <td className="px-4 py-3 text-muted-foreground text-xs">{Array.from(s.assignees).join(', ') || '—'}</td>
+                      <td className="px-4 py-3 text-right text-green-700 font-medium">{s.tps > 0 ? fmtDays(s.tps) : '—'}</td>
+                      <td className="px-4 py-3 text-right text-amber-700 font-medium">{s.client > 0 ? fmtDays(s.client) : '—'}</td>
+                      <td className="px-4 py-3 text-right text-blue-700 font-medium">{s.fssai > 0 ? fmtDays(s.fssai) : '—'}</td>
+                      <td className="px-4 py-3 text-right font-semibold text-brand-950">{fmtDays(s.total)}</td>
+                      <td className="px-4 py-3">
+                        <span className={cn('px-2 py-0.5 rounded-full text-[10px] font-semibold capitalize',
+                          s.stage_status === 'completed' ? 'bg-teal-100 text-teal-700' :
+                          s.stage_status === 'in_progress' ? 'bg-blue-100 text-blue-700' :
+                          s.stage_status === 'skipped' ? 'bg-gray-100 text-gray-500' :
+                          'bg-gray-100 text-gray-400'
+                        )}>{s.stage_status.replace('_', ' ')}</span>
+                      </td>
+                    </tr>
+                  ))}
+                  <tr className="border-t-2 border-border bg-[#F8FAFC] font-semibold">
+                    <td className="px-4 py-3" colSpan={3}>Total</td>
+                    <td className="px-4 py-3 text-right text-green-700">{fmtDays(totals.tps)}</td>
+                    <td className="px-4 py-3 text-right text-amber-700">{fmtDays(totals.client)}</td>
+                    <td className="px-4 py-3 text-right text-blue-700">{fmtDays(totals.fssai)}</td>
+                    <td className="px-4 py-3 text-right text-brand-950">{fmtDays(totals.total)}</td>
+                    <td />
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Raw timeline rows (clock segments) */}
+          <div className="bg-white rounded-xl border border-border overflow-hidden">
+            <div className="px-5 py-3 border-b border-border">
+              <h3 className="text-sm font-semibold text-brand-950">Clock segments (raw)</h3>
+              <p className="text-xs text-muted-foreground">Each row = one clock period. Clock switches and transfers create separate rows.</p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="bg-[#F8FAFC] text-[10px] text-muted-foreground uppercase tracking-wide">
+                    <th className="px-4 py-2.5 text-left">Stage</th>
+                    <th className="px-4 py-2.5 text-left">Clock</th>
+                    <th className="px-4 py-2.5 text-left">Assignee</th>
+                    <th className="px-4 py-2.5 text-left">Started</th>
+                    <th className="px-4 py-2.5 text-left">Ended</th>
+                    <th className="px-4 py-2.5 text-right">Duration</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r, i) => (
+                    <tr key={i} className="border-t border-border hover:bg-[#F8FAFC]">
+                      <td className="px-4 py-2.5 text-brand-950">{r.stage_name}</td>
+                      <td className="px-4 py-2.5">
+                        <span className={cn('px-1.5 py-0.5 rounded text-[10px] font-semibold', CLOCK_COLORS[r.clock_type] ?? 'bg-gray-100 text-gray-500')}>
+                          {CLOCK_LABEL[r.clock_type] ?? r.clock_type}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2.5 text-muted-foreground">{r.assignee_name ?? '—'}</td>
+                      <td className="px-4 py-2.5 text-muted-foreground font-mono">{new Date(r.started_at).toLocaleString('en-IN', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' })}</td>
+                      <td className="px-4 py-2.5 text-muted-foreground font-mono">{r.ended_at ? new Date(r.ended_at).toLocaleString('en-IN', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }) : <span className="text-blue-600">Open</span>}</td>
+                      <td className="px-4 py-2.5 text-right font-medium text-brand-950">{fmtDays(r.duration_days)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
+
+      {!loading && rows.length === 0 && selectedId && (
+        <div className="glass-panel rounded-xl border-dashed !border-white/20 p-12 text-center">
+          <p className="text-sm text-white/60">No timeline data yet for this project. Timeline is captured automatically as stages progress.</p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TAB 7 — Stage Performance
+// ══════════════════════════════════════════════════════════════════════════════
+
+type StagePerfRow = {
+  stage_code: string; stage_name: string; service_type: string
+  project_count: number; avg_days: number; min_days: number; max_days: number
+  tps_days_avg: number; client_days_avg: number; fssai_days_avg: number
+  ontime_pct: number | null
+}
+
+function StagePerformanceTab() {
+  const [rows, setRows] = useState<StagePerfRow[]>([])
+  const [serviceFilter, setServiceFilter] = useState<string>('')
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    setLoading(true)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(supabase.rpc as any)('rpc_stage_performance', {
+      p_stage_code: null,
+      p_service_type: serviceFilter || null,
+    }).then(({ data }: { data: StagePerfRow[] | null }) => {
+      setRows(data ?? [])
+      setLoading(false)
+    })
+  }, [serviceFilter])
+
+  return (
+    <div className="p-6 space-y-5 animate-fade-up">
+      <div className="flex items-center gap-3">
+        <select
+          value={serviceFilter}
+          onChange={e => setServiceFilter(e.target.value)}
+          className="px-3 py-2 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-600/20"
+        >
+          <option value="">All service types</option>
+          {['New Application','Renewal','Modification','Annual Return','Form II','Artwork','Claim Check'].map(t => (
+            <option key={t} value={t}>{t}</option>
+          ))}
+        </select>
+      </div>
+
+      {loading && <div className="animate-pulse h-40 glass-panel rounded-xl" />}
+
+      {!loading && rows.length > 0 && (
+        <div className="bg-white rounded-xl border border-border overflow-hidden">
+          <div className="px-5 py-3 border-b border-border">
+            <h3 className="text-sm font-semibold text-brand-950">Stage performance across all projects</h3>
+            <p className="text-xs text-muted-foreground">Averages exclude on-hold periods. Client/FSSAI time shown separately.</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-[#F8FAFC] text-[11px] text-muted-foreground uppercase tracking-wide">
+                  <th className="px-4 py-2.5 text-left">Stage</th>
+                  <th className="px-4 py-2.5 text-left">Service type</th>
+                  <th className="px-4 py-2.5 text-right">Projects</th>
+                  <th className="px-4 py-2.5 text-right">Avg days</th>
+                  <th className="px-4 py-2.5 text-right">Min</th>
+                  <th className="px-4 py-2.5 text-right">Max</th>
+                  <th className="px-4 py-2.5 text-right">TPS avg</th>
+                  <th className="px-4 py-2.5 text-right">Client avg</th>
+                  <th className="px-4 py-2.5 text-right">FSSAI avg</th>
+                  <th className="px-4 py-2.5 text-right">On-time %</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r, i) => (
+                  <tr key={i} className="border-t border-border hover:bg-[#F8FAFC]">
+                    <td className="px-4 py-3 font-medium text-brand-950">{r.stage_name}</td>
+                    <td className="px-4 py-3 text-muted-foreground text-xs">{r.service_type}</td>
+                    <td className="px-4 py-3 text-right text-brand-950">{r.project_count}</td>
+                    <td className="px-4 py-3 text-right font-semibold text-brand-950">{fmtDays(r.avg_days)}</td>
+                    <td className="px-4 py-3 text-right text-green-700">{fmtDays(r.min_days)}</td>
+                    <td className="px-4 py-3 text-right text-red-600">{fmtDays(r.max_days)}</td>
+                    <td className="px-4 py-3 text-right text-green-700">{fmtDays(r.tps_days_avg)}</td>
+                    <td className="px-4 py-3 text-right text-amber-700">{fmtDays(r.client_days_avg)}</td>
+                    <td className="px-4 py-3 text-right text-blue-700">{fmtDays(r.fssai_days_avg)}</td>
+                    <td className="px-4 py-3 text-right">
+                      {r.ontime_pct != null
+                        ? <span className={cn('font-semibold', r.ontime_pct >= 80 ? 'text-green-700' : r.ontime_pct >= 50 ? 'text-amber-700' : 'text-red-600')}>{r.ontime_pct}%</span>
+                        : <span className="text-muted-foreground">—</span>
+                      }
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {!loading && rows.length === 0 && (
+        <div className="glass-panel rounded-xl border-dashed !border-white/20 p-12 text-center">
+          <p className="text-sm text-white/60">No stage performance data yet. Data accumulates automatically as stages are completed.</p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TAB 8 — Employee Timeline
+// ══════════════════════════════════════════════════════════════════════════════
+
+type EmployeeRow = {
+  project_id: string; project_code: string; service_type: string
+  project_status: string; target_date: string | null; completed_date: string | null
+  stage_order: number; stage_name: string; stage_code: string; stage_status: string
+  clock_type: string; started_at: string; ended_at: string | null
+  duration_days: number; is_open: boolean
+}
+
+type EmpSummary = {
+  total_projects: number; active_projects: number; completed_projects: number
+  ontime_projects: number; delayed_projects: number
+  total_stage_days: number; tps_days: number; client_days: number; fssai_days: number
+  total_tasks: number; ontime_tasks: number; late_tasks: number
+}
+
+type StaffMember = { id: string; name: string; role: string }
+
+function EmployeeTimelineTab() {
+  const [staff, setStaff] = useState<StaffMember[]>([])
+  const [selectedEmp, setSelectedEmp] = useState<string>('')
+  const [dateFrom, setDateFrom] = useState<string>('')
+  const [dateTo, setDateTo]     = useState<string>('')
+  const [rows, setRows]     = useState<EmployeeRow[]>([])
+  const [summary, setSummary] = useState<EmpSummary | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    supabase.from('profiles').select('id, name, role').eq('is_active', true).order('name')
+      .then(({ data }) => { if (data) setStaff(data as StaffMember[]) })
+  }, [])
+
+  async function loadEmployee(empId: string) {
+    setSelectedEmp(empId); setLoading(true)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rpc = supabase.rpc as any
+    const [{ data: tl }, { data: sm }] = await Promise.all([
+      rpc('rpc_employee_timeline', { p_employee_id: empId, p_from: dateFrom || null, p_to: dateTo || null }),
+      rpc('rpc_employee_summary',  { p_employee_id: empId, p_from: dateFrom || null, p_to: dateTo || null }),
+    ])
+    setRows((tl as EmployeeRow[]) ?? [])
+    setSummary((sm as EmpSummary[] | null)?.[0] ?? null)
+    setLoading(false)
+  }
+
+  // Group rows by project for display
+  const byProject = useMemo(() => {
+    const map = new Map<string, { project_code: string; service_type: string; project_status: string; target_date: string | null; completed_date: string | null; stages: Map<string, { stage_name: string; stage_status: string; tps: number; client: number; fssai: number; total: number }> }>()
+    for (const r of rows) {
+      if (!map.has(r.project_id)) map.set(r.project_id, { project_code: r.project_code, service_type: r.service_type, project_status: r.project_status, target_date: r.target_date, completed_date: r.completed_date, stages: new Map() })
+      const proj = map.get(r.project_id)!
+      const sk = r.stage_code + '_' + r.stage_order
+      if (!proj.stages.has(sk)) proj.stages.set(sk, { stage_name: r.stage_name, stage_status: r.stage_status, tps: 0, client: 0, fssai: 0, total: 0 })
+      const st = proj.stages.get(sk)!
+      st.total += r.duration_days
+      if (r.clock_type === 'employee')  st.tps    += r.duration_days
+      if (r.clock_type === 'client')    st.client  += r.duration_days
+      if (r.clock_type === 'authority') st.fssai   += r.duration_days
+    }
+    return Array.from(map.entries())
+  }, [rows])
+
+  return (
+    <div className="p-6 space-y-5 animate-fade-up">
+      {/* Filters */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <select
+          value={selectedEmp}
+          onChange={e => setSelectedEmp(e.target.value)}
+          className="px-3 py-2 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-600/20"
+        >
+          <option value="">— Select employee —</option>
+          {staff.map(s => <option key={s.id} value={s.id}>{s.name} ({s.role})</option>)}
+        </select>
+        <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+          className="px-3 py-2 text-sm border border-border rounded-lg bg-white focus:outline-none" />
+        <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+          className="px-3 py-2 text-sm border border-border rounded-lg bg-white focus:outline-none" />
+        <button
+          onClick={() => selectedEmp && loadEmployee(selectedEmp)}
+          disabled={!selectedEmp}
+          className="px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 disabled:opacity-50"
+        >
+          Load
+        </button>
+      </div>
+
+      {loading && <div className="animate-pulse h-40 glass-panel rounded-xl" />}
+
+      {!loading && summary && (
+        <>
+          {/* Summary KPI strip */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
+            <div className="glass-panel-heavy rounded-xl p-4">
+              <p className="text-2xl font-display font-bold text-white">{summary.total_projects}</p>
+              <p className="text-xs text-white/60 mt-1">Total projects</p>
+            </div>
+            <div className="glass-panel-heavy rounded-xl p-4">
+              <p className="text-2xl font-display font-bold text-success-emerald">{summary.ontime_projects}</p>
+              <p className="text-xs text-white/60 mt-1">On-time</p>
+            </div>
+            <div className="glass-panel-heavy rounded-xl p-4">
+              <p className="text-2xl font-display font-bold text-red-400">{summary.delayed_projects}</p>
+              <p className="text-xs text-white/60 mt-1">Delayed</p>
+            </div>
+            <div className="glass-panel-heavy rounded-xl p-4">
+              <p className="text-2xl font-display font-bold text-success-emerald">{fmtDays(summary.tps_days)}</p>
+              <p className="text-xs text-white/60 mt-1">TPS clock (active)</p>
+            </div>
+            <div className="glass-panel-heavy rounded-xl p-4">
+              <p className="text-2xl font-display font-bold text-warning-amber">{fmtDays(summary.client_days)}</p>
+              <p className="text-xs text-white/60 mt-1">Client clock</p>
+            </div>
+            <div className="glass-panel-heavy rounded-xl p-4">
+              <p className="text-2xl font-display font-bold text-primary-fixed-dim">{fmtDays(summary.fssai_days)}</p>
+              <p className="text-xs text-white/60 mt-1">FSSAI clock</p>
+            </div>
+          </div>
+
+          {/* Task on-time row */}
+          <div className="bg-white rounded-xl border border-border px-5 py-4 flex items-center gap-8">
+            <div>
+              <p className="text-xs text-muted-foreground">Tasks total</p>
+              <p className="text-xl font-semibold text-brand-950">{summary.total_tasks}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">On time</p>
+              <p className="text-xl font-semibold text-green-700">{summary.ontime_tasks}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Late</p>
+              <p className="text-xl font-semibold text-red-600">{summary.late_tasks}</p>
+            </div>
+            {summary.total_tasks > 0 && (
+              <div>
+                <p className="text-xs text-muted-foreground">On-time rate</p>
+                <p className={cn('text-xl font-semibold', (summary.ontime_tasks / summary.total_tasks) >= 0.8 ? 'text-green-700' : 'text-amber-700')}>
+                  {Math.round(100 * summary.ontime_tasks / summary.total_tasks)}%
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Project-wise breakdown */}
+          <div className="space-y-3">
+            {byProject.map(([pid, proj]) => {
+              const projTotal = Array.from(proj.stages.values()).reduce((a, s) => a + s.total, 0)
+              const variance = proj.completed_date && proj.target_date
+                ? Math.ceil((new Date(proj.completed_date).getTime() - new Date(proj.target_date).getTime()) / 86400000)
+                : null
+              return (
+                <div key={pid} className="bg-white rounded-xl border border-border overflow-hidden">
+                  {/* Project header */}
+                  <div className="flex items-center gap-3 px-5 py-3 border-b border-border bg-[#F8FAFC]">
+                    <span className="font-mono text-xs text-muted-foreground bg-white border border-border px-1.5 py-0.5 rounded">{proj.project_code}</span>
+                    <span className="text-[10px] border border-border px-1.5 py-0.5 rounded text-muted-foreground">{proj.service_type}</span>
+                    <span className={cn('text-[10px] px-2 py-0.5 rounded-full font-semibold capitalize',
+                      proj.project_status === 'completed' ? 'bg-teal-100 text-teal-700' :
+                      proj.project_status === 'active' ? 'bg-green-100 text-green-700' :
+                      'bg-gray-100 text-gray-500'
+                    )}>{proj.project_status.replace('_',' ')}</span>
+                    <span className="text-xs text-muted-foreground ml-auto">{fmtDays(projTotal)} total</span>
+                    {variance != null && (
+                      <span className={cn('text-xs font-semibold', variance <= 0 ? 'text-green-700' : 'text-amber-700')}>
+                        {variance <= 0 ? `${Math.abs(variance)}d early` : `${variance}d late`}
+                      </span>
+                    )}
+                  </div>
+                  {/* Stage rows */}
+                  <table className="w-full text-xs">
+                    <tbody>
+                      {Array.from(proj.stages.entries()).map(([sk, s]) => (
+                        <tr key={sk} className="border-t border-border hover:bg-[#F8FAFC]">
+                          <td className="px-4 py-2.5 text-brand-950 font-medium">{s.stage_name}</td>
+                          <td className="px-4 py-2.5 text-right text-green-700">{s.tps > 0 ? fmtDays(s.tps) : '—'}</td>
+                          <td className="px-4 py-2.5 text-right text-amber-700">{s.client > 0 ? fmtDays(s.client) : '—'}</td>
+                          <td className="px-4 py-2.5 text-right text-blue-700">{s.fssai > 0 ? fmtDays(s.fssai) : '—'}</td>
+                          <td className="px-4 py-2.5 text-right font-semibold text-brand-950">{fmtDays(s.total)}</td>
+                          <td className="px-4 py-2.5">
+                            <span className={cn('px-1.5 py-0.5 rounded text-[10px] font-semibold capitalize',
+                              s.stage_status === 'completed' ? 'bg-teal-100 text-teal-700' :
+                              s.stage_status === 'in_progress' ? 'bg-blue-100 text-blue-700' :
+                              'bg-gray-100 text-gray-400'
+                            )}>{s.stage_status.replace('_',' ')}</span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )
+            })}
+          </div>
+        </>
+      )}
+
+      {!loading && !summary && selectedEmp && (
+        <div className="glass-panel rounded-xl border-dashed !border-white/20 p-12 text-center">
+          <p className="text-sm text-white/60">No timeline data found for this employee in the selected period.</p>
         </div>
       )}
     </div>
