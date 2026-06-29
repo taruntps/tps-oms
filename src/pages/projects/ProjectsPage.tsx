@@ -266,6 +266,11 @@ export default function ProjectsPage() {
                         </span>
                       )}
                       <span className="text-sm font-medium text-brand-950 truncate">{p.clients?.company_name}</span>
+                      {(p as any).app_ref_no && (
+                        <span className="text-[10px] font-mono text-blue-700 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded shrink-0">
+                          #{(p as any).app_ref_no}
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-3 text-[11px] text-muted-foreground shrink-0">
                       {loc && <span className="hidden sm:inline">📍 {loc}</span>}

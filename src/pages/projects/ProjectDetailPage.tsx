@@ -16,6 +16,7 @@ import {
   useProject, useUpdateProject, useApproveBlockRequest,
   useUnblockProject, usePendingBlockRequests, useDeleteProject,
 } from '@/hooks/useProjects'
+import { useLicenses, useRevealCredential } from '@/hooks/useLicenses'
 import { useAuth }   from '@/contexts/AuthContext'
 import { supabase }  from '@/lib/supabase'
 import { toast }     from '@/components/shared/Toast'
@@ -90,6 +91,8 @@ export default function ProjectDetailPage() {
                              : ((currentStage as any)?.active_clock ?? project.active_clock ?? 'employee')) as ClockType
   const appRefNo         = (project as any).app_ref_no as string | null | undefined
   const executiveName    = (project as any).profiles_assigned?.name as string | undefined
+  const { data: licenses = [] } = useLicenses(clientId ?? '')
+  const fssaiLicense     = licenses.find((l: any) => l.credential_username)
   const execFirstName    = executiveName?.trim().split(/\s+/)[0]
 
   // Tab visibility by project type. Annual Return / Claim Check / Renewal don't
@@ -355,6 +358,18 @@ export default function ProjectDetailPage() {
           </div>
           )}
 
+          {/* FSSAI Portal Password — from client's license credentials */}
+          {fssaiLicense && (
+            <div className="mt-4 pt-4 border-t border-border flex items-center gap-3 flex-wrap">
+              <div className="flex items-center gap-2 shrink-0">
+                <Sym name="lock" size={12} className="text-muted-foreground" />
+                <span className="text-[11px] text-muted-foreground uppercase tracking-wide">FSSAI Password</span>
+                <span className="text-[11px] text-muted-foreground/60">({fssaiLicense.credential_username})</span>
+              </div>
+              <FssaiReveal licenseId={fssaiLicense.id} />
+            </div>
+          )}
+
           {project.notes && (
             <p className="mt-3 pt-3 border-t border-border text-xs text-muted-foreground">{project.notes}</p>
           )}
@@ -499,6 +514,52 @@ export default function ProjectDetailPage() {
 }
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
+
+function FssaiReveal({ licenseId }: { licenseId: string }) {
+  const [password,     setPassword]     = useState<string | null>(null)
+  const [showPassword, setShowPassword] = useState(false)
+  const reveal = useRevealCredential()
+
+  const handleReveal = async () => {
+    try {
+      const pwd = await reveal.mutateAsync({ licenseId, reason: 'Accessed via project detail page' })
+      setPassword(pwd)
+      setShowPassword(false)
+      setTimeout(() => { setPassword(null); setShowPassword(false) }, 30000)
+    } catch (err: any) {
+      toast.error('Cannot reveal password', err.message)
+    }
+  }
+
+  if (password) {
+    return (
+      <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1">
+          <span className="font-mono text-sm text-amber-900">
+            {showPassword ? password : '•'.repeat(password.length)}
+          </span>
+          <button onClick={() => setShowPassword(v => !v)} className="text-amber-600 hover:text-amber-800">
+            <Sym name={showPassword ? 'visibility_off' : 'visibility'} size={12} />
+          </button>
+        </div>
+        <span className="text-[10px] text-amber-600">Auto-hides in 30s</span>
+      </div>
+    )
+  }
+
+  return (
+    <button
+      onClick={handleReveal}
+      disabled={reveal.isPending}
+      className="flex items-center gap-1.5 text-xs text-brand-600 hover:text-brand-700 font-medium disabled:opacity-50"
+    >
+      {reveal.isPending
+        ? <Sym name="progress_activity" size={11} className="animate-spin" />
+        : <Sym name="visibility" size={11} />}
+      Reveal Password
+    </button>
+  )
+}
 
 function Detail({ icon, label, value }: { icon: string; label: string; value?: string | null }) {
   if (!value) return null
