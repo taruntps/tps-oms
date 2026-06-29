@@ -39,6 +39,31 @@ serve(async (req) => {
       auth: { autoRefreshToken: false, persistSession: false },
     })
 
+    // ── Authorization gate ──────────────────────────────────────────────────
+    // verify_jwt only rejects requests with NO token — the public anon key is a
+    // valid JWT, so we MUST verify the caller is a real, admin-role user here.
+    const token = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '')
+    const { data: { user: caller }, error: callerErr } = await supabase.auth.getUser(token)
+    if (callerErr || !caller) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401, headers: { ...CORS, 'Content-Type': 'application/json' },
+      })
+    }
+    const { data: callerProfile } = await supabase
+      .from('profiles').select('role').eq('id', caller.id).single()
+    const callerRole = callerProfile?.role ?? ''
+    if (!['super_admin', 'director', 'hr'].includes(callerRole)) {
+      return new Response(JSON.stringify({ error: 'Forbidden — only an admin can create users' }), {
+        status: 403, headers: { ...CORS, 'Content-Type': 'application/json' },
+      })
+    }
+    // Privilege-escalation guard: only a super_admin may mint another super_admin.
+    if (role === 'super_admin' && callerRole !== 'super_admin') {
+      return new Response(JSON.stringify({ error: 'Only a super_admin can assign the super_admin role' }), {
+        status: 403, headers: { ...CORS, 'Content-Type': 'application/json' },
+      })
+    }
+
     let userId: string
 
     if (createMode) {
