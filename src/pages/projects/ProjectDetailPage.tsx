@@ -341,7 +341,12 @@ export default function ProjectDetailPage() {
               <Sym name="tag" size={12} className="text-muted-foreground" />
               <span className="text-[11px] text-muted-foreground uppercase tracking-wide">App Ref No.</span>
               {appRefNo ? (
-                <span className="font-mono text-sm text-brand-950 font-medium">{appRefNo}</span>
+                <span
+                  onClick={() => { navigator.clipboard.writeText(appRefNo); toast.success('Copied!', appRefNo) }}
+                  onDoubleClick={() => window.open('https://foscos.fssai.gov.in/view-application', '_blank')}
+                  className="font-mono text-sm text-brand-950 font-medium cursor-pointer hover:text-brand-600 select-none"
+                  title="Click to copy · Double-click to open FSSAI"
+                >{appRefNo}</span>
               ) : (
                 <span className="text-xs text-muted-foreground/60 italic">Not set</span>
               )}

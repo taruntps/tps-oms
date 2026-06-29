@@ -274,8 +274,12 @@ export default function ProjectsPage() {
                             navigator.clipboard.writeText((p as any).app_ref_no)
                             toast.success('Copied!', (p as any).app_ref_no)
                           }}
-                          className="text-[10px] font-mono text-blue-700 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded shrink-0 cursor-pointer hover:bg-blue-100"
-                          title="Click to copy App Ref No."
+                          onDoubleClick={e => {
+                            e.stopPropagation()
+                            window.open('https://foscos.fssai.gov.in/view-application', '_blank')
+                          }}
+                          className="text-[10px] font-mono text-blue-700 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded shrink-0 cursor-pointer hover:bg-blue-100 select-none"
+                          title="Click to copy · Double-click to open FSSAI"
                         >
                           #{(p as any).app_ref_no}
                         </span>
