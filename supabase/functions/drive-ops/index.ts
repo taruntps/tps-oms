@@ -14,10 +14,20 @@ function toBase64(buffer: ArrayBuffer): string {
 
 const SUPABASE_URL  = Deno.env.get('SUPABASE_URL')!
 const SERVICE_KEY   = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+// Impersonation email for Google Drive domain-wide delegation.
+// Stored as an env var so it doesn't break if the admin email ever changes.
+const DRIVE_SUB_EMAIL = Deno.env.get('DRIVE_SUB_EMAIL') ?? 'tarun@tpsxpert.com'
 
 const CORS = {
-  'Access-Control-Allow-Origin':  '*',
+  'Access-Control-Allow-Origin':  'https://portal.tpsxpert.com',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
+function unauthorized(msg = 'Unauthorized') {
+  return new Response(JSON.stringify({ error: msg }), {
+    status: 401,
+    headers: { ...CORS, 'Content-Type': 'application/json' },
+  })
 }
 
 // ── Deno-native RSA-SHA256 JWT signing ────────────────────────────────────────
@@ -51,7 +61,7 @@ async function makeJWT(sa: { client_email: string; private_key: string; token_ur
   const header  = b64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }))
   const payload = b64url(JSON.stringify({
     iss: sa.client_email,
-    sub: 'tarun@tpsxpert.com',
+    sub: DRIVE_SUB_EMAIL,
     scope: 'https://www.googleapis.com/auth/drive',
     aud: sa.token_uri,
     iat: now,
@@ -103,8 +113,43 @@ async function driveGet(path: string, token: string) {
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
 
+  // ── Caller authentication ─────────────────────────────────────────────────
+  // Verify the request carries a valid Supabase user JWT.
+  // Without this check, anyone with the anon key could read/write/trash the
+  // entire company Google Drive. This was the #1 critical security finding.
+  const authHeader = req.headers.get('Authorization') ?? ''
+  const callerToken = authHeader.replace(/^Bearer\s+/i, '').trim()
+  if (!callerToken) return unauthorized('Missing Authorization header')
+
+  const callerSupa = createClient(SUPABASE_URL, SERVICE_KEY, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  })
+  const { data: { user: caller }, error: callerErr } = await callerSupa.auth.getUser(callerToken)
+  if (callerErr || !caller) return unauthorized('Invalid or expired token')
+
+  // Fetch the caller's profile to check their role.
+  // Auditors have read-only access (list/download). Write ops require staff role.
+  const { data: callerProfile } = await callerSupa
+    .from('profiles')
+    .select('role, is_active')
+    .eq('id', caller.id)
+    .single()
+
+  if (!callerProfile?.is_active) return unauthorized('Account is inactive')
+
+  const callerRole = callerProfile?.role ?? ''
+  const isReadOnly = callerRole === 'auditor'
+
   try {
     const { action, ...params } = await req.json()
+
+    // Auditors cannot mutate Drive (create/upload/trash)
+    const mutatingActions = ['create-folder', 'create-gdoc', 'create-gsheet', 'upload', 'trash']
+    if (isReadOnly && mutatingActions.includes(action)) {
+      return new Response(JSON.stringify({ error: 'Insufficient permissions' }), {
+        status: 403, headers: { ...CORS, 'Content-Type': 'application/json' },
+      })
+    }
 
     // Read SA credentials from Vault via service role
     const supa = createClient(SUPABASE_URL, SERVICE_KEY, {

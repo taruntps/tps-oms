@@ -6,34 +6,39 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 // ── Currency ────────────────────────────────────────────────────────────────
+// Singleton formatters — Intl constructors are expensive; reuse across calls.
+const _rupeeFmt = new Intl.NumberFormat('en-IN', {
+  style: 'currency',
+  currency: 'INR',
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 2,
+})
 export function formatRupees(paise: number): string {
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-  }).format(paise / 100)
+  return _rupeeFmt.format(paise / 100)
 }
 
 // ── Dates ────────────────────────────────────────────────────────────────────
+const _dateFmt = new Intl.DateTimeFormat('en-IN', {
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+})
+const _dateTimeFmt = new Intl.DateTimeFormat('en-IN', {
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+})
+
 export function formatDate(date: Date | string | null | undefined): string {
   if (!date) return '—'
-  return new Intl.DateTimeFormat('en-IN', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  }).format(new Date(date))
+  return _dateFmt.format(new Date(date))
 }
 
 export function formatDateTime(date: Date | string | null | undefined): string {
   if (!date) return '—'
-  return new Intl.DateTimeFormat('en-IN', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(date))
+  return _dateTimeFmt.format(new Date(date))
 }
 
 // ── Time elapsed ─────────────────────────────────────────────────────────────

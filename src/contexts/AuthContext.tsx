@@ -44,9 +44,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(session)
       setUser(session?.user ?? null)
       if (session?.user) {
-        loadProfile(session.user.id)
+        // Keep loading=true while profile re-fetches on token refresh / tab re-focus.
+        // Without this, a mid-session token refresh blanks profile momentarily → empty sidebar.
+        setLoading(true)
+        loadProfile(session.user.id).finally(() => setLoading(false))
       } else {
         setProfile(null)
+        setLoading(false)
       }
     })
 

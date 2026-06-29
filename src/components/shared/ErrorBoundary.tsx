@@ -24,11 +24,19 @@ export class ErrorBoundary extends Component<Props, State> {
               <p className="text-sm text-gray-500">Please refresh the page or contact support.</p>
             </div>
           </div>
-          <pre className="bg-red-50 border border-red-200 rounded-lg p-4 text-xs text-red-800 overflow-auto max-h-60 whitespace-pre-wrap">
-            {error.message}
-            {'\n\n'}
-            {error.stack}
-          </pre>
+          {/* Only show stack trace in development — never expose internals in production */}
+          {import.meta.env.DEV && (
+            <pre className="bg-red-50 border border-red-200 rounded-lg p-4 text-xs text-red-800 overflow-auto max-h-60 whitespace-pre-wrap">
+              {error.message}
+              {'\n\n'}
+              {error.stack}
+            </pre>
+          )}
+          {import.meta.env.PROD && (
+            <p className="text-sm text-gray-600 bg-gray-50 rounded-lg p-4">
+              An unexpected error occurred. Please reload the page. If the problem persists, contact support.
+            </p>
+          )}
           <button
             onClick={() => window.location.reload()}
             className="mt-5 w-full py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors"

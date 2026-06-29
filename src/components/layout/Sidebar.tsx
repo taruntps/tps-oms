@@ -50,19 +50,31 @@ export function Sidebar() {
 
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-        {NAV.filter(item => role && item.roles.includes(role)).map(item => (
+        {/* While profile is still loading, show placeholder bars so the nav column
+            never appears empty — prevents a CLS flash as items appear. */}
+        {!role && [1,2,3,4,5,6].map(i => (
+          <div key={i} className="h-9 rounded-xl bg-white/8 animate-pulse mx-0.5" />
+        ))}
+        {role && NAV.filter(item => item.roles.includes(role)).map(item => (
           <NavLink
             key={item.href}
             to={item.href}
             className={({ isActive }) => cn(
-              'flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all group',
+              // Use relative + shadow-inset-r instead of border-r-4 so the active
+              // indicator does NOT consume content width (which caused "Knowledge Base"
+              // to wrap onto a second line and every nav item to shift 4px on activation).
+              'relative flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all group',
               isActive
-                ? 'bg-white/20 text-white font-medium border-r-4 border-white'
+                ? 'bg-white/20 text-white font-medium'
                 : 'text-white/70 hover:bg-white/10 hover:text-white'
             )}
           >
             {({ isActive }) => (
               <>
+                {/* Active indicator bar — absolutely positioned so it never shifts content width */}
+                {isActive && (
+                  <span className="absolute right-0 top-1.5 bottom-1.5 w-1 rounded-l-full bg-white" />
+                )}
                 <Sym name={item.icon} size={18} fill={isActive} className="shrink-0" />
                 <span className="flex-1">{item.label}</span>
                 {item.href === '/notifications' && unreadCount > 0 && (
