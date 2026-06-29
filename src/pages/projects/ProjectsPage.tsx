@@ -267,15 +267,6 @@ export default function ProjectsPage() {
                         </span>
                       )}
                       <span className="text-sm font-medium text-brand-950 truncate">{p.clients?.company_name}</span>
-                      {(p as any).clients?.client_code && (
-                        <span
-                          onClick={e => { e.stopPropagation(); navigate(`/clients/${p.client_id}`) }}
-                          className="text-[10px] font-mono text-brand-600 bg-brand-50 border border-brand-200 px-1.5 py-0.5 rounded shrink-0 cursor-pointer hover:bg-brand-100"
-                          title="Open client"
-                        >
-                          #{(p as any).clients.client_code}
-                        </span>
-                      )}
                       {(p as any).app_ref_no && (
                         <span
                           onClick={e => {

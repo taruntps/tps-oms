@@ -291,6 +291,15 @@ export default function ProjectDetailPage() {
                 {project.service_type && (
                   <span className={cn('text-[10px] border px-2 py-0.5 rounded font-medium', projectTypeBadge(project.service_type))}>{project.service_type}</span>
                 )}
+                {(project as any).clients?.client_code && (
+                  <button
+                    onClick={() => navigate(`/clients/${project.client_id}`)}
+                    className="text-[10px] font-mono text-brand-600 bg-brand-50 border border-brand-200 px-2 py-0.5 rounded hover:bg-brand-100 transition-colors"
+                    title="Open client master"
+                  >
+                    #{(project as any).clients.client_code}
+                  </button>
+                )}
                 {(project as any).awaiting_client_flag && (
                   <span className="text-[10px] bg-amber-100 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full font-medium">
                     🟡 Awaiting Client
