@@ -18,7 +18,7 @@ const NAV: NavItem[] = [
   { href: '/tasks',              label: 'Tasks',          icon: 'task_alt',                roles: ['super_admin','director','manager','executive','accounts','hr','auditor'] },
   { href: '/notifications',      label: 'Notifications',  icon: 'notifications',           roles: ['super_admin','director','manager','executive','accounts','hr','auditor'] },
   { href: '/director',           label: 'Director View',  icon: 'trending_up',             roles: ['super_admin','director'] },
-  { href: '/operations',         label: 'Operations',     icon: 'shield',                  roles: ['super_admin','director','manager'] },
+  { href: '/operations',         label: 'Operations',     icon: 'shield',                  roles: ['super_admin','director','manager','executive','accounts','hr','auditor'] },
   { href: '/clients',            label: 'Clients',        icon: 'apartment',               roles: ['super_admin','director','manager','executive','accounts','auditor'] },
   { href: '/referrals',          label: 'Referrals',      icon: 'handshake',               roles: ['super_admin','director','manager'] },
   { href: '/projects',           label: 'Projects',       icon: 'assignment',              roles: ['super_admin','director','manager','executive'] },

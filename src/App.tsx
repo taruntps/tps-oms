@@ -65,14 +65,8 @@ export default function App() {
                   </ProtectedRoute>
                 }
               />
-              <Route
-                path="operations"
-                element={
-                  <ProtectedRoute allowedRoles={['super_admin','director','manager']}>
-                    <OperationsPage />
-                  </ProtectedRoute>
-                }
-              />
+              {/* Operations overview — open to all staff (read-only board) */}
+              <Route path="operations" element={<OperationsPage />} />
 
               {/* General authenticated routes */}
               <Route path="attendance" element={<AttendancePage />} />
