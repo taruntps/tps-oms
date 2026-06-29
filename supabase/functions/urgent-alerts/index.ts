@@ -104,6 +104,30 @@ serve(async (req) => {
     sent.push({ kind: 'ext_dec', req: r.id, uid, ok })
   }
 
+  // ── New projects created (last 2h) → email assigned executive + manager ──
+  const { data: newProjects } = await supabase.from('projects')
+    .select('id, project_code, project_name, service_type, target_date, assigned_to, manager_id, client:clients(company_name)')
+    .gte('created_at', since)
+  for (const p of newProjects ?? []) {
+    const recips = Array.from(new Set([p.assigned_to, p.manager_id].filter(Boolean))) as string[]
+    for (const uid of recips) {
+      const email = emailMap[uid]; if (!email) continue
+      if (await sentEver(supabase, 'project_new', p.id, uid)) continue
+      const role = uid === p.assigned_to ? 'assigned to you' : 'assigned under your management'
+      const html = box(
+        nameById[uid] ?? '',
+        '📁 New project ' + role,
+        `<b>${esc(p.project_code)}</b> — ${esc(p.service_type ?? '')}<br>` +
+        `Client: ${esc((p as any).client?.company_name ?? '—')}<br>` +
+        (p.target_date ? `Target date: ${p.target_date}<br>` : '') +
+        `Assigned executive: ${esc(nameById[p.assigned_to] ?? '—')}`
+      )
+      const ok = await sendMail(email, nameById[uid] ?? '', `[TPS Xperts Group] New project: ${p.project_code}`, html)
+      await logSent(supabase, 'project_new', p.id, uid)
+      sent.push({ kind: 'project_new', project: p.id, uid, ok })
+    }
+  }
+
   return j({ ok: true, sent: sent.length, results: sent })
 })
 
