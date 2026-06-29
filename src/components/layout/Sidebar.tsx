@@ -35,7 +35,7 @@ export function Sidebar() {
   const { unreadCount } = useNotifications()
 
   return (
-    <aside className="w-60 min-h-screen glass-panel border-r-0 flex flex-col shrink-0">
+    <aside className="w-60 h-screen glass-panel border-r-0 flex flex-col shrink-0">
       {/* Logo */}
       <div className="px-4 py-5 border-b border-white/10">
         <div className="flex items-center gap-3">

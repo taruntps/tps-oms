@@ -9,7 +9,7 @@ export function AppShell() {
   useIdleLogout() // sign out after 30 min of inactivity
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex h-screen overflow-hidden">
       {/* Desktop sidebar */}
       <div className="hidden md:block">
         <Sidebar />
@@ -35,7 +35,7 @@ export function AppShell() {
       )}
 
       {/* Main content (transparent so the mesh-gradient body shows through) */}
-      <main className="flex-1 min-w-0 overflow-auto">
+      <main className="flex-1 min-w-0 overflow-y-auto">
         {/* Mobile top strip with hamburger */}
         <div className="md:hidden flex items-center gap-3 px-4 py-3 glass-panel sticky top-0 z-30">
           <button
