@@ -1033,8 +1033,9 @@ function GovtFeesTab() {
     })
   }, [rows, paidByFilter, fromDate, toDate, company])
 
-  const totalByClient = filtered.filter(r => r.payment_mode === 'Client-paid').reduce((s, r) => s + r.amount / 100, 0)
-  const totalByTPS    = filtered.filter(r => r.payment_mode === 'TPS-paid').reduce((s, r) => s + r.amount / 100, 0)
+  // amount is stored in paise; keep paise here and let formatRupees() do the /100.
+  const totalByClient = filtered.filter(r => r.payment_mode === 'Client-paid').reduce((s, r) => s + r.amount, 0)
+  const totalByTPS    = filtered.filter(r => r.payment_mode === 'TPS-paid').reduce((s, r) => s + r.amount, 0)
 
   return (
     <div className="p-6 space-y-5 animate-fade-up">
@@ -1136,7 +1137,7 @@ function GovtFeesTab() {
                       <td className="px-5 py-3 font-medium text-brand-950">{r.clients?.company_name ?? '—'}</td>
                       <td className="px-5 py-3 font-mono text-muted-foreground text-[11px]">{r.projects?.project_code ?? '—'}</td>
                       <td className="px-5 py-3 text-muted-foreground">{r.payment_date}</td>
-                      <td className="px-5 py-3 font-mono font-semibold text-brand-950">{formatRupees(r.amount / 100)}</td>
+                      <td className="px-5 py-3 font-mono font-semibold text-brand-950">{formatRupees(r.amount)}</td>
                       <td className="px-5 py-3">
                         <span className={cn(
                           'px-2 py-0.5 rounded-full text-[10px] font-semibold',
