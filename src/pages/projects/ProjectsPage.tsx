@@ -259,11 +259,11 @@ export default function ProjectsPage() {
                       )}
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
-                      {chips.map((chip, i) => (
+                      {p.status === 'active' && chips.map((chip, i) => (
                         <ClockBadge key={chip.clock + i} clock={chip.clock} since={chip.since}
                           isBlocked={(p.is_blocked ?? false) && i === 0} personName={(p as any).profiles_assigned?.name} />
                       ))}
-                      {withSomeoneElse && execFirst && (
+                      {p.status === 'active' && withSomeoneElse && execFirst && (
                         <span className="text-[11px] text-muted-foreground hidden sm:inline">· {execFirst}</span>
                       )}
                     </div>
