@@ -15,7 +15,9 @@ export function useMyProjects() {
         .select(`
           id, project_code, project_name, service_type, status,
           active_clock, clock_switched_at, is_blocked, target_date,
-          clients(company_name)
+          clients(company_name),
+          profiles_assigned:profiles!projects_assigned_to_fkey(name),
+          stages(active_clock, status, started_at)
         `)
         .order('target_date', { ascending: true, nullsFirst: false })
 

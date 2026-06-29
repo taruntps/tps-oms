@@ -23,7 +23,8 @@ export function useProjects() {
           *,
           clients(company_name, contact_phone, city, state, client_code),
           profiles_assigned:profiles!projects_assigned_to_fkey(name),
-          profiles_manager:profiles!projects_manager_id_fkey(name)
+          profiles_manager:profiles!projects_manager_id_fkey(name),
+          stages(active_clock, status, started_at)
         `)
         .order('created_at', { ascending: false })
       if (error) throw error

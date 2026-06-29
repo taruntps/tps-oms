@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { TopBar } from '@/components/layout/TopBar'
 import { ClockBadge } from '@/components/shared/ClockBadge'
+import { computeStageClocks } from '@/lib/projectClock'
 import { Sym } from '@/components/shared/Sym'
 import {
   useMyProjects, useRecentNotifications, useDirectorStats,
@@ -165,14 +166,15 @@ export default function DashboardPage() {
                             <p className="text-xs text-white/60 mt-0.5">{(p as any).clients?.company_name}</p>
                           </div>
                           <div className="flex flex-col items-end gap-1.5 shrink-0">
-                            {p.active_clock && p.clock_switched_at && (
+                            {computeStageClocks(p as any).map((chip, i) => (
                               <ClockBadge
-                                clock={p.active_clock}
-                                since={p.clock_switched_at}
-                                isBlocked={p.is_blocked ?? false}
-                                personName=""
+                                key={chip.clock + i}
+                                clock={chip.clock}
+                                since={chip.since}
+                                isBlocked={(p.is_blocked ?? false) && i === 0}
+                                personName={(p as any).profiles_assigned?.name ?? ''}
                               />
-                            )}
+                            ))}
                             {p.target_date && (
                               <span className={cn(
                                 'text-[11px] font-medium',

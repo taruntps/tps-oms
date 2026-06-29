@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Sym } from '@/components/shared/Sym'
 import { TopBar } from '@/components/layout/TopBar'
 import { ClockBadge } from '@/components/shared/ClockBadge'
+import { computeStageClocks, isAuthorityOnly } from '@/lib/projectClock'
 import { ProjectForm } from './ProjectForm'
 import { useProjects } from '@/hooks/useProjects'
 import { useAuth } from '@/contexts/AuthContext'
@@ -10,10 +11,14 @@ import { formatDate, cn } from '@/lib/utils'
 import type { Database } from '@/types/database'
 
 type ProjectStatus = Database['public']['Enums']['project_status']
+type FilterValue = 'all' | 'pending' | 'authority' | 'on_hold' | 'completed' | 'cancelled'
 
-const STATUS_FILTERS: { label: string; value: ProjectStatus | 'all' }[] = [
+const STATUS_FILTERS: { label: string; value: FilterValue }[] = [
   { label: 'All',        value: 'all' },
-  { label: 'Active',     value: 'active' },
+  // "Pending" = active & actionable by us/client (NOT solely waiting on FSSAI).
+  { label: 'Pending',    value: 'pending' },
+  // "Authority" = active & currently waiting only on FSSAI.
+  { label: 'Authority',  value: 'authority' },
   { label: 'On Hold',    value: 'on_hold' },
   { label: 'Completed',  value: 'completed' },
   { label: 'Cancelled',  value: 'cancelled' },
@@ -46,7 +51,7 @@ export default function ProjectsPage() {
   const { profile } = useAuth()
   const { data: projects = [], isLoading } = useProjects()
   const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState<ProjectStatus | 'all'>('all')
+  const [statusFilter, setStatusFilter] = useState<FilterValue>('all')
   const [scope, setScope] = useState<'mine' | 'all'>('mine')
   const [showForm, setShowForm] = useState(false)
 
@@ -74,7 +79,11 @@ export default function ProjectsPage() {
 
   const todayMs = Date.now()
   const filtered = scoped.filter(p => {
-    const matchStatus = statusFilter === 'all' || p.status === statusFilter
+    const matchStatus =
+      statusFilter === 'all'       ? true :
+      statusFilter === 'pending'   ? (p.status === 'active' && !isAuthorityOnly(p as any)) :
+      statusFilter === 'authority' ? (p.status === 'active' &&  isAuthorityOnly(p as any)) :
+      p.status === statusFilter
     const q = search.toLowerCase()
     const matchSearch = !q ||
       p.project_code?.toLowerCase().includes(q) ||
@@ -234,14 +243,15 @@ export default function ProjectsPage() {
                   </div>
 
                   <div className="flex flex-col items-end gap-2 shrink-0">
-                    {p.active_clock && p.clock_switched_at && (
+                    {computeStageClocks(p as any).map((chip, i) => (
                       <ClockBadge
-                        clock={p.active_clock}
-                        since={p.clock_switched_at}
-                        isBlocked={p.is_blocked ?? false}
+                        key={chip.clock + i}
+                        clock={chip.clock}
+                        since={chip.since}
+                        isBlocked={(p.is_blocked ?? false) && i === 0}
                         personName={(p as any).profiles_assigned?.name}
                       />
-                    )}
+                    ))}
                   </div>
                 </div>
               </div>
