@@ -56,6 +56,8 @@ export default function ProjectDetailPage() {
   const unblock        = useUnblockProject()
   const deleteProject  = useDeleteProject()
   const { data: pendingRequests = [] } = usePendingBlockRequests()
+  // Must be called before any early return to satisfy React Rules of Hooks
+  const { data: licenses = [] } = useLicenses(project?.client_id ?? '')
 
   const [showBlockForm,   setShowBlockForm]   = useState(false)
   const [showEditProject, setShowEditProject] = useState(false)
@@ -91,7 +93,6 @@ export default function ProjectDetailPage() {
                              : ((currentStage as any)?.active_clock ?? project.active_clock ?? 'employee')) as ClockType
   const appRefNo         = (project as any).app_ref_no as string | null | undefined
   const executiveName    = (project as any).profiles_assigned?.name as string | undefined
-  const { data: licenses = [] } = useLicenses(clientId ?? '')
   const fssaiLicense     = licenses.find((l: any) => l.credential_username)
   const execFirstName    = executiveName?.trim().split(/\s+/)[0]
 
