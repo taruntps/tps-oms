@@ -62,57 +62,34 @@ export default function ClientsPage() {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5">
             {filtered.map(client => (
               <div
                 key={client.id}
                 onClick={() => navigate(`/clients/${client.id}`)}
-                className="bg-white rounded-xl border border-border p-4 cursor-pointer hover:border-brand-600/30 hover:shadow-md transition-all group flex flex-col gap-3"
+                className="bg-white rounded-xl border border-border p-3 cursor-pointer hover:border-brand-600/30 hover:shadow-md transition-all group flex items-center gap-3"
               >
-                {/* Header: avatar + name */}
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-brand-600/10 flex items-center justify-center shrink-0">
-                    <span className="text-brand-600 font-display font-bold text-sm">
-                      {client.company_name.slice(0, 2).toUpperCase()}
-                    </span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-brand-950 text-sm leading-tight truncate">{client.company_name}</p>
-                    {client.trade_name && (
-                      <p className="text-[11px] text-muted-foreground truncate">{client.trade_name}</p>
-                    )}
+                <div className="w-9 h-9 rounded-lg bg-brand-600/10 flex items-center justify-center shrink-0">
+                  <span className="text-brand-600 font-display font-bold text-xs">
+                    {client.company_name.slice(0, 2).toUpperCase()}
+                  </span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-brand-950 text-[13px] leading-tight truncate">
+                    {client.company_name}
                     {!client.is_active && (
-                      <span className="inline-block text-[10px] text-red-600 bg-red-50 border border-red-100 px-1.5 py-0.5 rounded mt-0.5">Inactive</span>
+                      <span className="ml-1 align-middle text-[9px] text-red-600 bg-red-50 border border-red-100 px-1 py-0.5 rounded">Inactive</span>
                     )}
-                  </div>
+                  </p>
+                  <p className="text-[11px] text-muted-foreground truncate">
+                    {toTitleCase(client.contact_person)}{client.contact_phone ? ` · ${client.contact_phone}` : ''}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground/70 truncate flex items-center gap-1">
+                    <Sym name="location_on" size={10} className="shrink-0" />
+                    {[client.city, client.state].filter(Boolean).join(', ') || '—'}
+                  </p>
                 </div>
-
-                {/* Contact person */}
-                <div className="text-xs text-muted-foreground truncate">
-                  <Sym name="person" size={11} className="inline mr-1 -mt-px" />
-                  {toTitleCase(client.contact_person)}
-                </div>
-
-                {/* Phone + Email */}
-                <div className="space-y-1">
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <Sym name="call" size={11} className="shrink-0" />
-                    <span className="truncate">{client.contact_phone}</span>
-                  </div>
-                  {client.contact_email && (
-                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <Sym name="mail" size={11} className="shrink-0" />
-                      <span className="truncate">{client.contact_email}</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* City/footer */}
-                <div className="text-[11px] text-muted-foreground/70 flex items-center gap-1 border-t border-border pt-2 mt-auto">
-                  <Sym name="location_on" size={11} />
-                  <span className="truncate">{[client.city, client.state].filter(Boolean).join(', ') || '—'}</span>
-                  <Sym name="chevron_right" size={13} className="ml-auto text-muted-foreground/40 group-hover:text-brand-600 transition-colors shrink-0" />
-                </div>
+                <Sym name="chevron_right" size={14} className="text-muted-foreground/40 group-hover:text-brand-600 transition-colors shrink-0" />
               </div>
             ))}
           </div>

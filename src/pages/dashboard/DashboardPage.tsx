@@ -12,7 +12,7 @@ import {
 import { useAuth } from '@/contexts/AuthContext'
 import { IncomingTransfers } from '@/pages/projects/ProjectTransfer'
 import { formatDate, formatRupees, daysUntil, cn } from '@/lib/utils'
-import { useTheme, THEMES } from '@/hooks/useTheme'
+import { useTheme } from '@/hooks/useTheme'
 import { TaskModal } from '@/pages/tasks/TaskModal'
 import { useClients } from '@/hooks/useClients'
 import { useProjects } from '@/hooks/useProjects'
@@ -22,7 +22,7 @@ export default function DashboardPage() {
   const { profile } = useAuth()
   const navigate = useNavigate()
   const isAdmin = ['super_admin', 'director'].includes(profile?.role ?? '')
-  const { current: currentTheme, setTheme } = useTheme()
+  useTheme()  // applies the saved/default dashboard theme (switcher removed)
   const [creatingTask, setCreatingTask] = useState(false)
 
   const { data: myProjects = [], isLoading: loadingProjects } = useMyProjects()
@@ -49,17 +49,6 @@ export default function DashboardPage() {
   const dueThisWeek  = activeProjects.filter(p => { const d = daysUntil(p.target_date); return d !== null && d >= 0 && d <= 7 })
   const blocked      = myProjects.filter(p => p.is_blocked)
 
-  // Pie chart data
-  const completed = myProjects.filter(p => p.status === 'completed').length
-  const onHold    = myProjects.filter(p => p.status === 'on_hold').length
-  const pieData = [
-    { label: 'Active',    value: activeProjects.length - overdue.length - blocked.length, color: '#3B82F6' },
-    { label: 'Overdue',   value: overdue.length,   color: '#EF4444' },
-    { label: 'Blocked',   value: blocked.length,   color: '#F59E0B' },
-    { label: 'Completed', value: completed,         color: '#10B981' },
-    { label: 'On Hold',   value: onHold,            color: '#8B5CF6' },
-  ].filter(d => d.value > 0)
-
   // Dashboard shows only today's or unread notifications
   const todayStr  = new Date().toISOString().split('T')[0]
   const dashNotifs = notifications.filter(n => !n.is_read || n.created_at.startsWith(todayStr)).slice(0, 5)
@@ -71,23 +60,8 @@ export default function DashboardPage() {
       <div className="p-6 space-y-5 animate-fade-up">
         <IncomingTransfers />
 
-        {/* Theme switcher + New Task */}
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div className="flex items-center gap-1.5 glass-panel rounded-xl px-3 py-2">
-            <Sym name="palette" size={13} className="text-white/60 mr-1" />
-            {THEMES.map(t => (
-              <button
-                key={t.value}
-                title={t.label}
-                onClick={() => setTheme(t.value)}
-                className={cn(
-                  'w-5 h-5 rounded-full border-2 transition-transform hover:scale-110',
-                  currentTheme === t.value ? 'border-white scale-110' : 'border-white/30'
-                )}
-                style={{ background: `linear-gradient(135deg, ${t.from}, ${t.to})` }}
-              />
-            ))}
-          </div>
+        {/* New Task */}
+        <div className="flex items-center justify-end">
           <button
             onClick={() => setCreatingTask(true)}
             className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 border border-white/20 text-white text-sm font-medium rounded-xl transition-all"
@@ -192,10 +166,6 @@ export default function DashboardPage() {
               )}
             </div>
 
-            {/* Pie chart */}
-            {!loadingProjects && pieData.length > 0 && (
-              <PieChartWidget data={pieData} total={myProjects.length} navigate={navigate} />
-            )}
           </div>
 
           {/* Right: Notifications + Punches + Pending Payments */}
@@ -330,79 +300,6 @@ export default function DashboardPage() {
   )
 }
 
-// ── Pie chart ─────────────────────────────────────────────────────────────────
-
-function PieChartWidget({ data, total, navigate }: {
-  data: { label: string; value: number; color: string }[]
-  total: number
-  navigate: ReturnType<typeof useNavigate>
-}) {
-  const [hovered, setHovered] = useState<string | null>(null)
-  const r = 60, cx = 80, cy = 80
-  let cumulative = 0
-  const sum = data.reduce((s, d) => s + d.value, 0) || 1
-
-  const slices = data.map(d => {
-    const startAngle = (cumulative / sum) * 2 * Math.PI - Math.PI / 2
-    cumulative += d.value
-    const endAngle = (cumulative / sum) * 2 * Math.PI - Math.PI / 2
-    const x1 = cx + r * Math.cos(startAngle), y1 = cy + r * Math.sin(startAngle)
-    const x2 = cx + r * Math.cos(endAngle),   y2 = cy + r * Math.sin(endAngle)
-    const largeArc = endAngle - startAngle > Math.PI ? 1 : 0
-    return {
-      ...d,
-      path: `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2} Z`,
-      pct: Math.round((d.value / sum) * 100),
-    }
-  })
-
-  return (
-    <div className="glass-panel rounded-2xl p-5">
-      <h2 className="font-display font-semibold text-white text-sm mb-4">Project Overview</h2>
-      <div className="flex items-center gap-6">
-        <div className="relative shrink-0">
-          <svg width={160} height={160}>
-            {slices.map(s => (
-              <path
-                key={s.label}
-                d={s.path}
-                fill={s.color}
-                opacity={hovered && hovered !== s.label ? 0.35 : 1}
-                className="cursor-pointer transition-opacity duration-150"
-                onMouseEnter={() => setHovered(s.label)}
-                onMouseLeave={() => setHovered(null)}
-                onClick={() => navigate('/projects')}
-              />
-            ))}
-            <circle cx={cx} cy={cy} r={30} fill="rgba(0,0,0,0.25)" />
-            <text x={cx} y={cy - 4} textAnchor="middle" fontSize={14} fontWeight="bold" fill="white">{total}</text>
-            <text x={cx} y={cy + 12} textAnchor="middle" fontSize={8} fill="rgba(255,255,255,0.6)">total</text>
-          </svg>
-        </div>
-        <div className="space-y-2 flex-1">
-          {slices.map(s => (
-            <button
-              key={s.label}
-              onClick={() => navigate('/projects')}
-              onMouseEnter={() => setHovered(s.label)}
-              onMouseLeave={() => setHovered(null)}
-              className={cn(
-                'w-full flex items-center gap-2.5 text-left transition-opacity duration-150',
-                hovered && hovered !== s.label ? 'opacity-35' : 'opacity-100'
-              )}
-            >
-              <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: s.color }} />
-              <span className="text-xs text-white/80 flex-1">{s.label}</span>
-              <span className="text-xs font-bold text-white font-mono">{s.value}</span>
-              <span className="text-[10px] text-white/50 w-8 text-right">{s.pct}%</span>
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-}
-
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
 function Chip({ icon, label, value, color, onClick }: {
@@ -414,11 +311,13 @@ function Chip({ icon, label, value, color, onClick }: {
   return (
     <button
       onClick={onClick}
-      className="glass-panel-heavy rounded-2xl p-4 text-left hover:bg-white/[0.22] transition-all w-full"
+      className="glass-panel-heavy rounded-xl px-3 py-2.5 text-left hover:bg-white/[0.22] transition-all w-full flex items-center gap-3"
     >
-      <Sym name={icon} size={22} fill className={cn('mb-2', iconColor)} />
-      <p className="text-2xl font-display font-bold text-white">{value}</p>
-      <p className="text-[11px] font-medium mt-0.5 text-white/60">{label}</p>
+      <Sym name={icon} size={18} fill className={cn('shrink-0', iconColor)} />
+      <div className="min-w-0">
+        <p className="text-xl font-display font-bold text-white leading-none">{value}</p>
+        <p className="text-[10px] font-medium mt-1 text-white/55 truncate">{label}</p>
+      </div>
     </button>
   )
 }

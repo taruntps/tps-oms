@@ -12,18 +12,17 @@ import { formatDate, cn } from '@/lib/utils'
 import type { Database } from '@/types/database'
 
 type ProjectStatus = Database['public']['Enums']['project_status']
-type FilterValue = 'all' | 'pending' | 'with_me' | 'with_client' | 'authority' | 'on_hold' | 'completed' | 'cancelled'
+type FilterValue = 'all' | 'pending' | 'with_client' | 'authority' | 'on_hold' | 'completed' | 'cancelled'
 
 const STATUS_FILTERS: { label: string; value: FilterValue }[] = [
-  { label: 'All',         value: 'all' },
+  { label: 'All',       value: 'all' },
   // "Pending" = active & actionable (NOT solely waiting on FSSAI). Default view.
-  { label: 'Pending',     value: 'pending' },
-  { label: 'With Me',     value: 'with_me' },     // active & clock with us
-  { label: 'With Client', value: 'with_client' }, // active & clock with client
-  { label: 'At FSSAI',    value: 'authority' },   // active & waiting on authority
-  { label: 'On Hold',     value: 'on_hold' },
-  { label: 'Completed',   value: 'completed' },
-  { label: 'Cancelled',   value: 'cancelled' },
+  { label: 'Pending',   value: 'pending' },
+  { label: 'Client',    value: 'with_client' }, // active & clock with client
+  { label: 'FSSAI',     value: 'authority' },   // active & waiting on authority
+  { label: 'On Hold',   value: 'on_hold' },
+  { label: 'Completed', value: 'completed' },
+  { label: 'Cancelled', value: 'cancelled' },
 ]
 
 // Distinct colour per project (service) type so the type reads at a glance.
@@ -85,7 +84,6 @@ export default function ProjectsPage() {
     const matchStatus =
       statusFilter === 'all'         ? true :
       statusFilter === 'pending'     ? (p.status === 'active' && !isAuthorityOnly(p as any)) :
-      statusFilter === 'with_me'     ? (p.status === 'active' && clockBucket(p as any) === 'employee') :
       statusFilter === 'with_client' ? (p.status === 'active' && clockBucket(p as any) === 'client') :
       statusFilter === 'authority'   ? (p.status === 'active' && clockBucket(p as any) === 'authority') :
       p.status === statusFilter
