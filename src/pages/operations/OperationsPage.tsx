@@ -149,11 +149,17 @@ export default function OperationsPage() {
               {filtered.map(p => {
                 const days = daysUntil(p.target_date)
                 const isOverdue = days !== null && days < 0
+                const cardBg = (() => {
+                  const bucket = clockBucket(p as any)
+                  if (bucket === 'authority') return 'bg-blue-50 border-blue-200 hover:border-blue-300'
+                  if (bucket === 'client')    return 'bg-amber-50 border-amber-200 hover:border-amber-300'
+                  return 'bg-green-50 border-green-200 hover:border-green-300'
+                })()
                 return (
                   <div
                     key={p.id}
                     onClick={() => navigate(`/projects/${p.id}`)}
-                    className="bg-white rounded-xl border border-border p-4 cursor-pointer hover:border-brand-300 hover:shadow-sm transition-all"
+                    className={cn('rounded-xl border p-4 cursor-pointer hover:shadow-sm transition-all', cardBg)}
                   >
                     <div className="flex items-center gap-4">
                       <div className="flex-1 min-w-0">

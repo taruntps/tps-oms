@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { TopBar } from '@/components/layout/TopBar'
 import { ClockBadge } from '@/components/shared/ClockBadge'
-import { computeStageClocks } from '@/lib/projectClock'
+import { computeStageClocks, clockBucket } from '@/lib/projectClock'
 import { Sym } from '@/components/shared/Sym'
 import {
   useMyProjects, useRecentNotifications, useDirectorStats,
@@ -125,11 +125,16 @@ export default function DashboardPage() {
                     const days = daysUntil(p.target_date)
                     const isOverdue = days !== null && days < 0
                     const chips = computeStageClocks(p as any)
+                    const bucket = clockBucket(p as any)
+                    const tint =
+                      bucket === 'authority' ? '!bg-blue-500/10 !border-blue-400/30' :
+                      bucket === 'client'    ? '!bg-amber-500/10 !border-amber-400/30' :
+                                              '!bg-green-500/10 !border-green-400/30'
                     return (
                       <div
                         key={p.id}
                         onClick={() => navigate(`/projects/${p.id}`)}
-                        className="glass-panel rounded-xl px-3.5 py-2.5 cursor-pointer hover:bg-white/[0.18] transition-all"
+                        className={cn('glass-panel rounded-xl px-3.5 py-2.5 cursor-pointer hover:bg-white/[0.18] transition-all', tint)}
                       >
                         {/* Line 1: code + status (left) · clock (right) */}
                         <div className="flex items-center justify-between gap-3">

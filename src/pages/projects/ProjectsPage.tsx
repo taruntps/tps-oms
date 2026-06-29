@@ -16,7 +16,7 @@ type ProjectStatus = Database['public']['Enums']['project_status']
 type FilterValue = 'all' | 'pending' | 'tps' | 'with_client' | 'authority' | 'on_hold' | 'completed' | 'cancelled'
 
 const STATUS_FILTERS: { label: string; value: FilterValue }[] = [
-  { label: 'Pending',   value: 'pending' },    // all active (TPS + Client + FSSAI)
+  { label: 'Active',    value: 'pending' },    // all active (TPS + Client + FSSAI)
   { label: 'TPS',       value: 'tps' },         // active, at least one employee-clock stage
   { label: 'Client',    value: 'with_client' }, // active, at least one client-clock stage
   { label: 'FSSAI',     value: 'authority' },   // active, solely waiting on authority
