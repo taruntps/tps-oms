@@ -231,12 +231,13 @@ export default function LoginPage() {
       {/* Face scan modal */}
       {faceScanOpen && (
         <FaceCapture
-          title="Look at the camera — auto-detecting face"
+          title="Hold still — scanning 3 frames for secure verification"
           actionLabel="Scan"
           autoCapture={true}
+          captureFrames={3}
           busy={faceScanBusy}
           onCapture={onFaceCapture}
-          onCancel={() => setFaceScanOpen(false)}
+          onCancel={() => { setFaceScanOpen(false); setFaceScanBusy(false) }}
         />
       )}
     </div>

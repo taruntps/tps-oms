@@ -1,7 +1,14 @@
 // Edge Function: face-login
-// Resolves identifier → user, compares live face descriptor against the
-// enrolled one, and returns a magic-link token_hash on success.
-// The front-end then calls supabase.auth.verifyOtp({ token_hash, type:'magiclink' }).
+// Resolves identifier → user, compares the AVERAGED live face descriptor
+// (3-frame consensus from the client) against the enrolled one, and returns
+// a magic-link token_hash on success.
+//
+// Security design:
+//   - Client sends an averaged descriptor from 3 consecutive good frames.
+//   - Server compares against the enrolled descriptor at threshold 0.50.
+//   - Threshold 0.50 is the industry-standard cosine similarity floor for
+//     @vladmandic/human face embeddings.  A different person's averaged
+//     descriptor virtually never crosses this on someone else's enrollment.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
@@ -11,7 +18,6 @@ const CORS = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-// Cosine similarity in [0, 1].
 function cosineSimilarity(a: number[], b: number[]): number {
   if (!a?.length || !b?.length || a.length !== b.length) return 0
   let dot = 0, na = 0, nb = 0
@@ -22,10 +28,10 @@ function cosineSimilarity(a: number[], b: number[]): number {
   return Math.max(0, dot / (Math.sqrt(na) * Math.sqrt(nb)))
 }
 
-// Minimum cosine similarity to accept as a match.
-// 0.40 works well for real-world conditions (varying light / angle).
-// Raise to 0.45 for stricter security once staff are reliably enrolled.
-const THRESHOLD = 0.40
+// 0.50 — industry standard for @vladmandic/human face embeddings.
+// Raising from 0.40 because the client now sends a 3-frame average,
+// which is more stable and reliably above 0.50 for the correct person.
+const THRESHOLD = 0.50
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
@@ -40,25 +46,23 @@ serve(async (req) => {
     if (!Array.isArray(faceDescriptor) || faceDescriptor.length === 0)
       throw new Error('faceDescriptor is required')
 
-    const SUPABASE_URL        = Deno.env.get('SUPABASE_URL')!
-    const SERVICE_ROLE_KEY    = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    const SUPABASE_URL     = Deno.env.get('SUPABASE_URL')!
+    const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
       auth: { autoRefreshToken: false, persistSession: false },
     })
 
-    // Resolve identifier: try as email first, then employee_code.
-    let email: string | null = null
+    // ── Resolve identifier → userId + email ────────────────────────────────────
+    let email:  string | null = null
     let userId: string | null = null
 
     if (identifier.includes('@')) {
       email = identifier.trim().toLowerCase()
-      // Look up user by email via auth admin API.
-      const { data: users } = await admin.auth.admin.listUsers({ perPage: 1, page: 1 })
-      const match = users?.users?.find(u => u.email?.toLowerCase() === email)
+      const { data: { users } } = await admin.auth.admin.listUsers({ perPage: 1000 })
+      const match = users?.find(u => u.email?.toLowerCase() === email)
       if (match) userId = match.id
     } else {
-      // Resolve employee_code → user id via profiles table.
       const { data: profile, error } = await admin
         .from('profiles')
         .select('id, email')
@@ -70,7 +74,7 @@ serve(async (req) => {
 
     if (!userId) throw new Error('User not found')
 
-    // Fetch the enrolled face descriptor from profiles.
+    // ── Fetch enrolled descriptor ──────────────────────────────────────────────
     const { data: profile, error: profErr } = await admin
       .from('profiles')
       .select('face_descriptor, email')
@@ -86,12 +90,14 @@ serve(async (req) => {
     if (!email) email = profile?.email ?? null
     if (!email) throw new Error('Cannot determine email for this account')
 
-    // Compare descriptors.
+    // ── Compare (averaged 3-frame client descriptor vs enrolled) ──────────────
     const score = cosineSimilarity(faceDescriptor, enrolled)
-    if (score < THRESHOLD)
-      throw new Error(`Face not recognized (score ${score.toFixed(3)} < ${THRESHOLD}) — use password to sign in.`)
+    console.log(`face-login: identifier=${identifier} score=${score.toFixed(4)} threshold=${THRESHOLD} pass=${score >= THRESHOLD}`)
 
-    // Generate a magic-link OTP so the client can log in without a password.
+    if (score < THRESHOLD)
+      throw new Error(`Face not recognized — please use your password to sign in.`)
+
+    // ── Issue magic-link OTP ───────────────────────────────────────────────────
     const { data: otpData, error: otpErr } = await admin.auth.admin.generateLink({
       type:  'magiclink',
       email: email,
