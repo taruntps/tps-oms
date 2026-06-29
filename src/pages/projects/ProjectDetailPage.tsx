@@ -11,6 +11,7 @@ import { SoiTab }          from './tabs/SoiTab'
 import { DriveTab }        from '@/components/shared/DriveTab'
 import { BlockRequestForm } from './BlockRequestForm'
 import { TransferProjectButton } from './ProjectTransfer'
+import { EditProjectModal } from './EditProjectModal'
 import {
   useProject, useUpdateProject, useApproveBlockRequest,
   useUnblockProject, usePendingBlockRequests, useDeleteProject,
@@ -453,16 +454,11 @@ export default function ProjectDetailPage() {
       )}
 
       {showEditProject && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-display font-semibold text-brand-950">Edit Project</h2>
-              <button onClick={() => setShowEditProject(false)} className="text-muted-foreground">✕</button>
-            </div>
-            <p className="text-sm text-muted-foreground">Edit functionality coming — use inline fields above for now.</p>
-            <button onClick={() => setShowEditProject(false)} className="mt-4 px-4 py-2 bg-brand-600 text-white text-sm rounded-lg">Close</button>
-          </div>
-        </div>
+        <EditProjectModal
+          project={project}
+          stages={stages}
+          onClose={() => setShowEditProject(false)}
+        />
       )}
 
       {/* Cancel Project modal */}
