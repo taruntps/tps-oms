@@ -9,6 +9,7 @@ import { ProjectForm } from './ProjectForm'
 import { useProjects } from '@/hooks/useProjects'
 import { useAuth } from '@/contexts/AuthContext'
 import { formatDate, cn } from '@/lib/utils'
+import { toast } from '@/components/shared/Toast'
 import type { Database } from '@/types/database'
 
 type ProjectStatus = Database['public']['Enums']['project_status']
@@ -266,8 +267,25 @@ export default function ProjectsPage() {
                         </span>
                       )}
                       <span className="text-sm font-medium text-brand-950 truncate">{p.clients?.company_name}</span>
+                      {(p as any).clients?.client_code && (
+                        <span
+                          onClick={e => { e.stopPropagation(); navigate(`/clients/${p.client_id}`) }}
+                          className="text-[10px] font-mono text-brand-600 bg-brand-50 border border-brand-200 px-1.5 py-0.5 rounded shrink-0 cursor-pointer hover:bg-brand-100"
+                          title="Open client"
+                        >
+                          #{(p as any).clients.client_code}
+                        </span>
+                      )}
                       {(p as any).app_ref_no && (
-                        <span className="text-[10px] font-mono text-blue-700 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded shrink-0">
+                        <span
+                          onClick={e => {
+                            e.stopPropagation()
+                            navigator.clipboard.writeText((p as any).app_ref_no)
+                            toast.success('Copied!', (p as any).app_ref_no)
+                          }}
+                          className="text-[10px] font-mono text-blue-700 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded shrink-0 cursor-pointer hover:bg-blue-100"
+                          title="Click to copy App Ref No."
+                        >
                           #{(p as any).app_ref_no}
                         </span>
                       )}
