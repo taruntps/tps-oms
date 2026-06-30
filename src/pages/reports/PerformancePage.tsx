@@ -465,14 +465,11 @@ function PendingPaymentsTab() {
         .from('projects')
         .select('id, project_code, service_type, quoted_amount, paid_amount, payment_status, created_at, clients(company_name)')
         .neq('payment_status', 'paid')
-        .gt('quoted_amount', 0)
         .order('created_at', { ascending: true })
       if (error) throw error
-      return (data ?? []).filter(
-        (p: any) => (p.quoted_amount ?? 0) > (p.paid_amount ?? 0)
-      )
+      return data ?? []
     },
-    staleTime: 5 * 60 * 1000,
+    staleTime: 0,
   })
 
   const totalPending = projects.reduce(
