@@ -27,7 +27,10 @@ export function useCreateLicense() {
   return useMutation({
     mutationFn: async (payload: LicenseInsert) => {
       const { data, error } = await supabase.from('licenses').insert(payload).select().single()
-      if (error) throw error
+      if (error) {
+        if (error.code === '23505') throw new Error('This FSSAI licence number is already registered. Search for the existing record and edit it instead.')
+        throw error
+      }
       return data
     },
     onSuccess: (d) => qc.invalidateQueries({ queryKey: ['licenses', d.client_id] }),
