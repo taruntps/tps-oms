@@ -214,3 +214,76 @@ export function useProjectPipeline() {
     },
   })
 }
+
+// ── Director: overdue active projects (target_date < today) ────────────────
+export function useOverdueProjects() {
+  return useQuery({
+    queryKey: ['overdue-projects'],
+    queryFn: async () => {
+      const today = new Date().toISOString().split('T')[0]
+      const { data, error } = await supabase
+        .from('projects')
+        .select(`
+          id, project_code, project_name, service_type, target_date,
+          clients(company_name),
+          profiles_assigned:profiles!projects_assigned_to_fkey(name)
+        `)
+        .eq('status', 'active')
+        .not('target_date', 'is', null)
+        .lt('target_date', today)
+        .order('target_date', { ascending: true })
+      if (error) throw error
+      return data ?? []
+    },
+  })
+}
+
+// ── Director: employee workload (active projects per assignee) ──────────────
+export function useEmployeeWorkload() {
+  return useQuery({
+    queryKey: ['employee-workload'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('projects')
+        .select(`
+          assigned_to,
+          profiles_assigned:profiles!projects_assigned_to_fkey(id, name, role)
+        `)
+        .eq('status', 'active')
+        .not('assigned_to', 'is', null)
+      if (error) throw error
+
+      const map: Record<string, { name: string; role: string; count: number }> = {}
+      for (const p of data ?? []) {
+        const pr = (p as any).profiles_assigned
+        if (!pr) continue
+        if (!map[pr.id]) map[pr.id] = { name: pr.name, role: pr.role, count: 0 }
+        map[pr.id].count++
+      }
+      return Object.values(map).sort((a, b) => b.count - a.count)
+    },
+  })
+}
+
+// ── Director: on-time delivery rate (completed projects) ────────────────────
+export function useOnTimeRate() {
+  return useQuery({
+    queryKey: ['ontime-rate'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('projects')
+        .select('target_date, completed_date')
+        .eq('status', 'completed')
+        .not('target_date', 'is', null)
+        .not('completed_date', 'is', null)
+      if (error) throw error
+      const rows = data ?? []
+      const onTime = rows.filter(p => p.completed_date! <= p.target_date!).length
+      return {
+        total: rows.length,
+        onTime,
+        rate: rows.length > 0 ? Math.round((onTime / rows.length) * 100) : null,
+      }
+    },
+  })
+}
