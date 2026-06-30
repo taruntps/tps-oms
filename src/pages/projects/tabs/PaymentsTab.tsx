@@ -9,7 +9,8 @@ import { useAuth } from '@/contexts/AuthContext'
 import { toast } from '@/components/shared/Toast'
 import { formatDate, formatRupees, cn } from '@/lib/utils'
 
-const PAYMENT_MODES = ['Cash', 'NEFT', 'IMPS', 'UPI', 'Cheque', 'RTGS', 'Other']
+const GOVT_FEE_MODES = ['Client-paid', 'TPS-paid']
+const PAYMENT_MODES  = ['Cash', 'NEFT', 'IMPS', 'UPI', 'Cheque', 'RTGS', 'Other']
 
 const schema = z.object({
   amount:       z.coerce.number().min(1, 'Amount required'),
@@ -22,8 +23,8 @@ const schema = z.object({
 type FormData = z.infer<typeof schema>
 
 interface Props {
-  projectId: string
-  clientId: string
+  projectId:     string
+  clientId:      string
   quotedAmount?: number
   paymentStatus?: string
 }
@@ -31,14 +32,16 @@ interface Props {
 export function PaymentsTab({ projectId, clientId, quotedAmount = 0, paymentStatus = 'pending' }: Props) {
   const { profile } = useAuth()
   const { data: payments = [], isLoading } = usePayments(projectId)
-  const createPayment = useCreatePayment()
-  const markComplete = useMarkPaymentComplete()
-  const [showForm, setShowForm] = useState(false)
+  const createPayment  = useCreatePayment()
+  const markComplete   = useMarkPaymentComplete()
+  const [showForm, setShowForm]               = useState(false)
   const [confirmComplete, setConfirmComplete] = useState(false)
 
-  const totalReceived = payments.reduce((s, p) => s + p.amount, 0)
-  const pending = quotedAmount > 0 ? Math.max(0, quotedAmount - totalReceived) : 0
-  const isComplete = paymentStatus === 'paid'
+  // Consulting fees only — govt pass-through fees excluded from Received total
+  const consultingPayments = payments.filter(p => !GOVT_FEE_MODES.includes(p.payment_mode ?? ''))
+  const govtPayments       = payments.filter(p =>  GOVT_FEE_MODES.includes(p.payment_mode ?? ''))
+  const totalReceived      = consultingPayments.reduce((s, p) => s + p.amount, 0)
+  const isComplete         = paymentStatus === 'paid'
 
   const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -77,49 +80,52 @@ export function PaymentsTab({ projectId, clientId, quotedAmount = 0, paymentStat
 
   return (
     <div className="space-y-4">
+
       {/* Summary bar */}
       <div className="grid grid-cols-3 gap-3">
-        <SummaryCard label="Quoted" amount={quotedAmount} color="text-brand-700" />
-        <SummaryCard label="Received" amount={totalReceived} color="text-emerald-700" />
+        <SummaryCard label="Quoted"   amount={quotedAmount}   color="text-brand-700" />
+        <SummaryCard label="Received" amount={totalReceived}  color="text-emerald-700"
+          note={govtPayments.length > 0 ? 'excl. govt fees' : undefined} />
         <SummaryCard
           label={isComplete ? 'Status' : 'Pending'}
-          amount={isComplete ? 0 : pending}
-          color={isComplete ? 'text-green-600' : pending > 0 ? 'text-red-600' : 'text-muted-foreground'}
+          amount={isComplete ? 0 : quotedAmount > 0 ? Math.max(0, quotedAmount - totalReceived) : 0}
+          color={isComplete ? 'text-green-600' : 'text-muted-foreground'}
           badge={isComplete ? '✓ PAID' : undefined}
         />
       </div>
 
-      {/* Action bar */}
+      {/* Action bar — all locked once payment is complete */}
       <div className="flex items-center justify-end flex-wrap gap-3">
-        {!isComplete && (
-          <RoleGuard roles={['super_admin','director','accounts']}>
-            <button
-              onClick={() => setConfirmComplete(true)}
-              className="flex items-center gap-1.5 text-sm text-green-700 font-medium border border-green-300 bg-green-50 hover:bg-green-100 px-3 py-1.5 rounded-lg transition-colors"
-            >
-              <Sym name="check_circle" size={14} />
-              Mark Payment Complete
-            </button>
-          </RoleGuard>
-        )}
-        {isComplete && (
+        {isComplete ? (
           <span className="flex items-center gap-1.5 text-sm text-green-700 font-medium">
-            <Sym name="verified" size={14} /> Payment Complete
+            <Sym name="verified" size={14} /> Payment Complete — section locked
           </span>
+        ) : (
+          <>
+            <RoleGuard roles={['super_admin', 'director', 'manager', 'executive']}>
+              <button
+                onClick={() => setConfirmComplete(true)}
+                className="flex items-center gap-1.5 text-sm text-green-700 font-medium border border-green-300 bg-green-50 hover:bg-green-100 px-3 py-1.5 rounded-lg transition-colors"
+              >
+                <Sym name="check_circle" size={14} />
+                Mark Payment Complete
+              </button>
+            </RoleGuard>
+            <RoleGuard roles={['super_admin', 'director', 'manager', 'executive', 'accounts', 'hr']}>
+              <button
+                onClick={() => setShowForm(s => !s)}
+                className="flex items-center gap-1.5 text-sm text-white font-medium bg-brand-600 hover:bg-brand-700 px-3 py-1.5 rounded-lg transition-colors"
+              >
+                <Sym name="add" size={13} />
+                Record Payment
+              </button>
+            </RoleGuard>
+          </>
         )}
-        <RoleGuard roles={['super_admin','director','manager','executive','accounts','hr']}>
-          <button
-            onClick={() => setShowForm(s => !s)}
-            className="flex items-center gap-1.5 text-sm text-white font-medium bg-brand-600 hover:bg-brand-700 px-3 py-1.5 rounded-lg transition-colors"
-          >
-            <Sym name="add" size={13} />
-            Record Payment
-          </button>
-        </RoleGuard>
       </div>
 
-      {/* Add form */}
-      {showForm && (
+      {/* Add payment form — hidden once complete */}
+      {showForm && !isComplete && (
         <div className="bg-[#F8FAFC] rounded-xl border border-border p-5">
           <h4 className="text-xs font-semibold text-brand-950 mb-4">New Payment Entry</h4>
           <div className="grid grid-cols-2 gap-3">
@@ -161,26 +167,28 @@ export function PaymentsTab({ projectId, clientId, quotedAmount = 0, paymentStat
         <div className="space-y-2 animate-pulse">{[1,2].map(i => <div key={i} className="h-14 glass-panel rounded-xl" />)}</div>
       ) : payments.length === 0 ? (
         <div className="glass-panel rounded-xl border-dashed !border-white/20 p-8 text-center">
-          <p className="text-xs text-white/60">No payments recorded yet. Use "Record Payment" to add one.</p>
+          <p className="text-xs text-white/60">No payments recorded yet.</p>
         </div>
       ) : (
         <div className="space-y-2">
-          {payments.map(p => (
-            <div key={p.id} className="bg-white rounded-xl border border-border px-5 py-3 flex items-center justify-between">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold text-green-700">{formatRupees(p.amount)}</span>
-                  <span className="text-[10px] bg-[#F8FAFC] border border-border px-1.5 py-0.5 rounded text-muted-foreground">{p.payment_mode}</span>
-                  {p.invoice_no && <span className="text-[10px] text-muted-foreground">#{p.invoice_no}</span>}
-                </div>
-                <div className="flex items-center gap-3 mt-0.5 text-[11px] text-muted-foreground">
-                  <span>{formatDate(p.payment_date)}</span>
-                  {p.reference_no && <span className="font-mono">Ref: {p.reference_no}</span>}
-                  {(p as any).profiles?.name && <span>by {(p as any).profiles.name}</span>}
-                </div>
-              </div>
-            </div>
+          {/* Consulting fee payments */}
+          {consultingPayments.map(p => (
+            <PaymentRow key={p.id} payment={p} />
           ))}
+
+          {/* Govt / pass-through fees — visually separated */}
+          {govtPayments.length > 0 && (
+            <>
+              <div className="flex items-center gap-2 pt-1">
+                <div className="flex-1 border-t border-dashed border-border" />
+                <span className="text-[10px] text-muted-foreground uppercase tracking-wide">Govt fees (pass-through — not counted in Received)</span>
+                <div className="flex-1 border-t border-dashed border-border" />
+              </div>
+              {govtPayments.map(p => (
+                <PaymentRow key={p.id} payment={p} isGovt />
+              ))}
+            </>
+          )}
         </div>
       )}
 
@@ -189,20 +197,20 @@ export function PaymentsTab({ projectId, clientId, quotedAmount = 0, paymentStat
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-6">
             <h2 className="font-display font-semibold text-brand-950 mb-1">Mark Payment as Complete?</h2>
-            <p className="text-xs text-muted-foreground mb-4">
-              This will mark the project as fully paid. No pending payment will be shown going forward.
-              {quotedAmount > 0 && totalReceived < quotedAmount && (
-                <span className="block mt-2 text-amber-700 font-medium">
-                  Received ({formatRupees(totalReceived)}) is less than quoted ({formatRupees(quotedAmount)}).
-                  Proceed only if the remaining amount is waived or settled offline.
-                </span>
-              )}
-              {quotedAmount > 0 && totalReceived > quotedAmount && (
-                <span className="block mt-2 text-blue-700 font-medium">
-                  Received ({formatRupees(totalReceived)}) exceeds quoted ({formatRupees(quotedAmount)}).
-                </span>
-              )}
+            <p className="text-xs text-muted-foreground mb-3">
+              Once confirmed, the payment section will be <strong>locked</strong> and no further payments can be added or edited.
             </p>
+            {quotedAmount > 0 && totalReceived < quotedAmount && (
+              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
+                Received ({formatRupees(totalReceived)}) is less than quoted ({formatRupees(quotedAmount)}).
+                Proceed only if the balance is waived or settled offline.
+              </p>
+            )}
+            {quotedAmount > 0 && totalReceived > quotedAmount && (
+              <p className="text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 mb-3">
+                Received ({formatRupees(totalReceived)}) exceeds quoted ({formatRupees(quotedAmount)}).
+              </p>
+            )}
             <div className="flex justify-end gap-3">
               <button onClick={() => setConfirmComplete(false)}
                 className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-[#F8FAFC]">Cancel</button>
@@ -218,11 +226,45 @@ export function PaymentsTab({ projectId, clientId, quotedAmount = 0, paymentStat
   )
 }
 
-function SummaryCard({ label, amount, color, badge }: { label: string; amount: number; color: string; badge?: string }) {
+function PaymentRow({ payment: p, isGovt = false }: { payment: any; isGovt?: boolean }) {
+  return (
+    <div className={cn(
+      'bg-white rounded-xl border px-5 py-3 flex items-center justify-between',
+      isGovt ? 'border-dashed border-border opacity-70' : 'border-border'
+    )}>
+      <div>
+        <div className="flex items-center gap-2">
+          <span className={cn('text-sm font-semibold', isGovt ? 'text-muted-foreground' : 'text-green-700')}>
+            {formatRupees(p.amount)}
+          </span>
+          <span className="text-[10px] bg-[#F8FAFC] border border-border px-1.5 py-0.5 rounded text-muted-foreground">
+            {p.payment_mode}
+          </span>
+          {isGovt && (
+            <span className="text-[10px] bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded text-amber-700">
+              Govt fee
+            </span>
+          )}
+          {p.invoice_no && <span className="text-[10px] text-muted-foreground">#{p.invoice_no}</span>}
+        </div>
+        <div className="flex items-center gap-3 mt-0.5 text-[11px] text-muted-foreground">
+          <span>{formatDate(p.payment_date)}</span>
+          {p.reference_no && <span className="font-mono">Ref: {p.reference_no}</span>}
+          {p.profiles?.name && <span>by {p.profiles.name}</span>}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function SummaryCard({ label, amount, color, badge, note }: {
+  label: string; amount: number; color: string; badge?: string; note?: string
+}) {
   return (
     <div className="bg-white rounded-xl border border-border px-4 py-3">
       <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">{label}</p>
       <p className={cn('text-base font-bold font-mono mt-1', color)}>{badge ?? formatRupees(amount)}</p>
+      {note && <p className="text-[10px] text-muted-foreground mt-0.5">{note}</p>}
     </div>
   )
 }
