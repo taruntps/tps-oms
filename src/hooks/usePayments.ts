@@ -20,6 +20,24 @@ export function useMarkPaymentComplete() {
   })
 }
 
+export function useUnlockPayment() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (projectId: string) => {
+      const { error } = await supabase
+        .from('projects')
+        .update({ payment_status: 'partial' } as any)
+        .eq('id', projectId)
+      if (error) throw error
+    },
+    onSuccess: (_d, projectId) => {
+      qc.invalidateQueries({ queryKey: ['payments', projectId] })
+      qc.invalidateQueries({ queryKey: ['projects', projectId] })
+      qc.invalidateQueries({ queryKey: ['projects'] })
+    },
+  })
+}
+
 export function usePayments(projectId: string) {
   return useQuery({
     queryKey: ['payments', projectId],

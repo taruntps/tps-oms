@@ -3,7 +3,7 @@ import { Sym } from '@/components/shared/Sym'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { usePayments, useCreatePayment, useMarkPaymentComplete } from '@/hooks/usePayments'
+import { usePayments, useCreatePayment, useMarkPaymentComplete, useUnlockPayment } from '@/hooks/usePayments'
 import { RoleGuard } from '@/components/shared/ProtectedRoute'
 import { useAuth } from '@/contexts/AuthContext'
 import { toast } from '@/components/shared/Toast'
@@ -34,8 +34,10 @@ export function PaymentsTab({ projectId, clientId, quotedAmount = 0, paymentStat
   const { data: payments = [], isLoading } = usePayments(projectId)
   const createPayment  = useCreatePayment()
   const markComplete   = useMarkPaymentComplete()
+  const unlockPayment  = useUnlockPayment()
   const [showForm, setShowForm]               = useState(false)
   const [confirmComplete, setConfirmComplete] = useState(false)
+  const [confirmUnlock, setConfirmUnlock]     = useState(false)
 
   // Consulting fees only — govt pass-through fees excluded from Received total
   const consultingPayments = payments.filter(p => !GOVT_FEE_MODES.includes(p.payment_mode ?? ''))
@@ -97,9 +99,19 @@ export function PaymentsTab({ projectId, clientId, quotedAmount = 0, paymentStat
       {/* Action bar — all locked once payment is complete */}
       <div className="flex items-center justify-end flex-wrap gap-3">
         {isComplete ? (
-          <span className="flex items-center gap-1.5 text-sm text-green-700 font-medium">
-            <Sym name="verified" size={14} /> Payment Complete — section locked
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="flex items-center gap-1.5 text-sm text-green-700 font-medium">
+              <Sym name="verified" size={14} /> Payment Complete — section locked
+            </span>
+            <RoleGuard roles={['super_admin', 'director']}>
+              <button
+                onClick={() => setConfirmUnlock(true)}
+                className="flex items-center gap-1.5 text-xs text-amber-700 border border-amber-300 bg-amber-50 hover:bg-amber-100 px-2.5 py-1 rounded-lg transition-colors"
+              >
+                <Sym name="lock_open" size={12} /> Unlock
+              </button>
+            </RoleGuard>
+          </div>
         ) : (
           <>
             <RoleGuard roles={['super_admin', 'director', 'manager', 'executive']}>
@@ -189,6 +201,38 @@ export function PaymentsTab({ projectId, clientId, quotedAmount = 0, paymentStat
               ))}
             </>
           )}
+        </div>
+      )}
+
+      {/* Unlock confirmation modal — admin only */}
+      {confirmUnlock && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-6">
+            <h2 className="font-display font-semibold text-brand-950 mb-1">Unlock Payment Section?</h2>
+            <p className="text-xs text-muted-foreground mb-4">
+              This will revert the payment status to <strong>Partial</strong> and allow payments to be recorded again.
+              Use this only to correct an error.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setConfirmUnlock(false)}
+                className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-[#F8FAFC]">Cancel</button>
+              <button
+                onClick={async () => {
+                  try {
+                    await unlockPayment.mutateAsync(projectId)
+                    toast.success('Payment section unlocked')
+                    setConfirmUnlock(false)
+                  } catch (e: any) {
+                    toast.error('Failed', e.message)
+                  }
+                }}
+                disabled={unlockPayment.isPending}
+                className="px-4 py-2 bg-amber-600 text-white text-sm font-medium rounded-lg hover:bg-amber-700 disabled:opacity-50"
+              >
+                {unlockPayment.isPending ? 'Unlocking…' : 'Yes, Unlock'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
