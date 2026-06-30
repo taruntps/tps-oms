@@ -1189,10 +1189,11 @@ const CLOCK_LABEL: Record<string, string> = {
   employee: 'TPS', client: 'Client', authority: 'FSSAI',
 }
 
-function fmtDays(d: number | null) {
-  if (d == null) return '—'
-  if (d < 1) return `${Math.round(d * 24)}h`
-  return `${d.toFixed(1)}d`
+function fmtDays(d: number | string | null | undefined) {
+  const n = d == null ? null : Number(d)
+  if (n == null || isNaN(n)) return '—'
+  if (n < 1) return `${Math.round(n * 24)}h`
+  return `${n.toFixed(1)}d`
 }
 
 
@@ -1223,10 +1224,11 @@ function ProjectTimelineTab() {
       const key = r.stage_code + '_' + r.stage_order
       if (!map.has(key)) map.set(key, { stage_order: r.stage_order, stage_name: r.stage_name, stage_code: r.stage_code, stage_status: r.stage_status, stage_due_date: r.stage_due_date, tps: 0, client: 0, fssai: 0, total: 0, assignees: new Set() })
       const s = map.get(key)!
-      s.total += r.duration_days
-      if (r.clock_type === 'employee')  s.tps    += r.duration_days
-      if (r.clock_type === 'client')    s.client  += r.duration_days
-      if (r.clock_type === 'authority') s.fssai   += r.duration_days
+      const days = Number(r.duration_days) || 0
+      s.total += days
+      if (r.clock_type === 'employee')  s.tps    += days
+      if (r.clock_type === 'client')    s.client  += days
+      if (r.clock_type === 'authority') s.fssai   += days
       if (r.assignee_name) s.assignees.add(r.assignee_name)
     }
     return Array.from(map.values()).sort((a, b) => a.stage_order - b.stage_order)
@@ -1308,7 +1310,7 @@ function ProjectTimelineTab() {
                           s.stage_status === 'in_progress' ? 'bg-blue-100 text-blue-700' :
                           s.stage_status === 'skipped' ? 'bg-gray-100 text-gray-500' :
                           'bg-gray-100 text-gray-400'
-                        )}>{s.stage_status.replace('_', ' ')}</span>
+                        )}>{(s.stage_status ?? '').replace('_', ' ')}</span>
                       </td>
                     </tr>
                   ))}
@@ -1533,10 +1535,11 @@ function EmployeeTimelineTab() {
       const sk = r.stage_code + '_' + r.stage_order
       if (!proj.stages.has(sk)) proj.stages.set(sk, { stage_name: r.stage_name, stage_status: r.stage_status, tps: 0, client: 0, fssai: 0, total: 0 })
       const st = proj.stages.get(sk)!
-      st.total += r.duration_days
-      if (r.clock_type === 'employee')  st.tps    += r.duration_days
-      if (r.clock_type === 'client')    st.client  += r.duration_days
-      if (r.clock_type === 'authority') st.fssai   += r.duration_days
+      const days = Number(r.duration_days) || 0
+      st.total += days
+      if (r.clock_type === 'employee')  st.tps    += days
+      if (r.clock_type === 'client')    st.client  += days
+      if (r.clock_type === 'authority') st.fssai   += days
     }
     return Array.from(map.entries())
   }, [rows])
@@ -1639,7 +1642,7 @@ function EmployeeTimelineTab() {
                       proj.project_status === 'completed' ? 'bg-teal-100 text-teal-700' :
                       proj.project_status === 'active' ? 'bg-green-100 text-green-700' :
                       'bg-gray-100 text-gray-500'
-                    )}>{proj.project_status.replace('_',' ')}</span>
+                    )}>{(proj.project_status ?? '').replace('_',' ')}</span>
                     <span className="text-xs text-muted-foreground ml-auto">{fmtDays(projTotal)} total</span>
                     {variance != null && (
                       <span className={cn('text-xs font-semibold', variance <= 0 ? 'text-green-700' : 'text-amber-700')}>
@@ -1662,7 +1665,7 @@ function EmployeeTimelineTab() {
                               s.stage_status === 'completed' ? 'bg-teal-100 text-teal-700' :
                               s.stage_status === 'in_progress' ? 'bg-blue-100 text-blue-700' :
                               'bg-gray-100 text-gray-400'
-                            )}>{s.stage_status.replace('_',' ')}</span>
+                            )}>{(s.stage_status ?? '').replace('_',' ')}</span>
                           </td>
                         </tr>
                       ))}
