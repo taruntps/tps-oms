@@ -93,7 +93,7 @@ export default function App() {
               } />
               <Route path="knowledge" element={<KnowledgePage />} />
               <Route path="reports/performance" element={
-                <ProtectedRoute allowedRoles={['super_admin','director','manager']}>
+                <ProtectedRoute>
                   <PerformancePage />
                 </ProtectedRoute>
               } />
