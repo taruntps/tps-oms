@@ -63,7 +63,7 @@ export function useTodayPunches() {
   })
 }
 
-// ── Pending payments (projects with quoted > paid and payment_status != paid) ─
+// ── Pending payments: all projects not yet manually marked as paid ──────────
 export function usePendingPayments() {
   return useQuery({
     queryKey: ['pending-payments-dashboard'],
@@ -76,10 +76,9 @@ export function usePendingPayments() {
           clients(company_name, city, state)
         `)
         .neq('payment_status', 'paid')
-        .gt('quoted_amount', 0)
         .order('completed_date', { ascending: true, nullsFirst: false })
       if (error) throw error
-      return (data ?? []).filter((p: any) => (p.quoted_amount ?? 0) > (p.paid_amount ?? 0))
+      return data ?? []
     },
   })
 }
