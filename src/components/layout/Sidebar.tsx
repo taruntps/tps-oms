@@ -33,6 +33,8 @@ export function Sidebar() {
   const { profile, signOut } = useAuth()
   const role = profile?.role as UserRole | undefined
   const { unreadCount } = useNotifications()
+  const hasReportAccess = ['super_admin','director','manager'].includes(role ?? '')
+    || ((profile as any)?.report_permissions?.length ?? 0) > 0
 
   return (
     <aside className="w-60 h-screen glass-panel border-r-0 flex flex-col shrink-0">
@@ -55,7 +57,10 @@ export function Sidebar() {
         {!role && [1,2,3,4,5,6].map(i => (
           <div key={i} className="h-9 rounded-xl bg-white/8 animate-pulse mx-0.5" />
         ))}
-        {role && NAV.filter(item => item.roles.includes(role)).map(item => (
+        {role && NAV.filter(item =>
+          item.roles.includes(role) ||
+          (item.href === '/reports/performance' && hasReportAccess)
+        ).map(item => (
           <NavLink
             key={item.href}
             to={item.href}

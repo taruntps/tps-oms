@@ -1,8 +1,8 @@
 import { useMemo, useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useAuth } from '@/contexts/AuthContext'
 import { TopBar } from '@/components/layout/TopBar'
 import { supabase } from '@/lib/supabase'
-import { useAuth } from '@/contexts/AuthContext'
 import { toast } from '@/components/shared/Toast'
 import { formatRupees, cn } from '@/lib/utils'
 import { clockBucket } from '@/lib/projectClock'
@@ -49,10 +49,44 @@ const TABS: { key: ReportTab; label: string; icon: string }[] = [
   { key: 'employee_timeline', label: 'Employee Timeline', icon: 'person_pin_circle' },
 ]
 
+// Tabs visible only to super_admin / director / manager by default.
+// The 3 below are also grantable per-employee via report_permissions.
+const GRANTABLE_TABS = new Set(['pending_payments', 'queries', 'govt_fees'])
+
 // ── Page shell ───────────────────────────────────────────────────────────────
 
 export default function PerformancePage() {
-  const [tab, setTab] = useState<ReportTab>('performance')
+  const { profile } = useAuth()
+  const [tab, setTab] = useState<ReportTab>('pending_payments')
+
+  const isFullAccess = ['super_admin', 'director', 'manager'].includes(profile?.role ?? '')
+  const reportPerms: string[] = (profile as any)?.report_permissions ?? []
+
+  const visibleTabs = TABS.filter(t => {
+    if (isFullAccess) return true
+    if (GRANTABLE_TABS.has(t.key)) return reportPerms.includes(t.key)
+    return false
+  })
+
+  // If current tab is not visible (e.g. permission revoked), jump to first available
+  useEffect(() => {
+    if (visibleTabs.length > 0 && !visibleTabs.find(t => t.key === tab)) {
+      setTab(visibleTabs[0].key)
+    }
+  }, [profile])
+
+  if (visibleTabs.length === 0) {
+    return (
+      <div>
+        <TopBar title="Reports" subtitle="Performance, payments, queries & referrals" />
+        <div className="p-12 text-center">
+          <Sym name="lock" size={32} className="text-white/30 mx-auto" />
+          <p className="text-white/60 text-sm mt-3">You don't have access to any reports yet.</p>
+          <p className="text-white/40 text-xs mt-1">Contact your administrator to request access.</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div>
@@ -61,7 +95,7 @@ export default function PerformancePage() {
       {/* Tab bar */}
       <div className="px-6 pt-4">
         <div className="flex flex-wrap gap-1 p-1 bg-white/10 rounded-xl">
-          {TABS.map(t => (
+          {visibleTabs.map(t => (
             <button
               key={t.key}
               onClick={() => setTab(t.key)}

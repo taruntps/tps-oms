@@ -36,6 +36,7 @@ interface UserRow {
   can_be_assigned: boolean
   can_assign: boolean
   can_view_all_projects: boolean
+  report_permissions: string[]
   email?: string
   phone?: string
   whatsapp_number?: string
@@ -45,10 +46,17 @@ interface UserRow {
 // Per-user permission flags shown as toggle chips (super_admin manages others).
 type PermField = 'can_edit_clients' | 'can_be_assigned' | 'can_assign' | 'can_view_all_projects'
 const PERMISSIONS: { field: PermField; label: string; title: string }[] = [
-  { field: 'can_be_assigned',       label: 'Doer',       title: 'Can be assigned projects/tasks' },
-  { field: 'can_assign',            label: 'Assigner',   title: 'Can create & assign projects to others' },
-  { field: 'can_view_all_projects', label: 'Overall',    title: 'Can view ALL projects (not just their own)' },
+  { field: 'can_be_assigned',       label: 'Doer',         title: 'Can be assigned projects/tasks' },
+  { field: 'can_assign',            label: 'Assigner',     title: 'Can create & assign projects to others' },
+  { field: 'can_view_all_projects', label: 'Overall',      title: 'Can view ALL projects (not just their own)' },
   { field: 'can_edit_clients',      label: 'Edit Clients', title: 'Can edit client records & upload documents' },
+]
+
+// Report tab access — toggleable per employee
+const REPORT_PERMS: { key: string; label: string; title: string }[] = [
+  { key: 'pending_payments', label: 'Pending Pmts',  title: 'Can view Pending Payments report' },
+  { key: 'queries',          label: 'Queries',        title: 'Can view Queries Report' },
+  { key: 'govt_fees',        label: 'Govt Fees',      title: 'Can view Govt Fees report' },
 ]
 
 interface InviteForm {
@@ -91,10 +99,13 @@ export default function UserManagementPage() {
     queryKey: ['profiles', 'all'],
     queryFn: async () => {
       const { data, error } = await (supabase.from('profiles') as any)
-        .select('id, name, role, is_active, can_edit_clients, can_be_assigned, can_assign, can_view_all_projects, phone, whatsapp_number, face_enrolled_at')
+        .select('id, name, role, is_active, can_edit_clients, can_be_assigned, can_assign, can_view_all_projects, report_permissions, phone, whatsapp_number, face_enrolled_at')
         .order('name')
       if (error) throw error
-      return data as unknown as UserRow[]
+      return (data as unknown as UserRow[]).map(u => ({
+        ...u,
+        report_permissions: u.report_permissions ?? [],
+      }))
     },
   })
 
@@ -122,6 +133,20 @@ export default function UserManagementPage() {
       if (error) throw error
     },
     onSuccess: () => { toast.success('Permission updated'); qc.invalidateQueries({ queryKey: ['profiles'] }) },
+    onError: (e: Error) => toast.error('Failed', e.message),
+  })
+
+  const updateReportPerm = useMutation({
+    mutationFn: async ({ id, key, enabled }: { id: string; key: string; enabled: boolean }) => {
+      const user = users.find(u => u.id === id)
+      const current: string[] = user?.report_permissions ?? []
+      const next = enabled
+        ? [...new Set([...current, key])]
+        : current.filter(k => k !== key)
+      const { error } = await supabase.from('profiles').update({ report_permissions: next } as any).eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => { toast.success('Report access updated'); qc.invalidateQueries({ queryKey: ['profiles'] }) },
     onError: (e: Error) => toast.error('Failed', e.message),
   })
 
@@ -189,32 +214,61 @@ export default function UserManagementPage() {
                     </td>
                     {/* Per-user permission chips — super_admin toggles; others read-only */}
                     <td className="px-5 py-3">
-                      <div className="flex flex-wrap gap-1.5 max-w-[280px]">
-                        {PERMISSIONS.map(p => {
-                          // super_admin / director always have every right implicitly,
-                          // so show those chips as ON (not a greyed "off").
-                          const implicitlyFull = u.role === 'super_admin' || u.role === 'director'
-                          const on = implicitlyFull ? true : !!u[p.field]
-                          const canToggle = profile?.role === 'super_admin' && u.id !== profile?.id && !implicitlyFull
-                          return (
-                            <button
-                              key={p.field}
-                              type="button"
-                              disabled={!canToggle || updatePermission.isPending}
-                              onClick={() => updatePermission.mutate({ id: u.id, field: p.field, value: !on })}
-                              title={p.title + (canToggle ? '' : ' (admin only)')}
-                              className={cn(
-                                'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-full border transition-colors',
-                                on ? 'bg-green-50 border-green-200 text-green-700'
-                                   : 'bg-gray-50 border-gray-200 text-gray-400',
-                                canToggle ? 'cursor-pointer hover:opacity-75' : 'cursor-default'
-                              )}
-                            >
-                              {on ? <Sym name="toggle_on" size={11} /> : <Sym name="toggle_off" size={11} />}
-                              {p.label}
-                            </button>
-                          )
-                        })}
+                      <div className="space-y-2 max-w-[320px]">
+                        {/* General permissions */}
+                        <div className="flex flex-wrap gap-1.5">
+                          {PERMISSIONS.map(p => {
+                            const implicitlyFull = u.role === 'super_admin' || u.role === 'director'
+                            const on = implicitlyFull ? true : !!u[p.field]
+                            const canToggle = profile?.role === 'super_admin' && u.id !== profile?.id && !implicitlyFull
+                            return (
+                              <button
+                                key={p.field}
+                                type="button"
+                                disabled={!canToggle || updatePermission.isPending}
+                                onClick={() => updatePermission.mutate({ id: u.id, field: p.field, value: !on })}
+                                title={p.title + (canToggle ? '' : ' (admin only)')}
+                                className={cn(
+                                  'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-full border transition-colors',
+                                  on ? 'bg-green-50 border-green-200 text-green-700'
+                                     : 'bg-gray-50 border-gray-200 text-gray-400',
+                                  canToggle ? 'cursor-pointer hover:opacity-75' : 'cursor-default'
+                                )}
+                              >
+                                {on ? <Sym name="toggle_on" size={11} /> : <Sym name="toggle_off" size={11} />}
+                                {p.label}
+                              </button>
+                            )
+                          })}
+                        </div>
+
+                        {/* Report tab access */}
+                        <div className="flex flex-wrap gap-1.5 pt-1 border-t border-dashed border-gray-200">
+                          <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wide self-center mr-0.5">Reports:</span>
+                          {REPORT_PERMS.map(rp => {
+                            const implicitlyFull = u.role === 'super_admin' || u.role === 'director' || u.role === 'manager'
+                            const on = implicitlyFull || (u.report_permissions ?? []).includes(rp.key)
+                            const canToggle = (profile?.role === 'super_admin' || profile?.role === 'director') && u.id !== profile?.id && !implicitlyFull
+                            return (
+                              <button
+                                key={rp.key}
+                                type="button"
+                                disabled={!canToggle || updateReportPerm.isPending}
+                                onClick={() => updateReportPerm.mutate({ id: u.id, key: rp.key, enabled: !on })}
+                                title={rp.title + (implicitlyFull ? ' (always on for this role)' : canToggle ? '' : ' (admin only)')}
+                                className={cn(
+                                  'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-full border transition-colors',
+                                  on ? 'bg-blue-50 border-blue-200 text-blue-700'
+                                     : 'bg-gray-50 border-gray-200 text-gray-400',
+                                  canToggle ? 'cursor-pointer hover:opacity-75' : 'cursor-default'
+                                )}
+                              >
+                                {on ? <Sym name="toggle_on" size={11} /> : <Sym name="toggle_off" size={11} />}
+                                {rp.label}
+                              </button>
+                            )
+                          })}
+                        </div>
                       </div>
                     </td>
                     <td className="px-5 py-3">
