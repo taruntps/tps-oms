@@ -99,8 +99,9 @@ export function LicenseForm({ clientId, license, onClose }: Props) {
       ...data,
       categories,
       category: categories[0], // backward compat
-      issue_date:  data.issue_date  || null,
-      expiry_date: data.expiry_date || null,
+      license_number:      data.license_number      || null,
+      issue_date:          data.issue_date           || null,
+      expiry_date:         data.expiry_date          || null,
       credential_username: effectiveUsername,
     }
     try {
