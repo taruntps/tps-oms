@@ -9,6 +9,7 @@ import { PaymentsTab }     from './tabs/PaymentsTab'
 import { QueriesTab }      from './tabs/QueriesTab'
 import { SoiTab }          from './tabs/SoiTab'
 import { DriveTab }        from '@/components/shared/DriveTab'
+import { ActivityTab }     from './tabs/ActivityTab'
 import { BlockRequestForm } from './BlockRequestForm'
 import { TransferProjectButton } from './ProjectTransfer'
 import { EditProjectModal } from './EditProjectModal'
@@ -32,6 +33,7 @@ const TABS = [
   { key: 'queries',    label: 'Queries'     },
   { key: 'soi',        label: 'SOI Archive' },
   { key: 'drive',      label: 'Drive'       },
+  { key: 'activity',   label: 'Activity'    },
 ] as const
 type TabKey = (typeof TABS)[number]['key']
 
@@ -476,6 +478,7 @@ export default function ProjectDetailPage() {
             clientName={`${(project as any).clients?.company_name ?? 'Client'}${(project as any).clients?.client_code ? ` - ${(project as any).clients.client_code}` : ''}`}
           />
         )}
+        {effectiveTab === 'activity' && <ActivityTab projectId={id!} />}
       </div>
 
       {/* Modals */}
