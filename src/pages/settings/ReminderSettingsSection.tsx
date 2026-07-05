@@ -73,7 +73,7 @@ export function ReminderSettingsSection() {
 
         <Toggle
           label="WhatsApp reminders"
-          hint="Same alerts over WhatsApp. Inactive until the AiSensy business number is approved."
+          hint="Same alerts over WhatsApp via your Meta Cloud API."
           on={whatsapp} disabled={loading}
           onClick={() => setWhatsapp(v => !v)}
           color="bg-green-500"

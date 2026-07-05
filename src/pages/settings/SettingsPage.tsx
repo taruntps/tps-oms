@@ -9,41 +9,16 @@ import { AttendanceSettingsSection } from './AttendanceSettingsSection'
 import { ReminderSettingsSection } from './ReminderSettingsSection'
 import { NotificationControlsSection } from './NotificationControlsSection'
 
-type BSP = 'interakt' | 'wati' | 'aisensy'
-
 interface AppSettings {
   whatsapp_enabled: string
-  whatsapp_bsp: string
-  whatsapp_api_key: string
-  whatsapp_wati_url: string
+  whatsapp_api_key: string        // Meta permanent system-user access token
+  whatsapp_phone_number_id: string // Meta Phone Number ID
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
   whatsapp_enabled: 'false',
-  whatsapp_bsp: 'interakt',
   whatsapp_api_key: '',
-  whatsapp_wati_url: '',
-}
-
-const BSP_INFO: Record<BSP, { label: string; url: string; keyLabel: string; keyHint: string }> = {
-  interakt: {
-    label: 'Interakt',
-    url: 'https://app.interakt.ai',
-    keyLabel: 'API Key',
-    keyHint: 'Found in Interakt → Settings → Developer → API Keys',
-  },
-  wati: {
-    label: 'WATI',
-    url: 'https://app.wati.io',
-    keyLabel: 'Bearer Token',
-    keyHint: 'Found in WATI → Account → API Access',
-  },
-  aisensy: {
-    label: 'AiSensy',
-    url: 'https://app.aisensy.com',
-    keyLabel: 'API Key',
-    keyHint: 'Found in AiSensy → Settings → API Key',
-  },
+  whatsapp_phone_number_id: '',
 }
 
 // Templates that must be pre-approved in your BSP account
@@ -73,7 +48,7 @@ export default function SettingsPage() {
     const { data } = await supabase
       .from('app_settings')
       .select('key, value')
-      .in('key', Object.keys(DEFAULT_SETTINGS))
+      .in('key', ['whatsapp_enabled', 'whatsapp_api_key', 'whatsapp_phone_number_id'])
     if (data) {
       const merged = { ...DEFAULT_SETTINGS }
       for (const row of data) {
@@ -150,8 +125,6 @@ export default function SettingsPage() {
     }
   }
 
-  const bsp = (settings.whatsapp_bsp as BSP) || 'interakt'
-  const bspInfo = BSP_INFO[bsp]
   const isEnabled = settings.whatsapp_enabled === 'true'
 
   return (
@@ -177,7 +150,7 @@ export default function SettingsPage() {
             </div>
             <div>
               <h2 className="text-sm font-semibold text-brand-950">WhatsApp Notifications</h2>
-              <p className="text-[11px] text-muted-foreground">Automated alerts via BSP (Interakt / WATI / AiSensy)</p>
+              <p className="text-[11px] text-muted-foreground">Automated alerts via Meta Cloud API (your own WABA)</p>
             </div>
           </div>
 
@@ -203,56 +176,35 @@ export default function SettingsPage() {
               </button>
             </div>
 
-            {/* BSP selector */}
+            {/* Phone Number ID */}
             <div>
-              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">BSP Provider</label>
-              <div className="flex gap-2 mt-1.5">
-                {(['interakt', 'wati', 'aisensy'] as BSP[]).map(b => (
-                  <button
-                    key={b}
-                    onClick={() => setSettings(s => ({ ...s, whatsapp_bsp: b }))}
-                    className={cn(
-                      'flex-1 py-2 px-3 text-xs font-medium rounded-lg border transition-all',
-                      bsp === b
-                        ? 'bg-brand-600 text-white border-brand-700'
-                        : 'bg-white text-muted-foreground border-border hover:border-brand-300'
-                    )}
-                  >
-                    {BSP_INFO[b].label}
-                  </button>
-                ))}
-              </div>
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Phone Number ID</label>
+              <input
+                type="text"
+                value={settings.whatsapp_phone_number_id}
+                onChange={e => setSettings(s => ({ ...s, whatsapp_phone_number_id: e.target.value }))}
+                placeholder="e.g. 123456789012345"
+                className="mt-1.5 w-full px-3 py-2 text-sm border border-border rounded-lg bg-[#F8FAFC] font-mono focus:outline-none focus:ring-2 focus:ring-brand-300"
+              />
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Meta Business Manager → WhatsApp → Phone Numbers → select your number → Phone Number ID
+              </p>
             </div>
 
-            {/* API Key */}
+            {/* Access Token */}
             <div>
-              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                {bspInfo.keyLabel}
-              </label>
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Permanent Access Token</label>
               <input
                 type="password"
                 value={settings.whatsapp_api_key}
                 onChange={e => setSettings(s => ({ ...s, whatsapp_api_key: e.target.value }))}
-                placeholder="Paste your key here"
+                placeholder="Paste your system user token"
                 className="mt-1.5 w-full px-3 py-2 text-sm border border-border rounded-lg bg-[#F8FAFC] font-mono focus:outline-none focus:ring-2 focus:ring-brand-300"
               />
-              <p className="text-[11px] text-muted-foreground mt-1">{bspInfo.keyHint}</p>
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Meta Business Manager → System Users → select user → Generate Token → select your app → add <code className="font-mono bg-gray-100 px-0.5 rounded">whatsapp_business_messaging</code> permission
+              </p>
             </div>
-
-            {/* WATI URL — only for wati */}
-            {bsp === 'wati' && (
-              <div>
-                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">WATI Server URL</label>
-                <input
-                  type="url"
-                  value={settings.whatsapp_wati_url}
-                  onChange={e => setSettings(s => ({ ...s, whatsapp_wati_url: e.target.value }))}
-                  placeholder="https://live-server-XXXXX.wati.io"
-                  className="mt-1.5 w-full px-3 py-2 text-sm border border-border rounded-lg bg-[#F8FAFC] font-mono focus:outline-none focus:ring-2 focus:ring-brand-300"
-                />
-                <p className="text-[11px] text-muted-foreground mt-1">Found in WATI dashboard → API Settings</p>
-              </div>
-            )}
 
             <button
               onClick={saveSettings}
@@ -321,7 +273,7 @@ export default function SettingsPage() {
               </div>
               <div className="text-left">
                 <h2 className="text-sm font-semibold text-brand-950">WhatsApp Template Setup</h2>
-                <p className="text-[11px] text-muted-foreground">5 templates to register with your BSP</p>
+                <p className="text-[11px] text-muted-foreground">5 templates to register in Meta Business Manager</p>
               </div>
             </div>
             {showTemplates ? <Sym name="expand_less" size={14} className="text-muted-foreground" /> : <Sym name="expand_more" size={14} className="text-muted-foreground" />}
@@ -352,7 +304,7 @@ export default function SettingsPage() {
                 <div className="flex items-start gap-2">
                   <Sym name="error" size={12} className="text-amber-600 mt-0.5 shrink-0" />
                   <p className="text-[11px] text-amber-800">
-                    Templates must be approved by WhatsApp/Meta via your BSP before they can be sent.
+                    Templates must be approved by Meta in your WhatsApp Business Manager before they can be sent.
                     Approval takes 24–48 hours. Use the exact template names above.
                   </p>
                 </div>

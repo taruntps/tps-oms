@@ -7,10 +7,10 @@ const cors = {
 }
 
 interface Payload {
-  phone: string       // digits only with country code: "919876543210"
-  template: string    // pre-approved template name in your BSP account
-  params: string[]    // ordered body variable values
-  refId?: string      // optional tracking ID
+  phone: string    // digits with country code, e.g. "919876543210"
+  template: string // pre-approved Meta template name
+  params: string[] // ordered body variable values
+  refId?: string   // optional tracking ID
 }
 
 serve(async (req) => {
@@ -24,11 +24,11 @@ serve(async (req) => {
 
     const { phone, template, params, refId }: Payload = await req.json()
 
-    // Read BSP config
+    // Read Meta config from app_settings
     const { data: rows } = await supabase
       .from('app_settings')
       .select('key, value')
-      .in('key', ['whatsapp_enabled', 'whatsapp_bsp', 'whatsapp_api_key', 'whatsapp_wati_url'])
+      .in('key', ['whatsapp_enabled', 'whatsapp_api_key', 'whatsapp_phone_number_id'])
 
     const cfg: Record<string, string> = Object.fromEntries(
       (rows ?? []).map((r) => [r.key, r.value ?? ''])
@@ -38,70 +38,51 @@ serve(async (req) => {
       return json({ skipped: 'WhatsApp notifications are disabled' })
     }
     if (!cfg.whatsapp_api_key) {
-      return json({ error: 'BSP API key not configured in Settings' }, 400)
+      return json({ error: 'Meta access token not configured in Settings' }, 400)
+    }
+    if (!cfg.whatsapp_phone_number_id) {
+      return json({ error: 'Meta Phone Number ID not configured in Settings' }, 400)
     }
 
-    const bsp = cfg.whatsapp_bsp || 'interakt'
-    const apiKey = cfg.whatsapp_api_key
-    let bspRes: Response
+    const phoneNumberId = cfg.whatsapp_phone_number_id
+    const accessToken   = cfg.whatsapp_api_key
 
-    if (bsp === 'interakt') {
-      bspRes = await fetch('https://api.interakt.ai/v1/public/message/', {
+    // Meta Cloud API — send template message
+    const metaRes = await fetch(
+      `https://graph.facebook.com/v20.0/${phoneNumberId}/messages`,
+      {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Basic ' + btoa(apiKey),
+          'Authorization': `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
-          countryCode: '+91',
-          phoneNumber: phone.replace(/^91/, ''),
-          callbackData: refId ?? template,
-          type: 'Template',
-          template: { name: template, languageCode: 'en', bodyValues: params },
+          messaging_product: 'whatsapp',
+          to: phone,
+          type: 'template',
+          template: {
+            name: template,
+            language: { code: 'en_US' },
+            components: params.length > 0
+              ? [{
+                  type: 'body',
+                  parameters: params.map(text => ({ type: 'text', text })),
+                }]
+              : [],
+          },
         }),
-      })
-    } else if (bsp === 'wati') {
-      const base = (cfg.whatsapp_wati_url || '').replace(/\/$/, '')
-      if (!base) return json({ error: 'WATI server URL not configured' }, 400)
-      bspRes = await fetch(`${base}/api/v1/sendTemplateMessage?whatsappNumber=${phone}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          template_name: template,
-          broadcast_name: refId ?? template,
-          parameters: params.map((v, i) => ({ name: `param${i + 1}`, value: v })),
-        }),
-      })
-    } else if (bsp === 'aisensy') {
-      bspRes = await fetch('https://backend.aisensy.com/campaign/t1/api/v2', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          apiKey,
-          campaignName: template,
-          destination: phone,
-          userName: 'TPS Xperts',
-          templateParams: params,
-          source: 'tps-oms',
-          media: {},
-          buttons: [],
-          carouselCards: [],
-          location: {},
-          paramsFallbackValue: {},
-        }),
-      })
-    } else {
-      return json({ error: `Unknown BSP: ${bsp}` }, 400)
-    }
+      }
+    )
 
-    const data = await bspRes.json().catch(() => ({}))
-    const ok = bspRes.ok
+    const data = await metaRes.json().catch(() => ({}))
+    const ok   = metaRes.ok
 
     await supabase.from('whatsapp_log').insert({
-      phone, template, params, ref_id: refId, bsp,
+      phone,
+      template,
+      params,
+      ref_id: refId,
+      bsp: 'meta',
       status: ok ? 'sent' : 'failed',
       response: data,
     })
