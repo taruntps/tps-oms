@@ -43,13 +43,21 @@ serve(async (req) => {
     if (error) return json({ error: error.message }, 500)
     if (!projects?.length) return json({ skipped: 'No pending payments' })
 
+    // Only projects with a REAL positive balance count: a quote must be recorded
+    // (quoted_amount > 0) and still be partly unpaid (quoted > paid). This drops
+    // un-quoted projects (0/0) and negative balances (a payment logged with no
+    // quote yet). paid_amount already excludes govt pass-through fees (mig 062).
+    const dueProjects = projects.filter((p: any) =>
+      (p.quoted_amount ?? 0) > 0 && (p.quoted_amount ?? 0) > (p.paid_amount ?? 0))
+    if (!dueProjects.length) return json({ skipped: 'No outstanding consulting dues' })
+
     // Build summary
-    const count = projects.length
-    const totalPaise = projects.reduce((sum: number, p: any) => sum + ((p.quoted_amount ?? 0) - (p.paid_amount ?? 0)), 0)
+    const count = dueProjects.length
+    const totalPaise = dueProjects.reduce((sum: number, p: any) => sum + ((p.quoted_amount ?? 0) - (p.paid_amount ?? 0)), 0)
     const totalRs = Math.round(totalPaise / 100)
 
     // Client list (max 5 names to keep message short)
-    const clientNames = [...new Set(projects.map((p: any) => p.clients?.company_name).filter(Boolean))]
+    const clientNames = [...new Set(dueProjects.map((p: any) => p.clients?.company_name).filter(Boolean))]
     const clientList = clientNames.slice(0, 5).join(', ') + (clientNames.length > 5 ? ` +${clientNames.length - 5} more` : '')
 
     // Send to all managers with WhatsApp number
