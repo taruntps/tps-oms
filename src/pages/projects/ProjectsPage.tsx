@@ -21,7 +21,6 @@ const STATUS_FILTERS: { label: string; value: FilterValue }[] = [
   { label: 'Client',    value: 'with_client' }, // active, at least one client-clock stage
   { label: 'FSSAI',     value: 'authority' },   // active, solely waiting on authority
   { label: 'Blocked',   value: 'blocked' },     // active but blocked — clock stopped
-  { label: 'On Hold',   value: 'on_hold' },
   { label: 'Completed', value: 'completed' },
   { label: 'Cancelled', value: 'cancelled' },
   { label: 'All',       value: 'all' },
@@ -84,9 +83,16 @@ export default function ProjectsPage() {
     }, { replace: true })
 
   const setSearch       = (v: string) => setParam('q', v, '')
-  const setStatusFilter = (v: FilterValue) => setParam('status', v, 'pending')
   const setTypeFilter   = (v: string) => setParam('type', v, 'all')
   const setScope        = (v: 'mine' | 'all') => setParam('scope', v, 'mine')
+  // Clicking a status tab also clears the dashboard chip filters (due/blocked),
+  // otherwise "overdue AND <tab>" silently shows nothing.
+  const setStatusFilter = (v: FilterValue) => setSearchParams(prev => {
+    const p = new URLSearchParams(prev)
+    if (v === 'pending') p.delete('status'); else p.set('status', v)
+    p.delete('due'); p.delete('blocked')
+    return p
+  }, { replace: true })
 
   // URL-driven filters from dashboard chips
   const dueParam     = searchParams.get('due')      // 'week' | 'overdue'

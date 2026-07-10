@@ -168,7 +168,7 @@ export function EditProjectModal({ project, stages, onClose }: Props) {
                 <Field label="Project Status">
                   <select value={projectStatus} onChange={e => setProjectStatus(e.target.value)} className={ic}>
                     <option value="active">Active</option>
-                    <option value="on_hold">On Hold</option>
+                    {projectStatus === 'on_hold' && <option value="on_hold">On Hold (legacy)</option>}
                     <option value="completed">Completed</option>
                     <option value="cancelled">Cancelled</option>
                   </select>
