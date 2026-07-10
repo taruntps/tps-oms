@@ -492,13 +492,18 @@ function PerformanceTab() {
 // ══════════════════════════════════════════════════════════════════════════════
 
 function PendingPaymentsTab() {
-  const { data: projects = [], isLoading } = useQuery({
+  // 'completed' = work delivered, money owed (highest collection priority)
+  // 'active'    = still in progress · 'all' = both
+  const [scope, setScope] = useState<'all' | 'completed' | 'active'>('all')
+
+  const { data: allProjects = [], isLoading } = useQuery({
     queryKey: ['reports_pending_payments'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('projects')
-        .select('id, project_code, service_type, quoted_amount, paid_amount, payment_status, created_at, clients(company_name)')
+        .select('id, project_code, service_type, status, quoted_amount, paid_amount, payment_status, created_at, clients(company_name)')
         .neq('payment_status', 'paid')
+        .in('status', ['active', 'completed'])   // cancelled/on-hold aren't chased here
         .order('created_at', { ascending: true })
       if (error) throw error
       return data ?? []
@@ -506,12 +511,23 @@ function PendingPaymentsTab() {
     staleTime: 0,
   })
 
-  // Only real dues count: a quote must be recorded (quoted > 0) and still be
-  // partly unpaid. Un-quoted projects and overpayments never drag the total.
-  const totalPending = projects.reduce((sum: number, p: any) => {
+  const realDue = (p: any) => {
     const q = p.quoted_amount ?? 0, paid = p.paid_amount ?? 0
-    return sum + (q > 0 && q > paid ? q - paid : 0)
-  }, 0)
+    return q > 0 && q > paid ? q - paid : 0
+  }
+  const sumDue = (list: any[]) => list.reduce((s, p) => s + realDue(p), 0)
+
+  const completedList = allProjects.filter((p: any) => p.status === 'completed')
+  const activeList    = allProjects.filter((p: any) => p.status === 'active')
+
+  // Completed-and-unpaid sorts first — those are the priority collections.
+  const projects = (scope === 'completed' ? completedList : scope === 'active' ? activeList : allProjects)
+    .slice()
+    .sort((a: any, b: any) => (a.status === 'completed' ? 0 : 1) - (b.status === 'completed' ? 0 : 1))
+
+  const totalPending = sumDue(projects)
+  const completedDue = sumDue(completedList)
+  const activeDue    = sumDue(activeList)
 
   if (isLoading) {
     return (
@@ -525,11 +541,26 @@ function PendingPaymentsTab() {
 
   return (
     <div className="p-6 space-y-6 animate-fade-up">
-      {/* Summary KPIs */}
+      {/* Summary KPIs — completed dues are the priority to collect */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-        <KPI icon="payments"       label="Projects Pending"  value={projects.length}  color="text-amber-600" />
-        <KPI icon="currency_rupee" label="Total Outstanding" value={formatRupees(totalPending)} color="text-red-600" />
-        <KPI icon="warning"        label="Overdue"           value={projects.filter((p: any) => p.payment_status === 'overdue').length} color="text-red-600" />
+        <KPI icon="task_alt"       label={`Completed & Unpaid (${completedList.length})`} value={formatRupees(completedDue)} color="text-red-600" />
+        <KPI icon="pending_actions" label={`Active & Unpaid (${activeList.length})`}       value={formatRupees(activeDue)}    color="text-amber-600" />
+        <KPI icon="currency_rupee" label="Total Outstanding"                               value={formatRupees(totalPending)} color="text-brand-700" />
+      </div>
+
+      {/* Scope filter — prioritise completed (work delivered, money owed) */}
+      <div className="flex flex-wrap gap-1.5">
+        {([
+          { key: 'all',       label: `All (${allProjects.length})` },
+          { key: 'completed', label: `✅ Completed — priority (${completedList.length})` },
+          { key: 'active',    label: `🔵 Active (${activeList.length})` },
+        ] as const).map(f => (
+          <button key={f.key} onClick={() => setScope(f.key)}
+            className={cn('px-3 py-1.5 text-xs font-medium rounded-lg border transition-all',
+              scope === f.key ? 'bg-brand-600 text-white border-brand-700' : 'border-border text-muted-foreground hover:border-brand-300 hover:text-brand-700')}>
+            {f.label}
+          </button>
+        ))}
       </div>
 
       {projects.length === 0 ? (
@@ -547,7 +578,7 @@ function PendingPaymentsTab() {
             <table className="w-full text-xs">
               <thead className="bg-[#F8FAFC]">
                 <tr className="text-left">
-                  {['Client', 'Project', 'Service', 'Quoted', 'Received', 'Balance', 'Status'].map(h => (
+                  {['Client', 'Project', 'Service', 'Stage', 'Quoted', 'Received', 'Balance', 'Status'].map(h => (
                     <th key={h} className="px-5 py-2.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">{h}</th>
                   ))}
                 </tr>
@@ -563,6 +594,11 @@ function PendingPaymentsTab() {
                       <td className="px-5 py-3 font-medium text-brand-950">{(p as any).clients?.company_name ?? '—'}</td>
                       <td className="px-5 py-3 font-mono text-muted-foreground">{p.project_code ?? '—'}</td>
                       <td className="px-5 py-3 text-muted-foreground capitalize">{(p.service_type ?? '—').replace(/_/g, ' ')}</td>
+                      <td className="px-5 py-3">
+                        {p.status === 'completed'
+                          ? <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-red-100 text-red-700">✅ Completed</span>
+                          : <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700">Active</span>}
+                      </td>
                       <td className="px-5 py-3 font-mono">{hasQuote ? formatRupees(quoted) : <span className="text-amber-600" title="No quote entered for this project">— quote not set</span>}</td>
                       <td className="px-5 py-3 font-mono text-green-700">{formatRupees(p.paid_amount ?? 0)}</td>
                       <td className="px-5 py-3 font-mono font-semibold">
