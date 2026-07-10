@@ -2,12 +2,12 @@
 // Cron: 09:00 IST (03:30 UTC). Sends, per active staff member, a digest of their
 // OPEN/OVERDUE tasks; and to each manager/director/admin, a digest of licences
 // expiring within 30 days. Dedupes via notification_log (one per kind/recipient/day).
+// Also sends WhatsApp morning digest via Meta Cloud API (tps_morning_digest template).
 //
 // Manual test (no staff emailed, nothing logged):
 //   POST { "test": true, "to": "tarun@tpsxpert.com", "name": "Tarun" }
 //
 // Secrets: ZEPTOMAIL_TOKEN, MAIL_FROM, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY.
-// WhatsApp stays stubbed (reminder_settings.whatsapp_enabled) until AiSensy is live.
 
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
@@ -39,7 +39,7 @@ serve(async (req) => {
   const emailMap: Record<string, string> = {}
   for (const u of au?.users ?? []) if (u.email) emailMap[u.id] = u.email
 
-  const { data: staff } = await supabase.from('profiles').select('id, name, role').eq('is_active', true)
+  const { data: staff } = await supabase.from('profiles').select('id, name, role, whatsapp_number, phone').eq('is_active', true)
 
   const { data: tasks } = await supabase.from('tasks')
     .select('id, title, priority, status, due_date, assigned_to, project:projects(project_code), client:clients(company_name)')
@@ -103,6 +103,50 @@ serve(async (req) => {
       const ok = await sendMail(email, m.name, `[TPS Xperts Group] ${queries!.length} FSSAI query response(s) due`, queryHtml(queries!, today))
       await logSent(supabase, 'query_digest', null, m.id)
       sent.push({ uid: m.id, kind: 'query_digest', ok })
+    }
+  }
+
+  // ── WhatsApp morning digest (tps_morning_digest) ──
+  const waEnabled = settings?.whatsapp_enabled === true || settings?.whatsapp_enabled === 'true'
+  if (!testTo && waEnabled) {
+    const sendUrl = `${SUPABASE_URL}/functions/v1/send-whatsapp`
+
+    // Per-user stage counts
+    const { data: stageRows } = await supabase
+      .from('stages')
+      .select('assigned_to, status, due_date')
+      .in('status', ['pending', 'in_progress'])
+
+    // Global pending projects count
+    const { count: pendingProjects } = await supabase
+      .from('projects')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'active')
+
+    for (const s of staff ?? []) {
+      const phone = (s as any).whatsapp_number
+      if (!phone) continue
+      if (await alreadySent(supabase, 'wa_morning_digest', null, s.id, today)) continue
+
+      const myStages = (stageRows ?? []).filter((r: any) => r.assigned_to === s.id)
+      const overdue  = myStages.filter((r: any) => r.due_date && r.due_date < today).length
+      const pending  = myStages.length
+
+      if (pending === 0 && (pendingProjects ?? 0) === 0) continue
+
+      const normalised = phone.replace(/\D/g, '').replace(/^0/, '').replace(/^(?!91)/, '91')
+      await fetch(sendUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SERVICE}` },
+        body: JSON.stringify({
+          phone: normalised,
+          template: 'tps_morning_digest',
+          params: [s.name, String(pending), String(overdue), String(pendingProjects ?? 0)],
+          refId: `morning_${s.id}_${today}`,
+        }),
+      })
+      await logSent(supabase, 'wa_morning_digest', null, s.id)
+      sent.push({ uid: s.id, kind: 'wa_morning_digest' })
     }
   }
 

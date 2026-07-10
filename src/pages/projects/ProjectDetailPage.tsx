@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import { Sym }             from '@/components/shared/Sym'
 import { TopBar }          from '@/components/layout/TopBar'
 import { RoleGuard }       from '@/components/shared/ProtectedRoute'
@@ -10,12 +10,15 @@ import { QueriesTab }      from './tabs/QueriesTab'
 import { SoiTab }          from './tabs/SoiTab'
 import { DriveTab }        from '@/components/shared/DriveTab'
 import { ActivityTab }     from './tabs/ActivityTab'
+import { RemarksTab }      from './tabs/RemarksTab'
 import { BlockRequestForm } from './BlockRequestForm'
 import { TransferProjectButton } from './ProjectTransfer'
 import { EditProjectModal } from './EditProjectModal'
 import {
   useProject, useUpdateProject, useApproveBlockRequest,
   useUnblockProject, usePendingBlockRequests, useDeleteProject,
+  useSubmitBlockRequest, useSubmitCancelRequest,
+  usePendingCancelRequests, useApproveCancelRequest,
 } from '@/hooks/useProjects'
 import { useLicenses, useRevealCredential } from '@/hooks/useLicenses'
 import { useAuth }   from '@/contexts/AuthContext'
@@ -34,6 +37,7 @@ const TABS = [
   { key: 'soi',        label: 'SOI Archive' },
   { key: 'drive',      label: 'Drive'       },
   { key: 'activity',   label: 'Activity'    },
+  { key: 'remarks',    label: 'Remarks'     },
 ] as const
 type TabKey = (typeof TABS)[number]['key']
 
@@ -51,24 +55,34 @@ const projectTypeBadge = (t?: string | null) => PROJECT_TYPE_BADGE[t ?? ''] ?? '
 export default function ProjectDetailPage() {
   const { id }      = useParams<{ id: string }>()
   const navigate    = useNavigate()
+  const location    = useLocation()
   const { profile } = useAuth()
   const { data: project, isLoading } = useProject(id!)
   const updateProject  = useUpdateProject()
   const approveBlock   = useApproveBlockRequest()
   const unblock        = useUnblockProject()
   const deleteProject  = useDeleteProject()
+  const submitRequest  = useSubmitBlockRequest()
+  const submitCancel   = useSubmitCancelRequest()
+  const approveCancel  = useApproveCancelRequest()
   const { data: pendingRequests = [] } = usePendingBlockRequests()
+  const { data: pendingCancels = [] }  = usePendingCancelRequests()
   // Must be called before any early return to satisfy React Rules of Hooks
   const { data: licenses = [] } = useLicenses(project?.client_id ?? '')
 
-  const [showBlockForm,   setShowBlockForm]   = useState(false)
-  const [showEditProject, setShowEditProject] = useState(false)
-  const [showCancelModal, setShowCancelModal] = useState(false)
-  const [showAppRefEdit,  setShowAppRefEdit]  = useState(false)
-  const [cancelReason,    setCancelReason]    = useState('')
-  const [appRefDraft,     setAppRefDraft]     = useState('')
+  const [showBlockForm,    setShowBlockForm]    = useState(false)
+  const [showEditProject,  setShowEditProject]  = useState(false)
+  const [showCancelModal,  setShowCancelModal]  = useState(false)
+  const [showUnblockModal, setShowUnblockModal] = useState(false)
+  const [showAppRefEdit,   setShowAppRefEdit]   = useState(false)
+  const [cancelReason,     setCancelReason]     = useState('')
+  const [unblockReason,    setUnblockReason]    = useState('')
+  const [appRefDraft,      setAppRefDraft]      = useState('')
   const [searchParams] = useSearchParams()
   const [activeTab,       setActiveTab]       = useState<TabKey>((searchParams.get('tab') as TabKey) || 'overview')
+
+  // Where "Back to Projects" should land — the exact filtered view we came from.
+  const backToProjects = () => navigate('/projects' + ((location.state as any)?.fromSearch ?? ''))
 
   if (isLoading) {
     return (
@@ -83,7 +97,9 @@ export default function ProjectDetailPage() {
   }
   if (!project) return null
 
-  const myPendingRequest = pendingRequests.find(r => r.project_id === id)
+  const myPendingRequest = pendingRequests.find(r => r.project_id === id && ((r as any).request_kind ?? 'block') === 'block')
+  const myPendingUnblock = pendingRequests.find(r => r.project_id === id && (r as any).request_kind === 'unblock')
+  const myPendingCancel  = (pendingCancels as any[]).find(r => r.project_id === id)
   const stages           = (project as any).stages ?? []
   const clientId         = project.client_id
   // Header clock reflects the CURRENT (first not-done) stage's own clock — per-stage now.
@@ -135,6 +151,19 @@ export default function ProjectDetailPage() {
       toast.success('Unblocked', 'Project back to employee clock.')
     } catch (err: any) { toast.error('Failed', err.message) }
   }
+  // Executive raises an unblock request → admin approves via the same inbox.
+  const handleRequestUnblock = async () => {
+    if (!unblockReason.trim()) { toast.error('Reason is mandatory'); return }
+    try {
+      await submitRequest.mutateAsync({
+        project_id: id!, block_type: (project as any)?.block_type ?? 'other',
+        reason: unblockReason.trim(), requested_by: profile!.id,
+        request_kind: 'unblock',
+      } as any)
+      toast.success('Unblock request submitted', 'Manager will review and approve.')
+      setShowUnblockModal(false); setUnblockReason('')
+    } catch (err: any) { toast.error('Failed to submit', err.message) }
+  }
 
   // ── Delete project (admin, permanent) ────────────────────────────────────
   const handleDelete = async () => {
@@ -142,32 +171,46 @@ export default function ProjectDetailPage() {
     try {
       await deleteProject.mutateAsync(id!)
       toast.success('Project deleted')
-      navigate('/projects')
+      backToProjects()
     } catch (err: any) { toast.error('Could not delete', err.message) }
   }
 
   // ── Cancel project ───────────────────────────────────────────────────────
+  // Admins cancel directly; executives raise a request that admins approve.
   const handleCancel = async () => {
     if (!cancelReason.trim()) { toast.error('Reason is mandatory'); return }
     try {
-      // Save to cancel_requests table for audit trail (cast as any — new table not in generated types)
-      await (supabase as any).from('cancel_requests').insert({
-        project_id:    id,
-        requested_by:  profile!.id,
-        reason:        cancelReason,
-        status:        'approved',
-        approved_by:   profile!.id,
-        approved_at:   new Date().toISOString(),
-      })
-      await updateProject.mutateAsync({
-        id:            project.id,
-        status:        'cancelled' as any,
-        ...({ cancel_reason: cancelReason, cancelled_at: new Date().toISOString(), cancelled_by: profile!.id } as any),
-      })
-      toast.success('Project cancelled')
+      if (canCancel) {
+        // Direct cancel (audit trail row is pre-approved, trigger skips admin notify)
+        await (supabase as any).from('cancel_requests').insert({
+          project_id:    id,
+          requested_by:  profile!.id,
+          reason:        cancelReason,
+          status:        'approved',
+          approved_by:   profile!.id,
+          approved_at:   new Date().toISOString(),
+        })
+        await updateProject.mutateAsync({
+          id:            project.id,
+          status:        'cancelled' as any,
+          ...({ cancel_reason: cancelReason, cancelled_at: new Date().toISOString(), cancelled_by: profile!.id } as any),
+        })
+        toast.success('Project cancelled')
+      } else {
+        await submitCancel.mutateAsync({ projectId: id!, reason: cancelReason.trim(), requestedBy: profile!.id })
+        toast.success('Cancellation request submitted', 'Admin will review and approve.')
+      }
       setShowCancelModal(false)
       setCancelReason('')
-    } catch (err: any) { toast.error('Failed to cancel', err.message) }
+    } catch (err: any) { toast.error('Failed', err.message) }
+  }
+
+  const handleApproveCancel = async (approved: boolean) => {
+    if (!myPendingCancel) return
+    try {
+      await approveCancel.mutateAsync({ requestId: myPendingCancel.id, approved, projectId: id! })
+      toast.success(approved ? 'Cancellation approved' : 'Request rejected')
+    } catch (err: any) { toast.error('Failed', err.message) }
   }
 
   // ── Save App Ref No ──────────────────────────────────────────────────────
@@ -187,7 +230,7 @@ export default function ProjectDetailPage() {
 
         {/* Back + actions row */}
         <div className="flex items-center justify-between flex-wrap gap-2">
-          <button onClick={() => navigate('/projects')} className="flex items-center gap-2 text-sm text-white/70 hover:text-white">
+          <button onClick={backToProjects} className="flex items-center gap-2 text-sm text-white/70 hover:text-white">
             <Sym name="arrow_back" size={14} /> Back to Projects
           </button>
           <div className="flex items-center gap-2">
@@ -205,13 +248,18 @@ export default function ProjectDetailPage() {
                 <Sym name="edit" size={12} /> Edit
               </button>
             </RoleGuard>
-            {/* Cancel */}
-            {canCancel && !isCancelled && (
+            {/* Cancel — admins direct; executives raise a request */}
+            {!isCancelled && !isCompleted && (canCancel ? (
               <button onClick={() => setShowCancelModal(true)}
                 className="flex items-center gap-1.5 text-sm px-3 py-1.5 border border-red-400/40 text-red-200 rounded-lg hover:bg-red-500/10">
                 <Sym name="cancel" size={12} /> Cancel Project
               </button>
-            )}
+            ) : profile?.role === 'executive' && !myPendingCancel ? (
+              <button onClick={() => setShowCancelModal(true)}
+                className="flex items-center gap-1.5 text-sm px-3 py-1.5 border border-red-400/40 text-red-200 rounded-lg hover:bg-red-500/10">
+                <Sym name="cancel" size={12} /> Request Cancellation
+              </button>
+            ) : null)}
             {/* Delete (admin, permanent) */}
             {isAdmin && (
               <button onClick={handleDelete} disabled={deleteProject.isPending}
@@ -232,6 +280,60 @@ export default function ProjectDetailPage() {
             </div>
           </div>
         )}
+
+        {/* Pending cancellation — approval card for admins, status banner for requester */}
+        {myPendingCancel && (canApprove ? (
+          <div className="glass-panel rounded-xl p-4 flex items-start gap-3 !bg-red-500/15 !border-red-400/30">
+            <Sym name="cancel" size={16} className="text-red-300 mt-0.5 shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-white">Cancellation Request Pending Approval</p>
+              <p className="text-xs text-white/70 mt-0.5">
+                <strong>{myPendingCancel.profiles?.name}</strong> — {myPendingCancel.reason}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => handleApproveCancel(true)} disabled={approveCancel.isPending}
+                className="px-3 py-1 bg-red-600 text-white text-xs font-medium rounded-lg hover:bg-red-700 disabled:opacity-50">
+                Approve Cancellation
+              </button>
+              <button onClick={() => handleApproveCancel(false)} disabled={approveCancel.isPending}
+                className="px-3 py-1 border border-white/20 text-white text-xs rounded-lg hover:bg-white/10">
+                Reject
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="glass-panel rounded-xl px-5 py-3 !bg-red-500/15 !border-red-400/30">
+            <p className="text-xs text-white/80">⏳ Cancellation request pending admin approval — {myPendingCancel.reason}</p>
+          </div>
+        ))}
+
+        {/* Pending unblock request — approval card for admins */}
+        {myPendingUnblock && (canApprove ? (
+          <div className="glass-panel rounded-xl p-4 flex items-start gap-3 !bg-blue-500/15 !border-blue-400/30">
+            <Sym name="lock_open" size={16} className="text-blue-300 mt-0.5 shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-white">Unblock Request Pending Approval</p>
+              <p className="text-xs text-white/70 mt-0.5">
+                <strong>{(myPendingUnblock as any).profiles?.name}</strong> — {myPendingUnblock.reason}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => handleApprove(myPendingUnblock.id, true)} disabled={approveBlock.isPending}
+                className="px-3 py-1 bg-green-600 text-white text-xs font-medium rounded-lg hover:bg-green-700 disabled:opacity-50">
+                Approve Unblock
+              </button>
+              <button onClick={() => handleApprove(myPendingUnblock.id, false)} disabled={approveBlock.isPending}
+                className="px-3 py-1 border border-white/20 text-white text-xs rounded-lg hover:bg-white/10">
+                Reject
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="glass-panel rounded-xl px-5 py-3 !bg-blue-500/15 !border-blue-400/30">
+            <p className="text-xs text-white/80">⏳ Unblock request pending admin approval — {myPendingUnblock.reason}</p>
+          </div>
+        ))}
 
         {/* Block approval card */}
         {canApprove && myPendingRequest && (
@@ -259,20 +361,32 @@ export default function ProjectDetailPage() {
 
         {/* Blocked banner */}
         {project.is_blocked && (
-          <div className="glass-panel rounded-xl px-5 py-3 flex items-center justify-between !bg-red-500/15 !border-red-400/30">
+          <div className="glass-panel rounded-xl px-5 py-3 flex items-center justify-between flex-wrap gap-2 !bg-red-500/15 !border-red-400/30">
             <div className="flex items-center gap-2">
               <Sym name="warning" size={15} className="text-red-300" />
               <div>
-                <p className="text-sm font-semibold text-white">Project Blocked</p>
+                <p className="text-sm font-semibold text-white">Project Blocked — clock stopped ⏸</p>
                 {project.block_reason && <p className="text-xs text-white/70">{project.block_reason}</p>}
+                {(project as any).block_started_at && (
+                  <p className="text-[11px] text-white/55">Blocked since {formatDate((project as any).block_started_at)} — this time is excluded from the project clock</p>
+                )}
               </div>
             </div>
-            <RoleGuard roles={['super_admin','director','manager']}>
-              <button onClick={handleUnblock} disabled={unblock.isPending}
-                className="flex items-center gap-1.5 px-3 py-1.5 border border-red-400/40 text-red-200 text-xs font-medium rounded-lg hover:bg-red-500/10 disabled:opacity-50">
-                <Sym name="refresh" size={11} /> Unblock
-              </button>
-            </RoleGuard>
+            <div className="flex items-center gap-2">
+              {/* Executive raises an unblock request */}
+              {profile?.role === 'executive' && !myPendingUnblock && (
+                <button onClick={() => setShowUnblockModal(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 border border-green-400/40 text-green-200 text-xs font-medium rounded-lg hover:bg-green-500/10">
+                  <Sym name="lock_open" size={11} /> Request Unblock
+                </button>
+              )}
+              <RoleGuard roles={['super_admin','director','manager']}>
+                <button onClick={handleUnblock} disabled={unblock.isPending}
+                  className="flex items-center gap-1.5 px-3 py-1.5 border border-red-400/40 text-red-200 text-xs font-medium rounded-lg hover:bg-red-500/10 disabled:opacity-50">
+                  <Sym name="refresh" size={11} /> Unblock
+                </button>
+              </RoleGuard>
+            </div>
           </div>
         )}
 
@@ -320,6 +434,8 @@ export default function ProjectDetailPage() {
               since={(currentStage as any)?.started_at ?? project.clock_switched_at ?? project.created_at}
               isBlocked={project.is_blocked ?? false}
               personName={executiveName}
+              pausedMinutes={(project as any).blocked_minutes_total ?? 0}
+              blockStartedAt={(project as any).block_started_at}
             />
           </div>
 
@@ -479,6 +595,7 @@ export default function ProjectDetailPage() {
           />
         )}
         {effectiveTab === 'activity' && <ActivityTab projectId={id!} />}
+        {effectiveTab === 'remarks'  && <RemarksTab  projectId={id!} />}
       </div>
 
       {/* Modals */}
@@ -494,6 +611,40 @@ export default function ProjectDetailPage() {
         />
       )}
 
+      {/* Unblock Request modal (executive) */}
+      {showUnblockModal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
+                <Sym name="lock_open" size={18} className="text-green-600" />
+              </div>
+              <div>
+                <h2 className="font-display font-semibold text-brand-950">Request Unblock</h2>
+                <p className="text-xs text-muted-foreground">{project.project_code} · {project.project_name}</p>
+              </div>
+            </div>
+            <p className="text-sm text-muted-foreground mb-3">Explain why this project can resume — an admin will review and approve. The clock restarts on approval.</p>
+            <label className="block text-xs font-medium text-brand-950 mb-1">Reason for unblock *</label>
+            <textarea
+              value={unblockReason}
+              onChange={e => setUnblockReason(e.target.value)}
+              rows={3}
+              placeholder="e.g. Client submitted the pending documents, payment received, etc."
+              className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-600/20 mb-4"
+            />
+            <div className="flex justify-end gap-3">
+              <button onClick={() => { setShowUnblockModal(false); setUnblockReason('') }}
+                className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-[#F8FAFC]">Cancel</button>
+              <button onClick={handleRequestUnblock} disabled={!unblockReason.trim() || submitRequest.isPending}
+                className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50">
+                {submitRequest.isPending ? 'Submitting…' : 'Submit Request'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Cancel Project modal */}
       {showCancelModal && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
@@ -503,11 +654,15 @@ export default function ProjectDetailPage() {
                 <Sym name="cancel" size={18} className="text-red-600" />
               </div>
               <div>
-                <h2 className="font-display font-semibold text-brand-950">Cancel Project</h2>
+                <h2 className="font-display font-semibold text-brand-950">{canCancel ? 'Cancel Project' : 'Request Cancellation'}</h2>
                 <p className="text-xs text-muted-foreground">{project.project_code} · {project.project_name}</p>
               </div>
             </div>
-            <p className="text-sm text-muted-foreground mb-3">This will mark the project as cancelled. A reason is mandatory for audit trail.</p>
+            <p className="text-sm text-muted-foreground mb-3">
+              {canCancel
+                ? 'This will mark the project as cancelled. A reason is mandatory for audit trail.'
+                : 'This sends a cancellation request to the admin for approval. A reason is mandatory.'}
+            </p>
             <label className="block text-xs font-medium text-brand-950 mb-1">Reason for cancellation *</label>
             <textarea
               value={cancelReason}
@@ -519,9 +674,9 @@ export default function ProjectDetailPage() {
             <div className="flex justify-end gap-3">
               <button onClick={() => { setShowCancelModal(false); setCancelReason('') }}
                 className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-[#F8FAFC]">Cancel</button>
-              <button onClick={handleCancel} disabled={!cancelReason.trim() || updateProject.isPending}
+              <button onClick={handleCancel} disabled={!cancelReason.trim() || updateProject.isPending || submitCancel.isPending}
                 className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:opacity-50">
-                {updateProject.isPending ? 'Cancelling…' : 'Confirm Cancel'}
+                {(updateProject.isPending || submitCancel.isPending) ? 'Submitting…' : canCancel ? 'Confirm Cancel' : 'Submit Request'}
               </button>
             </div>
           </div>

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import * as XLSX from 'xlsx'
 import { Sym } from '@/components/shared/Sym'
 import { useSoiArchive, useDeleteSoi } from '@/hooks/useAuthorityQueries'
@@ -85,8 +86,12 @@ function parseFssaiTable(raw: string, type: SoiType): ParsedRow[] {
   return out
 }
 
+// Normalised product name — the diff key for version comparison.
+const productKey = (p: any) => String(p?.data?.product ?? '').toLowerCase().replace(/\s+/g, ' ').trim()
+
 export function SoiTab({ projectId, clientId, clientName, closed }: Props) {
   const { profile } = useAuth()
+  const qc = useQueryClient()
   const { data: sois = [], isLoading } = useSoiArchive(clientId)
   const deleteSoi = useDeleteSoi()
 
@@ -99,6 +104,13 @@ export function SoiTab({ projectId, clientId, clientName, closed }: Props) {
   const [saving, setSaving] = useState(false)
   const [expandedSoi, setExpandedSoi] = useState<string | null>(null)
   const [soiProducts, setSoiProducts] = useState<Record<string, any[]>>({})
+  const [compareOpen, setCompareOpen] = useState(false)
+  const [compareA, setCompareA] = useState<string>('')   // older version
+  const [compareB, setCompareB] = useState<string>('')   // newer version
+  const [compareResult, setCompareResult] = useState<{
+    added: any[]; removed: any[]; same: any[]; a: any; b: any
+  } | null>(null)
+  const [comparing, setComparing] = useState(false)
 
   const resetFlow = () => { setMode('list'); setPasteText(''); setPreview([]) }
 
@@ -121,6 +133,11 @@ export function SoiTab({ projectId, clientId, clientName, closed }: Props) {
   const handleSave = async () => {
     if (!soiDate) { toast.error('Select an SOI date'); return }
     if (preview.length === 0) { toast.error('Nothing to save'); return }
+    // Duplicate guard — same date + same product count for this project usually
+    // means the user re-pasted after not seeing the earlier save appear.
+    const dup = (sois as any[]).find((s: any) => s.project_id === projectId && s.soi_date === soiDate
+      && s.soi_type === soiType && s.description === `${preview.length} ${soiType} products`)
+    if (dup && !confirm(`An SOI with the same date and ${preview.length} products already exists (V${dup.version_no ?? 1}). Save anyway as a new version?`)) return
     setSaving(true)
     try {
       // Next version number for this project.
@@ -150,6 +167,7 @@ export function SoiTab({ projectId, clientId, clientName, closed }: Props) {
       if (prodErr) throw prodErr
 
       toast.success('SOI saved', `V${nextVer} · ${preview.length} products`)
+      await qc.invalidateQueries({ queryKey: ['soi_archive', clientId] })
       resetFlow()
     } catch (err: any) {
       toast.error('Failed to save SOI', err.message)
@@ -185,6 +203,37 @@ export function SoiTab({ projectId, clientId, clientName, closed }: Props) {
     } catch (e: any) { toast.error('Download failed', e.message) }
   }
 
+  // ── Version compare (diff by normalised product name) ──
+  const openCompare = () => {
+    // Default: oldest vs newest version of THIS project's SOIs (fall back to whole list)
+    const mine = sois.filter((s: any) => s.project_id === projectId)
+    const pool = mine.length >= 2 ? mine : sois
+    const sorted = [...pool].sort((a: any, b: any) => (a.version_no ?? 1) - (b.version_no ?? 1))
+    setCompareA(sorted[0]?.id ?? '')
+    setCompareB(sorted[sorted.length - 1]?.id ?? '')
+    setCompareResult(null)
+    setCompareOpen(true)
+  }
+
+  const runCompare = async () => {
+    if (!compareA || !compareB || compareA === compareB) { toast.error('Select two different versions'); return }
+    setComparing(true)
+    try {
+      const [prodA, prodB] = await Promise.all([loadProducts(compareA), loadProducts(compareB)])
+      const keysA = new Set(prodA.map(productKey))
+      const keysB = new Set(prodB.map(productKey))
+      const added   = prodB.filter((p: any) => !keysA.has(productKey(p)))
+      const same    = prodB.filter((p: any) => keysA.has(productKey(p)))
+      const removed = prodA.filter((p: any) => !keysB.has(productKey(p)))
+      const a = sois.find((s: any) => s.id === compareA)
+      const b = sois.find((s: any) => s.id === compareB)
+      setCompareResult({ added, removed, same, a, b })
+    } catch (e: any) { toast.error('Compare failed', e.message) }
+    finally { setComparing(false) }
+  }
+
+  const verLabel = (s: any) => `V${s.version_no ?? 1} · ${formatDate(s.soi_date)} · ${s.description ?? s.soi_type}`
+
   const handleDelete = async (s: any) => {
     if (!confirm(`Delete SOI V${s.version_no ?? 1} (${s.description ?? s.soi_type})? This cannot be undone.`)) return
     try {
@@ -202,6 +251,12 @@ export function SoiTab({ projectId, clientId, clientName, closed }: Props) {
           <div className="flex gap-2">
             {mode !== 'list' && (
               <button onClick={resetFlow} className="text-xs text-white/70 hover:text-white">← Back</button>
+            )}
+            {mode === 'list' && sois.length >= 2 && (
+              <button onClick={() => compareOpen ? setCompareOpen(false) : openCompare()}
+                className="flex items-center gap-1.5 text-sm text-white font-medium hover:text-white/80">
+                <Sym name="compare_arrows" size={13} /> {compareOpen ? 'Close Compare' : 'Compare Versions'}
+              </button>
             )}
             {mode === 'list' && !closed && (
               <button onClick={() => setMode('paste')}
@@ -316,6 +371,120 @@ export function SoiTab({ projectId, clientId, clientName, closed }: Props) {
               ← Re-paste
             </button>
           </div>
+        </div>
+      )}
+
+      {/* ── COMPARE PANEL ── */}
+      {mode === 'list' && compareOpen && (
+        <div className="bg-white rounded-xl border border-border p-5 space-y-4">
+          <h4 className="text-xs font-semibold text-brand-950">Compare SOI Versions — new products highlight</h4>
+          <div className="flex flex-wrap items-end gap-3">
+            <div>
+              <label className="block text-[11px] font-medium text-brand-950 mb-1">Older version</label>
+              <select value={compareA} onChange={e => { setCompareA(e.target.value); setCompareResult(null) }}
+                className="px-3 py-2 text-xs border border-border rounded-lg bg-white min-w-[240px]">
+                {sois.map((s: any) => <option key={s.id} value={s.id}>{verLabel(s)}</option>)}
+              </select>
+            </div>
+            <Sym name="arrow_forward" size={14} className="text-muted-foreground mb-2.5" />
+            <div>
+              <label className="block text-[11px] font-medium text-brand-950 mb-1">Newer version</label>
+              <select value={compareB} onChange={e => { setCompareB(e.target.value); setCompareResult(null) }}
+                className="px-3 py-2 text-xs border border-border rounded-lg bg-white min-w-[240px]">
+                {sois.map((s: any) => <option key={s.id} value={s.id}>{verLabel(s)}</option>)}
+              </select>
+            </div>
+            <button onClick={runCompare} disabled={comparing}
+              className="px-4 py-2 bg-brand-600 text-white text-xs font-medium rounded-lg hover:bg-brand-700 disabled:opacity-50">
+              {comparing ? 'Comparing…' : 'Compare'}
+            </button>
+          </div>
+
+          {compareResult && (() => {
+            const { added, removed, same, a, b } = compareResult
+            const cols: ColDef[] = (b?.columns?.length ? b.columns : colsFor(b?.soi_type)) as ColDef[]
+            const addedKeys = new Set(added.map(productKey))
+            const prodsB = soiProducts[compareB] ?? []
+            return (
+              <div className="space-y-3">
+                {/* Summary strip */}
+                <div className="flex flex-wrap gap-2 text-xs">
+                  <span className="px-2.5 py-1 rounded-lg bg-[#F1F5F9] text-brand-950 font-medium">
+                    V{a?.version_no ?? 1}: {(soiProducts[compareA] ?? []).length} products
+                  </span>
+                  <span className="px-2.5 py-1 rounded-lg bg-[#F1F5F9] text-brand-950 font-medium">
+                    V{b?.version_no ?? 1}: {prodsB.length} products
+                  </span>
+                  <span className="px-2.5 py-1 rounded-lg bg-green-100 text-green-800 font-semibold">
+                    ➕ {added.length} New
+                  </span>
+                  <span className="px-2.5 py-1 rounded-lg bg-red-100 text-red-700 font-semibold">
+                    ➖ {removed.length} Removed
+                  </span>
+                  <span className="px-2.5 py-1 rounded-lg bg-[#F1F5F9] text-muted-foreground">
+                    {same.length} Unchanged
+                  </span>
+                </div>
+
+                {/* Newer version full table, new rows highlighted */}
+                <div className="border border-border rounded-xl overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead className="bg-[#F8FAFC] border-b border-border">
+                      <tr>
+                        <th className="px-3 py-2 text-left text-[10px] font-semibold text-muted-foreground uppercase">#</th>
+                        {cols.map(c => (
+                          <th key={c.key} className="px-3 py-2 text-left text-[10px] font-semibold text-muted-foreground uppercase whitespace-nowrap">{c.label}</th>
+                        ))}
+                        <th className="px-3 py-2 text-left text-[10px] font-semibold text-muted-foreground uppercase">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {prodsB.map((p: any) => {
+                        const isNew = addedKeys.has(productKey(p))
+                        return (
+                          <tr key={p.id} className={isNew ? 'bg-green-50' : 'hover:bg-[#F8FAFC]'}>
+                            <td className="px-3 py-2 font-mono text-muted-foreground">{p.sr_no}</td>
+                            {cols.map(c => (
+                              <td key={c.key} className={`px-3 py-2 max-w-[260px] truncate ${isNew ? 'text-green-900 font-medium' : 'text-brand-950'}`} title={p.data?.[c.key]}>
+                                {p.data?.[c.key] || '—'}
+                              </td>
+                            ))}
+                            <td className="px-3 py-2">
+                              {isNew
+                                ? <span className="text-[10px] font-bold bg-green-600 text-white px-1.5 py-0.5 rounded">NEW</span>
+                                : <span className="text-[10px] text-muted-foreground">—</span>}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Removed products */}
+                {removed.length > 0 && (
+                  <div className="border border-red-200 rounded-xl overflow-hidden">
+                    <p className="px-3 py-2 text-[11px] font-semibold text-red-700 bg-red-50">
+                      Removed since V{a?.version_no ?? 1} ({removed.length})
+                    </p>
+                    <table className="w-full text-xs">
+                      <tbody className="divide-y divide-border">
+                        {removed.map((p: any) => (
+                          <tr key={p.id} className="bg-white">
+                            <td className="px-3 py-2 font-mono text-muted-foreground w-10">{p.sr_no}</td>
+                            <td className="px-3 py-2 text-red-700 line-through">{p.data?.product || '—'}</td>
+                            <td className="px-3 py-2 w-24">
+                              <span className="text-[10px] font-bold bg-red-600 text-white px-1.5 py-0.5 rounded">REMOVED</span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )
+          })()}
         </div>
       )}
 

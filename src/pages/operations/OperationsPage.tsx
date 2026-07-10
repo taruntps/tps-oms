@@ -4,7 +4,7 @@ import { TopBar } from '@/components/layout/TopBar'
 import { ClockBadge } from '@/components/shared/ClockBadge'
 import { computeStageClocks, clockBucket } from '@/lib/projectClock'
 import { useActiveProjects, useBlockRequestInbox } from '@/hooks/useDashboard'
-import { useApproveBlockRequest } from '@/hooks/useProjects'
+import { useApproveBlockRequest, usePendingCancelRequests, useApproveCancelRequest } from '@/hooks/useProjects'
 import { toast } from '@/components/shared/Toast'
 import { formatDate, daysUntil, cn } from '@/lib/utils'
 
@@ -23,15 +23,27 @@ export default function OperationsPage() {
   const navigate = useNavigate()
   const { data: projects = [], isLoading: loadingProjects } = useActiveProjects()
   const { data: blockRequests = [], isLoading: loadingBlocks } = useBlockRequestInbox()
-  const approveBlock = useApproveBlockRequest()
+  const { data: cancelRequests = [] } = usePendingCancelRequests()
+  const approveBlock  = useApproveBlockRequest()
+  const approveCancel = useApproveCancelRequest()
   const [clockFilter, setClockFilter] = useState<ClockFilter>('all')
 
   const filtered = clockFilter === 'all' ? projects : projects.filter(p => clockBucket(p as any) === clockFilter)
+  const totalApprovals = blockRequests.length + (cancelRequests as any[]).length
 
   const handleApprove = async (requestId: string, approved: boolean, projectId: string) => {
     try {
       await approveBlock.mutateAsync({ requestId, approved, projectId })
-      toast.success(approved ? 'Block approved' : 'Request rejected')
+      toast.success(approved ? 'Request approved' : 'Request rejected')
+    } catch (err: any) {
+      toast.error('Failed', err.message)
+    }
+  }
+
+  const handleApproveCancel = async (requestId: string, approved: boolean, projectId: string) => {
+    try {
+      await approveCancel.mutateAsync({ requestId, approved, projectId })
+      toast.success(approved ? 'Cancellation approved' : 'Request rejected')
     } catch (err: any) {
       toast.error('Failed', err.message)
     }
@@ -59,22 +71,29 @@ export default function OperationsPage() {
           <SummaryCard label="Blocked"        value={counts.blocked}  color="red"    detail="Needs manager action" />
         </div>
 
-        {/* ── Block request inbox ── */}
-        {(blockRequests.length > 0 || loadingBlocks) && (
+        {/* ── Approvals inbox — block, unblock and cancellation requests in one place ── */}
+        {(totalApprovals > 0 || loadingBlocks) && (
           <div>
             <div className="flex items-center gap-2 mb-3">
-              <Sym name="warning" size={14} className="text-warning-amber" />
-              <h2 className="font-display font-semibold text-white text-sm">Block Request Inbox</h2>
+              <Sym name="approval" size={14} className="text-warning-amber" />
+              <h2 className="font-display font-semibold text-white text-sm">Approvals Inbox</h2>
               <span className="text-[11px] bg-amber-400/20 text-warning-amber border border-amber-400/30 px-2 py-0.5 rounded-full font-medium">
-                {blockRequests.length} pending
+                {totalApprovals} pending
               </span>
             </div>
             <div className="space-y-2">
-              {blockRequests.map(req => (
-                <div key={req.id} className="glass-panel rounded-xl p-4 !bg-amber-400/15 !border-amber-400/30">
+              {blockRequests.map(req => {
+                const isUnblock = (req as any).request_kind === 'unblock'
+                return (
+                <div key={req.id} className={cn('glass-panel rounded-xl p-4',
+                  isUnblock ? '!bg-blue-400/15 !border-blue-400/30' : '!bg-amber-400/15 !border-amber-400/30')}>
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
+                        <span className={cn('text-[10px] px-2 py-0.5 rounded-full font-bold uppercase',
+                          isUnblock ? 'bg-blue-400/25 text-blue-200' : 'bg-amber-400/25 text-amber-200')}>
+                          {isUnblock ? 'Unblock' : 'Block'}
+                        </span>
                         <button
                           onClick={() => navigate(`/projects/${(req as any).projects?.id}`)}
                           className="font-mono text-xs text-primary-fixed-dim hover:underline"
@@ -92,7 +111,8 @@ export default function OperationsPage() {
                       <button
                         onClick={() => handleApprove(req.id, true, (req as any).projects?.id)}
                         disabled={approveBlock.isPending}
-                        className="flex items-center gap-1 px-3 py-1.5 bg-red-600 text-white text-xs font-medium rounded-lg hover:bg-red-700 disabled:opacity-50"
+                        className={cn('flex items-center gap-1 px-3 py-1.5 text-white text-xs font-medium rounded-lg disabled:opacity-50',
+                          isUnblock ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700')}
                       >
                         <Sym name="check_circle" size={11} />
                         Approve
@@ -100,6 +120,46 @@ export default function OperationsPage() {
                       <button
                         onClick={() => handleApprove(req.id, false, (req as any).projects?.id)}
                         disabled={approveBlock.isPending}
+                        className="flex items-center gap-1 px-3 py-1.5 border border-white/20 text-white text-xs rounded-lg hover:bg-white/10 disabled:opacity-50"
+                      >
+                        <Sym name="cancel" size={11} />
+                        Reject
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )})}
+              {(cancelRequests as any[]).map(req => (
+                <div key={req.id} className="glass-panel rounded-xl p-4 !bg-red-400/15 !border-red-400/30">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase bg-red-400/25 text-red-200">Cancel</span>
+                        <button
+                          onClick={() => navigate(`/projects/${req.projects?.id}`)}
+                          className="font-mono text-xs text-primary-fixed-dim hover:underline"
+                        >
+                          {req.projects?.project_code}
+                        </button>
+                        <span className="text-xs text-white font-medium">{req.projects?.project_name}</span>
+                      </div>
+                      <p className="text-xs text-white/80 mt-1">
+                        <strong>{req.profiles?.name}</strong> — {req.reason}
+                      </p>
+                      <p className="text-[11px] text-white/55 mt-0.5">Requested {formatDate(req.created_at)}</p>
+                    </div>
+                    <div className="flex gap-2 shrink-0">
+                      <button
+                        onClick={() => handleApproveCancel(req.id, true, req.projects?.id)}
+                        disabled={approveCancel.isPending}
+                        className="flex items-center gap-1 px-3 py-1.5 bg-red-600 text-white text-xs font-medium rounded-lg hover:bg-red-700 disabled:opacity-50"
+                      >
+                        <Sym name="check_circle" size={11} />
+                        Approve
+                      </button>
+                      <button
+                        onClick={() => handleApproveCancel(req.id, false, req.projects?.id)}
+                        disabled={approveCancel.isPending}
                         className="flex items-center gap-1 px-3 py-1.5 border border-white/20 text-white text-xs rounded-lg hover:bg-white/10 disabled:opacity-50"
                       >
                         <Sym name="cancel" size={11} />
@@ -180,7 +240,8 @@ export default function OperationsPage() {
                         </div>
                       </div>
                       {computeStageClocks(p as any).map((chip, i) => (
-                        <ClockBadge key={chip.clock + i} clock={chip.clock} since={chip.since} isBlocked={(p.is_blocked ?? false) && i === 0} personName={(p as any).profiles_assigned?.name} />
+                        <ClockBadge key={chip.clock + i} clock={chip.clock} since={chip.since} isBlocked={(p.is_blocked ?? false) && i === 0} personName={(p as any).profiles_assigned?.name}
+                          pausedMinutes={(p as any).blocked_minutes_total ?? 0} blockStartedAt={(p as any).block_started_at} />
                       ))}
                     </div>
                   </div>

@@ -117,9 +117,13 @@ export function useDeleteSoi() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async ({ soiId, clientId }: { soiId: string; clientId: string }) => {
-      await (supabase as any).from('soi_products').delete().eq('soi_id', soiId)
-      const { error } = await (supabase as any).from('soi_archive').delete().eq('id', soiId)
+      const { error: prodErr } = await (supabase as any).from('soi_products').delete().eq('soi_id', soiId)
+      if (prodErr) throw prodErr
+      // .select() makes the delete return the removed rows — zero rows means RLS
+      // blocked it or the row was already gone, which we surface instead of hiding.
+      const { data: removed, error } = await (supabase as any).from('soi_archive').delete().eq('id', soiId).select('id')
       if (error) throw error
+      if (!removed?.length) throw new Error('Delete was blocked — you may not have permission for this SOI')
       return clientId
     },
     onSuccess: (clientId) => qc.invalidateQueries({ queryKey: ['soi_archive', clientId] }),

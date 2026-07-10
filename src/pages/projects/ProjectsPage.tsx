@@ -13,18 +13,33 @@ import { toast } from '@/components/shared/Toast'
 import type { Database } from '@/types/database'
 
 type ProjectStatus = Database['public']['Enums']['project_status']
-type FilterValue = 'all' | 'pending' | 'tps' | 'with_client' | 'authority' | 'on_hold' | 'completed' | 'cancelled'
+type FilterValue = 'all' | 'pending' | 'tps' | 'with_client' | 'authority' | 'blocked' | 'on_hold' | 'completed' | 'cancelled'
 
 const STATUS_FILTERS: { label: string; value: FilterValue }[] = [
-  { label: 'Active',    value: 'pending' },    // all active (TPS + Client + FSSAI)
+  { label: 'Active',    value: 'pending' },    // active, not blocked (TPS + Client + FSSAI)
   { label: 'TPS',       value: 'tps' },         // active, at least one employee-clock stage
   { label: 'Client',    value: 'with_client' }, // active, at least one client-clock stage
   { label: 'FSSAI',     value: 'authority' },   // active, solely waiting on authority
+  { label: 'Blocked',   value: 'blocked' },     // active but blocked — clock stopped
   { label: 'On Hold',   value: 'on_hold' },
   { label: 'Completed', value: 'completed' },
   { label: 'Cancelled', value: 'cancelled' },
   { label: 'All',       value: 'all' },
 ]
+
+// Blocked projects live only in the Blocked tab (and All) — never in the
+// Active/TPS/Client/FSSAI buckets, since their clock is stopped.
+function matchesFilter(p: any, f: FilterValue): boolean {
+  switch (f) {
+    case 'all':         return true
+    case 'blocked':     return p.status === 'active' && !!p.is_blocked
+    case 'pending':     return p.status === 'active' && !p.is_blocked
+    case 'tps':         return p.status === 'active' && !p.is_blocked && computeStageClocks(p).some((c: any) => c.clock === 'employee')
+    case 'with_client': return p.status === 'active' && !p.is_blocked && computeStageClocks(p).some((c: any) => c.clock === 'client')
+    case 'authority':   return p.status === 'active' && !p.is_blocked && isAuthorityOnly(p)
+    default:            return p.status === f
+  }
+}
 
 // Distinct colour per project (service) type so the type reads at a glance.
 const PROJECT_TYPE_BADGE: Record<string, string> = {
@@ -49,14 +64,29 @@ const STATUS_BADGE: Record<ProjectStatus, string> = {
 
 export default function ProjectsPage() {
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { profile } = useAuth()
   const { data: projects = [], isLoading } = useProjects()
-  const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState<FilterValue>('pending')
-  const [typeFilter, setTypeFilter] = useState<string>('all')
-  const [scope, setScope] = useState<'mine' | 'all'>('mine')
   const [showForm, setShowForm] = useState(false)
+
+  // Filters live in the URL so "Back to Projects" (and browser back / refresh)
+  // restores exactly the view the user left — tab, scope, type and search.
+  const search       = searchParams.get('q') ?? ''
+  const statusFilter = (searchParams.get('status') as FilterValue) ?? 'pending'
+  const typeFilter   = searchParams.get('type') ?? 'all'
+  const scope        = (searchParams.get('scope') as 'mine' | 'all') ?? 'mine'
+
+  const setParam = (key: string, value: string, defaultVal: string) =>
+    setSearchParams(prev => {
+      const p = new URLSearchParams(prev)
+      if (value === defaultVal) p.delete(key); else p.set(key, value)
+      return p
+    }, { replace: true })
+
+  const setSearch       = (v: string) => setParam('q', v, '')
+  const setStatusFilter = (v: FilterValue) => setParam('status', v, 'pending')
+  const setTypeFilter   = (v: string) => setParam('type', v, 'all')
+  const setScope        = (v: 'mine' | 'all') => setParam('scope', v, 'mine')
 
   // URL-driven filters from dashboard chips
   const dueParam     = searchParams.get('due')      // 'week' | 'overdue'
@@ -81,14 +111,14 @@ export default function ProjectsPage() {
   const scoped = effectiveScope === 'mine' ? projects.filter(isMine) : projects
 
   const todayMs = Date.now()
+
+  // Per-tab counts (respect scope, ignore search/type so numbers stay stable)
+  const filterCounts = Object.fromEntries(
+    STATUS_FILTERS.map(f => [f.value, scoped.filter(p => matchesFilter(p, f.value)).length])
+  ) as Record<FilterValue, number>
+
   const filtered = scoped.filter(p => {
-    const matchStatus =
-      statusFilter === 'all'         ? true :
-      statusFilter === 'pending'     ? p.status === 'active' :
-      statusFilter === 'tps'         ? (p.status === 'active' && computeStageClocks(p as any).some(c => c.clock === 'employee')) :
-      statusFilter === 'with_client' ? (p.status === 'active' && computeStageClocks(p as any).some(c => c.clock === 'client')) :
-      statusFilter === 'authority'   ? (p.status === 'active' && isAuthorityOnly(p as any)) :
-      p.status === statusFilter
+    const matchStatus = matchesFilter(p, statusFilter)
     const matchType = typeFilter === 'all' || p.service_type === typeFilter
     const q = search.toLowerCase()
     const matchSearch = !q ||
@@ -204,10 +234,11 @@ export default function ProjectsPage() {
               onClick={() => setStatusFilter(f.value)}
               className={cn(
                 'px-3 py-1 text-xs font-medium rounded-md transition-all',
-                statusFilter === f.value ? 'bg-white/20 text-white' : 'text-white/60 hover:text-white'
+                statusFilter === f.value ? 'bg-white/20 text-white' : 'text-white/60 hover:text-white',
+                f.value === 'blocked' && filterCounts.blocked > 0 && statusFilter !== 'blocked' && 'text-red-300 hover:text-red-200'
               )}
             >
-              {f.label}
+              {f.label} <span className="opacity-60">({filterCounts[f.value]})</span>
             </button>
           ))}
         </div>
@@ -242,7 +273,7 @@ export default function ProjectsPage() {
               return (
                 <div
                   key={p.id}
-                  onClick={() => navigate(`/projects/${p.id}`)}
+                  onClick={() => navigate(`/projects/${p.id}`, { state: { fromSearch: window.location.search } })}
                   className={cn('rounded-xl border px-4 py-3 cursor-pointer hover:shadow-sm transition-all', cardBg)}
                 >
                   {/* Line 1: code + status (left) · clock + executive (right) */}
@@ -251,17 +282,20 @@ export default function ProjectsPage() {
                       <span className="font-mono text-[11px] text-muted-foreground bg-[#F8FAFC] border border-border px-1.5 py-0.5 rounded shrink-0">
                         {p.project_code}
                       </span>
-                      <span className={cn('text-[10px] px-2 py-0.5 rounded-full font-medium capitalize shrink-0', STATUS_BADGE[p.status as ProjectStatus])}>
-                        {p.status?.replace('_', ' ')}
-                      </span>
-                      {p.is_blocked && (
-                        <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-red-100 text-red-700 shrink-0">BLOCKED</span>
+                      {p.is_blocked && p.status === 'active' ? (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold bg-red-600 text-white shrink-0">BLOCKED</span>
+                      ) : (
+                        <span className={cn('text-[10px] px-2 py-0.5 rounded-full font-medium capitalize shrink-0', STATUS_BADGE[p.status as ProjectStatus])}>
+                          {p.status?.replace('_', ' ')}
+                        </span>
                       )}
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
                       {p.status === 'active' && chips.map((chip, i) => (
                         <ClockBadge key={chip.clock + i} clock={chip.clock} since={chip.since}
-                          isBlocked={(p.is_blocked ?? false) && i === 0} personName={(p as any).profiles_assigned?.name} />
+                          isBlocked={(p.is_blocked ?? false) && i === 0} personName={(p as any).profiles_assigned?.name}
+                          pausedMinutes={(p as any).blocked_minutes_total ?? 0}
+                          blockStartedAt={(p as any).block_started_at} />
                       ))}
                       {p.status === 'active' && withSomeoneElse && execFirst && (
                         <span className="text-[11px] text-muted-foreground hidden sm:inline">· {execFirst}</span>

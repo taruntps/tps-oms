@@ -4,7 +4,7 @@ import { toast } from '@/components/shared/Toast'
 import { cn } from '@/lib/utils'
 import {
   useDriveFiles, useCreateDriveFolder, useCreateSubfolder,
-  useTrashDriveItem, useUploadDriveFile, useMainFolderId,
+  useTrashDriveItem, useUploadDriveFile, useUploadDriveFolder, useMainFolderId,
   useCreateGDoc, useCreateGSheet, useUnlinkDriveFolder, driveDownload,
   type DriveFile,
 } from '@/hooks/useDrive'
@@ -146,8 +146,10 @@ export function DriveTab({ folderId: initialFolderId, entityId, entityTable, ent
   const [newDocPrompt,    setNewDocPrompt]    = useState<'doc' | 'sheet' | null>(null)
   const [newDocName,      setNewDocName]      = useState('')
   const [previewFile,     setPreviewFile]     = useState<DriveFile | null>(null)
+  const [folderProgress,  setFolderProgress]  = useState<{ done: number; total: number } | null>(null)
 
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const fileInputRef   = useRef<HTMLInputElement>(null)
+  const folderInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (initialFolderId && !currentId) setCurrentId(initialFolderId)
@@ -160,6 +162,7 @@ export function DriveTab({ folderId: initialFolderId, entityId, entityTable, ent
   const createSheet  = useCreateGSheet(currentId ?? '')
   const trash        = useTrashDriveItem(currentId ?? '')
   const upload       = useUploadDriveFile(currentId ?? '')
+  const uploadFolder = useUploadDriveFolder(currentId ?? '')
   const unlink       = useUnlinkDriveFolder(entityId, entityTable)
 
   const handleCreateRootFolder = async () => {
@@ -226,6 +229,21 @@ export function DriveTab({ folderId: initialFolderId, entityId, entityTable, ent
       toast.success(`${file.name} uploaded`)
     } catch (e: any) { toast.error('Upload failed', e.message) }
     e.target.value = ''
+  }
+
+  const handleFolderChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const list = Array.from(e.target.files ?? [])
+    if (!list.length || !currentId) return
+    setFolderProgress({ done: 0, total: list.length })
+    try {
+      const res = await uploadFolder.mutateAsync({
+        files: list,
+        onProgress: (done, total) => setFolderProgress({ done, total }),
+      })
+      if (res.failed.length) toast.error(`${res.uploaded} uploaded, ${res.failed.length} failed`, res.failed.slice(0, 3).join(', '))
+      else toast.success(`Folder uploaded`, `${res.uploaded} file(s) with subfolders`)
+    } catch (err: any) { toast.error('Folder upload failed', err.message) }
+    finally { setFolderProgress(null); e.target.value = '' }
   }
 
   const handleTrash = async (file: DriveFile) => {
@@ -357,10 +375,17 @@ export function DriveTab({ folderId: initialFolderId, entityId, entityTable, ent
                 <Sym name="table_chart" size={12} /> Sheet
               </button>
               <button onClick={() => fileInputRef.current?.click()}
-                disabled={upload.isPending}
+                disabled={upload.isPending || uploadFolder.isPending}
                 className="flex items-center gap-1 text-[11px] px-2 py-1.5 bg-brand-600 text-white rounded-lg hover:bg-brand-700 disabled:opacity-50">
                 <Sym name="upload" size={12} />
                 {upload.isPending ? 'Uploading…' : 'Upload'}
+              </button>
+              <button onClick={() => folderInputRef.current?.click()}
+                disabled={upload.isPending || uploadFolder.isPending}
+                title="Upload an entire folder — subfolders are recreated in Drive"
+                className="flex items-center gap-1 text-[11px] px-2 py-1.5 bg-brand-600 text-white rounded-lg hover:bg-brand-700 disabled:opacity-50">
+                <Sym name="drive_folder_upload" size={12} />
+                {folderProgress ? `${folderProgress.done}/${folderProgress.total}…` : 'Upload Folder'}
               </button>
               {isAtRoot && (
                 <button onClick={handleUnlink} disabled={unlink.isPending} title="Unlink Drive folder"
@@ -493,6 +518,9 @@ export function DriveTab({ folderId: initialFolderId, entityId, entityTable, ent
       )}
 
       <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileChange} />
+      {/* webkitdirectory enables picking a whole folder (Chrome/Edge/Safari) */}
+      <input ref={folderInputRef} type="file" className="hidden" onChange={handleFolderChange}
+        {...({ webkitdirectory: '', directory: '' } as any)} />
 
       {/* In-portal file viewer */}
       {previewFile && (

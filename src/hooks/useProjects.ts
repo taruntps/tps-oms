@@ -155,6 +155,58 @@ export function usePendingBlockRequests() {
   })
 }
 
+// ── Cancel requests (executive raises, admin approves) ──────────────────────
+export function useSubmitCancelRequest() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ projectId, reason, requestedBy }: { projectId: string; reason: string; requestedBy: string }) => {
+      const { data, error } = await (supabase as any).from('cancel_requests')
+        .insert({ project_id: projectId, reason, requested_by: requestedBy, status: 'pending' })
+        .select().single()
+      if (error) throw error
+      return data
+    },
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: ['cancel_requests'] })
+      qc.invalidateQueries({ queryKey: ['projects', v.projectId] })
+    },
+  })
+}
+
+export function usePendingCancelRequests() {
+  return useQuery({
+    queryKey: ['cancel_requests', 'pending'],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from('cancel_requests')
+        .select('*, projects(id, project_code, project_name), profiles!cancel_requests_requested_by_fkey(name)')
+        .eq('status', 'pending')
+        .order('created_at', { ascending: true })
+      if (error) throw error
+      return data ?? []
+    },
+  })
+}
+
+export function useApproveCancelRequest() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ requestId, approved, note }: { requestId: string; approved: boolean; note?: string; projectId: string }) => {
+      const { error } = await (supabase as any).rpc('approve_cancel_request', {
+        p_request_id: requestId,
+        p_approved: approved,
+        p_note: note ?? null,
+      })
+      if (error) throw error
+    },
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: ['cancel_requests'] })
+      qc.invalidateQueries({ queryKey: ['projects', v.projectId] })
+      qc.invalidateQueries({ queryKey: ['projects'] })
+    },
+  })
+}
+
 export function useDeleteProject() {
   const qc = useQueryClient()
   return useMutation({

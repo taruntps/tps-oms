@@ -147,6 +147,52 @@ export function useUploadDriveFile(folderId: string) {
   })
 }
 
+// Upload a whole local folder: recreates its subfolder tree in Drive under the
+// current folder, then uploads every file into its matching subfolder.
+export function useUploadDriveFolder(folderId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ files, onProgress }: { files: File[]; onProgress?: (done: number, total: number) => void }) => {
+      const relPath = (f: File) => (f as any).webkitRelativePath as string || f.name
+      const dirOf = (rel: string) => rel.split('/').slice(0, -1).join('/')
+
+      // Create needed folders parent-first (paths sorted by depth)
+      const folderIds = new Map<string, string>()
+      const dirs = [...new Set(files.map(f => dirOf(relPath(f))))]
+        .filter(Boolean)
+        .sort((a, b) => a.split('/').length - b.split('/').length)
+      for (const dir of dirs) {
+        const parts = dir.split('/')
+        const parentPath = parts.slice(0, -1).join('/')
+        const parentId = parentPath ? folderIds.get(parentPath)! : folderId
+        const d = await driveOp('create-folder', { name: parts[parts.length - 1], parentId })
+        folderIds.set(dir, d.folderId as string)
+      }
+
+      let done = 0
+      const failed: string[] = []
+      for (const file of files) {
+        try {
+          const target = folderIds.get(dirOf(relPath(file))) ?? folderId
+          const b64 = await fileToBase64(file)
+          await driveOp('upload', {
+            folderId: target,
+            name: file.name,
+            mimeType: file.type || 'application/octet-stream',
+            content: b64,
+          })
+        } catch {
+          failed.push(file.name)
+        }
+        done++
+        onProgress?.(done, files.length)
+      }
+      return { uploaded: files.length - failed.length, failed }
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['drive-files', folderId] }),
+  })
+}
+
 async function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
