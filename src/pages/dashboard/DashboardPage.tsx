@@ -72,13 +72,19 @@ export default function DashboardPage() {
           </button>
         </div>
 
-        {/* Overdue alert strip */}
+        {/* Overdue alert strip — click to open the overdue-filtered project list */}
         {overdue.length > 0 && (
-          <div className="glass-panel rounded-xl px-5 py-3 flex items-center gap-3 !bg-red-500/15 !border-red-400/30">
+          <div
+            onClick={() => navigate('/projects?due=overdue')}
+            className="glass-panel rounded-xl px-5 py-3 flex items-center gap-3 !bg-red-500/15 !border-red-400/30 cursor-pointer hover:!bg-red-500/25 transition-all"
+          >
             <Sym name="warning" size={18} className="text-red-300 shrink-0" />
-            <p className="text-sm text-white">
+            <p className="text-sm text-white flex-1">
               <strong>{overdue.length} project{overdue.length > 1 ? 's' : ''}</strong> past target date — please follow up.
             </p>
+            <span className="text-xs text-red-200 flex items-center gap-1 shrink-0">
+              View <Sym name="arrow_forward" size={12} />
+            </span>
           </div>
         )}
 
@@ -202,11 +208,11 @@ export default function DashboardPage() {
                         !n.is_read && '!border-white/30 !bg-white/[0.16]'
                       )}
                     >
-                      <div className="flex items-start gap-2">
+                      <div className="flex items-start gap-2 min-w-0">
                         {!n.is_read && <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-primary-fixed-dim shrink-0" />}
-                        <div className={cn('flex-1', n.is_read && 'ml-3.5')}>
-                          <p className="text-xs font-medium text-white">{n.title}</p>
-                          {n.body && <p className="text-[11px] text-white/60 mt-0.5 truncate">{n.body}</p>}
+                        <div className={cn('flex-1 min-w-0 overflow-hidden', n.is_read && 'ml-3.5')}>
+                          <p className="text-xs font-medium text-white break-words">{n.title}</p>
+                          {n.body && <p className="text-[11px] text-white/60 mt-0.5 line-clamp-2 break-words">{n.body}</p>}
                           <p className="text-[10px] text-white/45 mt-1">{formatDate(n.created_at)}</p>
                         </div>
                       </div>

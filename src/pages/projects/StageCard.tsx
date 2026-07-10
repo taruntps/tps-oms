@@ -30,6 +30,9 @@ interface Props {
 const FSSAI_STATUSES_EXTRA = [
   'Document to be Scrutinized by IO',
   'Forwarded to Advisor',
+  'Forward to Director',
+  'Forward to Technical Officer',
+  'Technical Assessment',
   'Approval Pending by Initial Authority',
   'Eligible for Grant of License',
 ]
@@ -195,7 +198,10 @@ export function StageCard({ stage, projectId, isBlocked, serviceType, appRefNo, 
     }
     // Both Approved and Rejected close the Status-at-FSSAI stage.
     const done = status === 'Approved' || status === 'Rejected'
+    // Every FSSAI status keeps the authority clock EXCEPT Query Raised (handled
+    // in applyQueryRaised) — moving off Query Raised returns the clock to FSSAI.
     await patch({ fssai_status: status, status: done ? 'completed' : 'in_progress',
+      active_clock: 'authority',
       completed_at: done ? new Date().toISOString() : null }, `Status: ${status}`)
     // Rejected (New Application / Modification): no licence — close out remaining stages.
     if (status === 'Rejected' && (serviceType === 'New Application' || serviceType === 'Modification')) {
@@ -211,8 +217,11 @@ export function StageCard({ stage, projectId, isBlocked, serviceType, appRefNo, 
     }
   }
   const applyQueryRaised = async (pick: { id: string; code: string }) => {
+    // Query Raised puts the ball in OUR court — clock moves to the assigned
+    // executive (employee), not FSSAI, until the response is filed.
     await patch({ fssai_status: 'Query Raised', status: 'in_progress',
-      meta: { ...meta, active_query_round: pick.id, active_query_code: pick.code } }, `Query Raised — ${pick.code}`)
+      active_clock: 'employee',
+      meta: { ...meta, active_query_round: pick.id, active_query_code: pick.code } }, `Query Raised — ${pick.code} · clock moved to ${employeeLabel}`)
     setQueryPick(null)
   }
   const submitSkip = async () => {

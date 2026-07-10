@@ -108,7 +108,7 @@ export function SoiTab({ projectId, clientId, clientName, closed }: Props) {
   const [compareA, setCompareA] = useState<string>('')   // older version
   const [compareB, setCompareB] = useState<string>('')   // newer version
   const [compareResult, setCompareResult] = useState<{
-    added: any[]; removed: any[]; same: any[]; a: any; b: any
+    added: any[]; removed: any[]; same: any[]; a: any; b: any; prodA: any[]; prodB: any[]
   } | null>(null)
   const [comparing, setComparing] = useState(false)
 
@@ -175,7 +175,7 @@ export function SoiTab({ projectId, clientId, clientName, closed }: Props) {
   }
 
   const loadProducts = async (soiId: string): Promise<any[]> => {
-    if (soiProducts[soiId]) return soiProducts[soiId]
+    if (soiProducts[soiId]?.length) return soiProducts[soiId]
     const { data } = await (supabase as any).from('soi_products').select('*').eq('soi_id', soiId).order('sr_no')
     const rows = data ?? []
     setSoiProducts(prev => ({ ...prev, [soiId]: rows }))
@@ -219,15 +219,19 @@ export function SoiTab({ projectId, clientId, clientName, closed }: Props) {
     if (!compareA || !compareB || compareA === compareB) { toast.error('Select two different versions'); return }
     setComparing(true)
     try {
-      const [prodA, prodB] = await Promise.all([loadProducts(compareA), loadProducts(compareB)])
+      // Direction-proof: the lower version is ALWAYS the base, whichever
+      // dropdown it was picked in — so the diff always reads old → new.
+      const sA = (sois as any[]).find(s => s.id === compareA)
+      const sB = (sois as any[]).find(s => s.id === compareB)
+      const verOf = (s: any) => s?.version_no ?? 1
+      const [a, b] = verOf(sA) <= verOf(sB) ? [sA, sB] : [sB, sA]
+      const [prodA, prodB] = await Promise.all([loadProducts(a.id), loadProducts(b.id)])
       const keysA = new Set(prodA.map(productKey))
       const keysB = new Set(prodB.map(productKey))
       const added   = prodB.filter((p: any) => !keysA.has(productKey(p)))
       const same    = prodB.filter((p: any) => keysA.has(productKey(p)))
       const removed = prodA.filter((p: any) => !keysB.has(productKey(p)))
-      const a = sois.find((s: any) => s.id === compareA)
-      const b = sois.find((s: any) => s.id === compareB)
-      setCompareResult({ added, removed, same, a, b })
+      setCompareResult({ added, removed, same, a, b, prodA, prodB })
     } catch (e: any) { toast.error('Compare failed', e.message) }
     finally { setComparing(false) }
   }
@@ -401,19 +405,18 @@ export function SoiTab({ projectId, clientId, clientName, closed }: Props) {
           </div>
 
           {compareResult && (() => {
-            const { added, removed, same, a, b } = compareResult
+            const { added, removed, same, a, b, prodA, prodB } = compareResult
             const cols: ColDef[] = (b?.columns?.length ? b.columns : colsFor(b?.soi_type)) as ColDef[]
             const addedKeys = new Set(added.map(productKey))
-            const prodsB = soiProducts[compareB] ?? []
             return (
               <div className="space-y-3">
                 {/* Summary strip */}
                 <div className="flex flex-wrap gap-2 text-xs">
                   <span className="px-2.5 py-1 rounded-lg bg-[#F1F5F9] text-brand-950 font-medium">
-                    V{a?.version_no ?? 1}: {(soiProducts[compareA] ?? []).length} products
+                    V{a?.version_no ?? 1}: {prodA.length} products
                   </span>
                   <span className="px-2.5 py-1 rounded-lg bg-[#F1F5F9] text-brand-950 font-medium">
-                    V{b?.version_no ?? 1}: {prodsB.length} products
+                    V{b?.version_no ?? 1}: {prodB.length} products
                   </span>
                   <span className="px-2.5 py-1 rounded-lg bg-green-100 text-green-800 font-semibold">
                     ➕ {added.length} New
@@ -425,13 +428,17 @@ export function SoiTab({ projectId, clientId, clientName, closed }: Props) {
                     {same.length} Unchanged
                   </span>
                 </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Showing V{b?.version_no ?? 1} (final) with its own serial numbers — changes vs V{a?.version_no ?? 1}.
+                </p>
 
-                {/* Newer version full table, new rows highlighted */}
+                {/* One merged table: every V(new) product at its real S.No, new ones
+                    highlighted; products deleted since V(old) inline with strikethrough. */}
                 <div className="border border-border rounded-xl overflow-x-auto">
                   <table className="w-full text-xs">
                     <thead className="bg-[#F8FAFC] border-b border-border">
                       <tr>
-                        <th className="px-3 py-2 text-left text-[10px] font-semibold text-muted-foreground uppercase">#</th>
+                        <th className="px-3 py-2 text-left text-[10px] font-semibold text-muted-foreground uppercase">S.No</th>
                         {cols.map(c => (
                           <th key={c.key} className="px-3 py-2 text-left text-[10px] font-semibold text-muted-foreground uppercase whitespace-nowrap">{c.label}</th>
                         ))}
@@ -439,7 +446,7 @@ export function SoiTab({ projectId, clientId, clientName, closed }: Props) {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
-                      {prodsB.map((p: any) => {
+                      {prodB.map((p: any) => {
                         const isNew = addedKeys.has(productKey(p))
                         return (
                           <tr key={p.id} className={isNew ? 'bg-green-50' : 'hover:bg-[#F8FAFC]'}>
@@ -457,31 +464,23 @@ export function SoiTab({ projectId, clientId, clientName, closed }: Props) {
                           </tr>
                         )
                       })}
+                      {/* Deleted products — same table, struck through, with their old S.No */}
+                      {removed.map((p: any) => (
+                        <tr key={p.id} className="bg-red-50/60">
+                          <td className="px-3 py-2 font-mono text-red-400 line-through">V{a?.version_no ?? 1}·{p.sr_no}</td>
+                          {cols.map(c => (
+                            <td key={c.key} className="px-3 py-2 max-w-[260px] truncate text-red-600 line-through" title={p.data?.[c.key]}>
+                              {p.data?.[c.key] || '—'}
+                            </td>
+                          ))}
+                          <td className="px-3 py-2">
+                            <span className="text-[10px] font-bold bg-red-600 text-white px-1.5 py-0.5 rounded">REMOVED</span>
+                          </td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>
-
-                {/* Removed products */}
-                {removed.length > 0 && (
-                  <div className="border border-red-200 rounded-xl overflow-hidden">
-                    <p className="px-3 py-2 text-[11px] font-semibold text-red-700 bg-red-50">
-                      Removed since V{a?.version_no ?? 1} ({removed.length})
-                    </p>
-                    <table className="w-full text-xs">
-                      <tbody className="divide-y divide-border">
-                        {removed.map((p: any) => (
-                          <tr key={p.id} className="bg-white">
-                            <td className="px-3 py-2 font-mono text-muted-foreground w-10">{p.sr_no}</td>
-                            <td className="px-3 py-2 text-red-700 line-through">{p.data?.product || '—'}</td>
-                            <td className="px-3 py-2 w-24">
-                              <span className="text-[10px] font-bold bg-red-600 text-white px-1.5 py-0.5 rounded">REMOVED</span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
               </div>
             )
           })()}

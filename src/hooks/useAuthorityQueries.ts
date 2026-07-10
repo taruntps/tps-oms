@@ -75,9 +75,10 @@ export function useSaveRoundResponse() {
         .eq('id', args.roundId)
       if (e2) throw e2
       // Auto-flip the project's Status-at-FSSAI stage from 'Query Raised' back to
-      // 'Document Scrutinisation' now that the response is filed.
+      // 'Document Scrutinisation' now that the response is filed — and return the
+      // clock to FSSAI (Query Raised had moved it to the executive).
       await (supabase.from('stages') as any)
-        .update({ fssai_status: 'Document Scrutinisation' })
+        .update({ fssai_status: 'Document Scrutinisation', active_clock: 'authority' })
         .eq('project_id', args.projectId).eq('stage_kind', 'status_fssai').eq('fssai_status', 'Query Raised')
     },
     onSuccess: (_d, v) => qc.invalidateQueries({ queryKey: ['authority_queries', v.projectId] }),

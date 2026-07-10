@@ -72,15 +72,23 @@ export default function OperationsPage() {
         </div>
 
         {/* ── Approvals inbox — block, unblock and cancellation requests in one place ── */}
-        {(totalApprovals > 0 || loadingBlocks) && (
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <Sym name="approval" size={14} className="text-warning-amber" />
-              <h2 className="font-display font-semibold text-white text-sm">Approvals Inbox</h2>
-              <span className="text-[11px] bg-amber-400/20 text-warning-amber border border-amber-400/30 px-2 py-0.5 rounded-full font-medium">
-                {totalApprovals} pending
-              </span>
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <Sym name="approval" size={14} className="text-warning-amber" />
+            <h2 className="font-display font-semibold text-white text-sm">Approvals Inbox</h2>
+            <span className={cn('text-[11px] px-2 py-0.5 rounded-full font-medium border',
+              totalApprovals > 0
+                ? 'bg-amber-400/20 text-warning-amber border-amber-400/30'
+                : 'bg-green-400/15 text-green-300 border-green-400/25')}>
+              {totalApprovals > 0 ? `${totalApprovals} pending` : 'all clear'}
+            </span>
+          </div>
+          {totalApprovals === 0 && !loadingBlocks ? (
+            <div className="glass-panel rounded-xl border-dashed !border-white/20 px-5 py-4 flex items-center gap-2">
+              <Sym name="check_circle" size={15} className="text-green-300" />
+              <p className="text-xs text-white/70">No pending approvals — block, unblock and cancellation requests from your team will appear here.</p>
             </div>
+          ) : (
             <div className="space-y-2">
               {blockRequests.map(req => {
                 const isUnblock = (req as any).request_kind === 'unblock'
@@ -170,8 +178,8 @@ export default function OperationsPage() {
                 </div>
               ))}
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* ── Project list with clock filter ── */}
         <div>
