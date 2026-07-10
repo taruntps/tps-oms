@@ -384,15 +384,15 @@ export function SoiTab({ projectId, clientId, clientName, closed }: Props) {
           <h4 className="text-xs font-semibold text-brand-950">Compare SOI Versions — new products highlight</h4>
           <div className="flex flex-wrap items-end gap-3">
             <div>
-              <label className="block text-[11px] font-medium text-brand-950 mb-1">Older version</label>
+              <label className="block text-[11px] font-medium text-brand-950 mb-1">Compare version</label>
               <select value={compareA} onChange={e => { setCompareA(e.target.value); setCompareResult(null) }}
                 className="px-3 py-2 text-xs border border-border rounded-lg bg-white min-w-[240px]">
                 {sois.map((s: any) => <option key={s.id} value={s.id}>{verLabel(s)}</option>)}
               </select>
             </div>
-            <Sym name="arrow_forward" size={14} className="text-muted-foreground mb-2.5" />
+            <Sym name="sync_alt" size={14} className="text-muted-foreground mb-2.5" />
             <div>
-              <label className="block text-[11px] font-medium text-brand-950 mb-1">Newer version</label>
+              <label className="block text-[11px] font-medium text-brand-950 mb-1">With version</label>
               <select value={compareB} onChange={e => { setCompareB(e.target.value); setCompareResult(null) }}
                 className="px-3 py-2 text-xs border border-border rounded-lg bg-white min-w-[240px]">
                 {sois.map((s: any) => <option key={s.id} value={s.id}>{verLabel(s)}</option>)}
