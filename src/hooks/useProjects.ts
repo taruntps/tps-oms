@@ -104,7 +104,11 @@ export function useSubmitBlockRequest() {
       if (error) throw error
       return data
     },
-    onSuccess: (_d, v) => qc.invalidateQueries({ queryKey: ['projects', v.project_id] }),
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: ['projects', v.project_id] })
+      qc.invalidateQueries({ queryKey: ['block_requests'] })   // project-page pending list
+      qc.invalidateQueries({ queryKey: ['block-requests'] })   // operations inbox
+    },
   })
 }
 
@@ -122,6 +126,8 @@ export function useApproveBlockRequest() {
     onSuccess: (_d, v) => {
       qc.invalidateQueries({ queryKey: ['projects', v.projectId] })
       qc.invalidateQueries({ queryKey: ['projects'] })
+      qc.invalidateQueries({ queryKey: ['block_requests'] })   // project-page pending list
+      qc.invalidateQueries({ queryKey: ['block-requests'] })   // operations inbox
     },
   })
 }
@@ -203,6 +209,7 @@ export function useApproveCancelRequest() {
       qc.invalidateQueries({ queryKey: ['cancel_requests'] })
       qc.invalidateQueries({ queryKey: ['projects', v.projectId] })
       qc.invalidateQueries({ queryKey: ['projects'] })
+      qc.invalidateQueries({ queryKey: ['notifications'] })
     },
   })
 }
