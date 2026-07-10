@@ -276,8 +276,8 @@ export default function ProjectsPage() {
                   onClick={() => navigate(`/projects/${p.id}`, { state: { fromSearch: window.location.search } })}
                   className={cn('rounded-xl border px-4 py-3 cursor-pointer hover:shadow-sm transition-all', cardBg)}
                 >
-                  {/* Line 1: code + status (left) · clock + executive (right) */}
-                  <div className="flex items-center justify-between gap-3">
+                  {/* Line 1: code + status (left) · clock (right) */}
+                  <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">
                       <span className="font-mono text-[11px] text-muted-foreground bg-[#F8FAFC] border border-border px-1.5 py-0.5 rounded shrink-0">
                         {p.project_code}
@@ -297,43 +297,41 @@ export default function ProjectsPage() {
                           pausedMinutes={(p as any).blocked_minutes_total ?? 0}
                           blockStartedAt={(p as any).block_started_at} />
                       ))}
-                      {p.status === 'active' && withSomeoneElse && execFirst && (
-                        <span className="text-[11px] text-muted-foreground hidden sm:inline">· {execFirst}</span>
-                      )}
                     </div>
                   </div>
 
-                  {/* Line 2: type + company (left) · location · due (right) */}
-                  <div className="flex items-center justify-between gap-3 mt-1.5">
-                    <div className="flex items-center gap-2 min-w-0">
-                      {p.service_type && (
-                        <span className={cn('text-[10px] border px-1.5 py-0.5 rounded font-medium shrink-0', projectTypeBadge(p.service_type))}>
-                          {p.service_type}
-                        </span>
-                      )}
-                      <span className="text-sm font-medium text-brand-950 truncate">{p.clients?.company_name}</span>
-                      {(p as any).app_ref_no && (
-                        <span
-                          onClick={e => {
-                            e.stopPropagation()
-                            navigator.clipboard.writeText((p as any).app_ref_no)
-                            toast.success('Copied!', (p as any).app_ref_no)
-                          }}
-                          onDoubleClick={e => {
-                            e.stopPropagation()
-                            window.open('https://foscos.fssai.gov.in/view-application', '_blank')
-                          }}
-                          className="text-[10px] font-mono text-blue-700 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded shrink-0 cursor-pointer hover:bg-blue-100 select-none"
-                          title="Click to copy · Double-click to open FSSAI"
-                        >
-                          #{(p as any).app_ref_no}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-3 text-[11px] text-muted-foreground shrink-0">
-                      {loc && <span className="hidden sm:inline">📍 {loc}</span>}
-                      {p.target_date && <span>Due {formatDate(p.target_date)}</span>}
-                    </div>
+                  {/* Line 2: company name — its own full-width line so it never gets squeezed */}
+                  <p className="text-sm font-semibold text-brand-950 mt-1.5 truncate">
+                    {p.clients?.company_name}
+                  </p>
+
+                  {/* Line 3: type · app-ref · location (left, wraps) · due (right) */}
+                  <div className="flex items-center flex-wrap gap-x-2 gap-y-1 mt-1 text-[11px] text-muted-foreground">
+                    {p.service_type && (
+                      <span className={cn('text-[10px] border px-1.5 py-0.5 rounded font-medium', projectTypeBadge(p.service_type))}>
+                        {p.service_type}
+                      </span>
+                    )}
+                    {(p as any).app_ref_no && (
+                      <span
+                        onClick={e => {
+                          e.stopPropagation()
+                          navigator.clipboard.writeText((p as any).app_ref_no)
+                          toast.success('Copied!', (p as any).app_ref_no)
+                        }}
+                        onDoubleClick={e => {
+                          e.stopPropagation()
+                          window.open('https://foscos.fssai.gov.in/view-application', '_blank')
+                        }}
+                        className="text-[10px] font-mono text-blue-700 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded cursor-pointer hover:bg-blue-100 select-none"
+                        title="Click to copy · Double-click to open FSSAI"
+                      >
+                        #{(p as any).app_ref_no}
+                      </span>
+                    )}
+                    {loc && <span>📍 {loc}</span>}
+                    {withSomeoneElse && execFirst && <span>· {execFirst}</span>}
+                    {p.target_date && <span className="ml-auto shrink-0">Due {formatDate(p.target_date)}</span>}
                   </div>
                 </div>
               )
