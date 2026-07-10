@@ -111,16 +111,21 @@ serve(async (req) => {
   if (!testTo && waEnabled) {
     const sendUrl = `${SUPABASE_URL}/functions/v1/send-whatsapp`
 
-    // Per-user stage counts
+    // Per-user stage rows (both statuses — we split them below).
+    // !inner + eq on projects.status limits to stages of ACTIVE projects only —
+    // cancelled/completed/on-hold projects must not count as someone's pending
+    // work (this is what was inflating the counts).
     const { data: stageRows } = await supabase
       .from('stages')
-      .select('assigned_to, status, due_date')
+      .select('assigned_to, status, due_date, projects!inner(status)')
+      .eq('projects.status', 'active')
       .in('status', ['pending', 'in_progress'])
 
-    // Global pending projects count
-    const { count: pendingProjects } = await supabase
+    // Per-user project rows (active only) — a project is "mine" if I'm the
+    // assignee OR the manager, matching the app's My Projects definition.
+    const { data: projRows } = await supabase
       .from('projects')
-      .select('id', { count: 'exact', head: true })
+      .select('assigned_to, manager_id')
       .eq('status', 'active')
 
     for (const s of staff ?? []) {
@@ -129,10 +134,16 @@ serve(async (req) => {
       if (await alreadySent(supabase, 'wa_morning_digest', null, s.id, today)) continue
 
       const myStages = (stageRows ?? []).filter((r: any) => r.assigned_to === s.id)
+      // "Pending stages" = stages actively in this person's hands (in_progress).
+      // Not-yet-started future stages (status 'pending') are queued backlog, not
+      // today's work, so they're excluded from the headline number.
+      const pending  = myStages.filter((r: any) => r.status === 'in_progress').length
+      // Overdue = any incomplete stage of theirs past its due date (urgent flag).
       const overdue  = myStages.filter((r: any) => r.due_date && r.due_date < today).length
-      const pending  = myStages.length
+      // Their own active projects (assignee or manager) — NOT the company total.
+      const myProjects = (projRows ?? []).filter((r: any) => r.assigned_to === s.id || r.manager_id === s.id).length
 
-      if (pending === 0 && (pendingProjects ?? 0) === 0) continue
+      if (pending === 0 && overdue === 0 && myProjects === 0) continue
 
       const normalised = phone.replace(/\D/g, '').replace(/^0/, '').replace(/^(?!91)/, '91')
       await fetch(sendUrl, {
@@ -141,7 +152,7 @@ serve(async (req) => {
         body: JSON.stringify({
           phone: normalised,
           template: 'tps_morning_digest',
-          params: [s.name, String(pending), String(overdue), String(pendingProjects ?? 0)],
+          params: [s.name, String(pending), String(overdue), String(myProjects)],
           refId: `morning_${s.id}_${today}`,
         }),
       })
