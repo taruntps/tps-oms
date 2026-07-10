@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils'
 import { AttendanceSettingsSection } from './AttendanceSettingsSection'
 import { ReminderSettingsSection } from './ReminderSettingsSection'
 import { NotificationControlsSection } from './NotificationControlsSection'
+import { WhatsAppTesterSection } from './WhatsAppTesterSection'
 
 interface AppSettings {
   whatsapp_enabled: string
@@ -21,13 +22,18 @@ const DEFAULT_SETTINGS: AppSettings = {
   whatsapp_phone_number_id: '',
 }
 
-// Templates that must be pre-approved in your BSP account
+// Templates that must be pre-approved in your Meta WhatsApp Manager
 const REQUIRED_TEMPLATES = [
   { name: 'tps_stage_overdue',    params: ['Stage name + deadline', 'Details'],    desc: 'Sent when a project stage goes past due date' },
-  { name: 'tps_payment_overdue',  params: ['Project code + client', 'Amount due'], desc: 'Weekly reminder for outstanding payments' },
+  { name: 'tps_payment_overdue',  params: ['Project code + client', 'Amount due'], desc: 'Reminder for an overdue project payment' },
   { name: 'tps_license_expiry',   params: ['License + client', 'Expiry date'],     desc: 'Alert when FSSAI licence is expiring in 7–90 days' },
-  { name: 'tps_block_request',    params: ['Project code', 'Block reason'],         desc: 'Notifies manager when an employee requests a block' },
-  { name: 'tps_block_escalation', params: ['Project code', 'Requester name', 'Block type', 'Hours waiting'], desc: 'Escalation when block request is pending > 4 hours' },
+  { name: 'tps_block_request',    params: ['Project code', 'Block reason'],         desc: 'Notifies admins when a block/unblock/cancel request is raised or decided' },
+  { name: 'tps_block_escalation', params: ['Project code', 'Requester name', 'Block type', 'Hours waiting'], desc: 'Escalation when a block request is pending > 4 hours' },
+  { name: 'tps_task_assigned',    params: ['Name', 'Task/stage', 'Project', 'Due date'], desc: 'Sent to the executive when a stage/task is assigned' },
+  { name: 'tps_project_assigned', params: ['Name', 'Project', 'Client'],           desc: 'Sent when a new project is assigned' },
+  { name: 'tps_project_completed',params: ['Project', 'Client', 'Date'],           desc: 'Sent when a project is marked completed' },
+  { name: 'tps_morning_digest',   params: ['Name', 'Pending stages', 'Overdue', 'Pending projects'], desc: 'Daily 9 AM per-person summary' },
+  { name: 'tps_payment_weekly',   params: ['Client count', 'Total ₹', 'Client list'], desc: 'Monday 9 AM payment-pending summary to admins' },
 ]
 
 export default function SettingsPage() {
@@ -141,6 +147,9 @@ export default function SettingsPage() {
 
         {/* Notification Controls — which types + per-user subscriptions */}
         <NotificationControlsSection />
+
+        {/* WhatsApp Template Tester — manual live-trigger for every template */}
+        <WhatsAppTesterSection />
 
         {/* WhatsApp Notifications */}
         <section className="bg-white rounded-xl border border-border">
@@ -273,7 +282,7 @@ export default function SettingsPage() {
               </div>
               <div className="text-left">
                 <h2 className="text-sm font-semibold text-brand-950">WhatsApp Template Setup</h2>
-                <p className="text-[11px] text-muted-foreground">5 templates to register in Meta Business Manager</p>
+                <p className="text-[11px] text-muted-foreground">{REQUIRED_TEMPLATES.length} templates registered in Meta WhatsApp Manager</p>
               </div>
             </div>
             {showTemplates ? <Sym name="expand_less" size={14} className="text-muted-foreground" /> : <Sym name="expand_more" size={14} className="text-muted-foreground" />}
