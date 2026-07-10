@@ -506,10 +506,12 @@ function PendingPaymentsTab() {
     staleTime: 0,
   })
 
-  const totalPending = projects.reduce(
-    (sum: number, p: any) => sum + ((p.quoted_amount ?? 0) - (p.paid_amount ?? 0)),
-    0
-  )
+  // Only real dues count: a quote must be recorded (quoted > 0) and still be
+  // partly unpaid. Un-quoted projects and overpayments never drag the total.
+  const totalPending = projects.reduce((sum: number, p: any) => {
+    const q = p.quoted_amount ?? 0, paid = p.paid_amount ?? 0
+    return sum + (q > 0 && q > paid ? q - paid : 0)
+  }, 0)
 
   if (isLoading) {
     return (
@@ -552,16 +554,24 @@ function PendingPaymentsTab() {
               </thead>
               <tbody className="divide-y divide-border">
                 {projects.map((p: any) => {
-                  const balance   = (p.quoted_amount ?? 0) - (p.paid_amount ?? 0)
+                  const quoted    = p.quoted_amount ?? 0
+                  const hasQuote  = quoted > 0
+                  const balance   = quoted - (p.paid_amount ?? 0)
                   const isOverdue = p.payment_status === 'overdue'
                   return (
                     <tr key={p.id} className={cn('hover:bg-[#F8FAFC]', isOverdue && 'bg-red-50/40')}>
                       <td className="px-5 py-3 font-medium text-brand-950">{(p as any).clients?.company_name ?? '—'}</td>
                       <td className="px-5 py-3 font-mono text-muted-foreground">{p.project_code ?? '—'}</td>
                       <td className="px-5 py-3 text-muted-foreground capitalize">{(p.service_type ?? '—').replace(/_/g, ' ')}</td>
-                      <td className="px-5 py-3 font-mono">{formatRupees(p.quoted_amount ?? 0)}</td>
+                      <td className="px-5 py-3 font-mono">{hasQuote ? formatRupees(quoted) : <span className="text-amber-600" title="No quote entered for this project">— quote not set</span>}</td>
                       <td className="px-5 py-3 font-mono text-green-700">{formatRupees(p.paid_amount ?? 0)}</td>
-                      <td className="px-5 py-3 font-mono font-semibold text-red-600">{formatRupees(balance)}</td>
+                      <td className="px-5 py-3 font-mono font-semibold">
+                        {!hasQuote
+                          ? <span className="text-muted-foreground">—</span>
+                          : balance > 0
+                            ? <span className="text-red-600">{formatRupees(balance)}</span>
+                            : <span className="text-green-600">{formatRupees(0)}</span>}
+                      </td>
                       <td className="px-5 py-3">
                         <span className={cn(
                           'px-1.5 py-0.5 rounded text-[10px] font-medium capitalize',
