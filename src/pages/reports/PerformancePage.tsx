@@ -162,7 +162,7 @@ async function computeReport(
   let activeQ = supabase
     .from('projects')
     .select('id, active_clock, client_id, stages(active_clock, status, started_at)')
-    .in('status', ['active', 'on_hold'])
+    .eq('status', 'active')
     .lte('created_at', to)
 
   if (employeeId) {
@@ -501,12 +501,13 @@ function PendingPaymentsTab() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('projects')
-        .select('id, project_code, service_type, status, quoted_amount, paid_amount, payment_status, created_at, clients(company_name)')
+        .select('id, project_code, service_type, status, is_blocked, quoted_amount, paid_amount, payment_status, created_at, clients(company_name)')
         .neq('payment_status', 'paid')
-        .in('status', ['active', 'completed'])   // cancelled/on-hold aren't chased here
+        .in('status', ['active', 'completed'])   // only active + completed
         .order('created_at', { ascending: true })
       if (error) throw error
-      return data ?? []
+      // Exclude blocked projects too — cancelled/on-hold already excluded above.
+      return (data ?? []).filter((p: any) => !p.is_blocked)
     },
     staleTime: 0,
   })
@@ -578,7 +579,7 @@ function PendingPaymentsTab() {
             <table className="w-full text-xs">
               <thead className="bg-[#F8FAFC]">
                 <tr className="text-left">
-                  {['Client', 'Project', 'Service', 'Stage', 'Quoted', 'Received', 'Balance', 'Status'].map(h => (
+                  {['Client', 'Project', 'Service', 'Project State', 'Quoted', 'Received', 'Balance', 'Payment'].map(h => (
                     <th key={h} className="px-5 py-2.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">{h}</th>
                   ))}
                 </tr>
