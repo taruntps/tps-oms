@@ -73,11 +73,10 @@ export function ReminderSettingsSection() {
 
         <Toggle
           label="WhatsApp reminders"
-          hint="Same alerts over WhatsApp via your Meta Cloud API."
+          hint="Morning digest + urgent alerts over WhatsApp via your Meta Cloud API. Live."
           on={whatsapp} disabled={loading}
           onClick={() => setWhatsapp(v => !v)}
           color="bg-green-500"
-          badge="Coming soon"
         />
 
         {/* Digest hour picker */}

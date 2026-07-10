@@ -43,7 +43,6 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false)
   const [savingPhone, setSavingPhone] = useState(false)
   const [showTemplates, setShowTemplates] = useState(false)
-  const [testing, setTesting] = useState(false)
 
   useEffect(() => {
     loadSettings()
@@ -106,28 +105,6 @@ export default function SettingsPage() {
       toast.error('Save failed', err instanceof Error ? err.message : 'Unknown error')
     } finally {
       setSavingPhone(false)
-    }
-  }
-
-  async function testSend() {
-    if (!myPhone) { toast.error('Set your WhatsApp number first'); return }
-    setTesting(true)
-    try {
-      const phone = myPhone.replace(/\D/g, '').replace(/^0/, '').replace(/^(?!91)/, '91')
-      const { error } = await supabase.functions.invoke('send-whatsapp', {
-        body: {
-          phone,
-          template: 'tps_stage_overdue',
-          params: ['Test Stage', 'This is a test message from TPS-OMS Settings'],
-          refId: 'settings_test',
-        },
-      })
-      if (error) throw error
-      toast.success('Test sent', 'Check your WhatsApp for the test message')
-    } catch (err: unknown) {
-      toast.error('Test failed', err instanceof Error ? err.message : 'Unknown error')
-    } finally {
-      setTesting(false)
     }
   }
 
@@ -256,17 +233,10 @@ export default function SettingsPage() {
                   {savingPhone ? 'Saving…' : 'Save'}
                 </button>
               </div>
+              <p className="text-[11px] text-muted-foreground mt-1.5">
+                To send test messages, use the <strong>WhatsApp Template Tester</strong> above.
+              </p>
             </div>
-
-            <button
-              onClick={testSend}
-              disabled={testing || !isEnabled}
-              title={!isEnabled ? 'Enable WhatsApp notifications first' : undefined}
-              className="flex items-center gap-2 text-sm text-brand-600 hover:text-brand-700 disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              <Sym name="chat" size={13} />
-              {testing ? 'Sending test…' : 'Send a test WhatsApp message to this number'}
-            </button>
           </div>
         </section>
 
@@ -322,67 +292,7 @@ export default function SettingsPage() {
           )}
         </section>
 
-        {/* pg_cron Setup */}
-        <section className="bg-white rounded-xl border border-border p-5">
-          <h2 className="text-sm font-semibold text-brand-950 mb-1 flex items-center gap-2">
-            <Sym name="settings" size={14} className="text-muted-foreground" />
-            pg_cron Schedule Setup
-          </h2>
-          <p className="text-xs text-muted-foreground mb-3">
-            After deploying edge functions, run these SQL snippets in your Supabase SQL Editor
-            to activate the automatic dispatch schedule.
-          </p>
-          <div className="space-y-2">
-            <CodeBlock label="Daily WhatsApp alerts — 9 AM IST (03:30 UTC)" code={`select cron.schedule(
-  'whatsapp-notify-dispatch',
-  '30 3 * * *',
-  $$
-  select net.http_post(
-    url     := 'https://muxwwvwmephtwghsrzbp.supabase.co/functions/v1/notify-dispatch',
-    headers := '{"Content-Type":"application/json","Authorization":"Bearer <SERVICE_ROLE_KEY>"}'::jsonb,
-    body    := '{}'::jsonb
-  )
-  $$
-);`} />
-            <CodeBlock label="Block escalation — every 4 hours" code={`select cron.schedule(
-  'block-escalation',
-  '0 */4 * * *',
-  $$
-  select net.http_post(
-    url     := 'https://muxwwvwmephtwghsrzbp.supabase.co/functions/v1/block-escalate',
-    headers := '{"Content-Type":"application/json","Authorization":"Bearer <SERVICE_ROLE_KEY>"}'::jsonb,
-    body    := '{}'::jsonb
-  )
-  $$
-);`} />
-          </div>
-          <p className="text-[11px] text-muted-foreground mt-2">
-            Replace <code className="font-mono bg-[#F8FAFC] px-1 rounded">&lt;SERVICE_ROLE_KEY&gt;</code> with your key from
-            Supabase → Project Settings → API → service_role.
-          </p>
-        </section>
-
       </div>
-    </div>
-  )
-}
-
-function CodeBlock({ label, code }: { label: string; code: string }) {
-  const [copied, setCopied] = useState(false)
-  async function copy() {
-    await navigator.clipboard.writeText(code)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-  }
-  return (
-    <div className="rounded-lg border border-border overflow-hidden">
-      <div className="flex items-center justify-between px-3 py-1.5 bg-[#F8FAFC] border-b border-border">
-        <span className="text-[10px] text-muted-foreground">{label}</span>
-        <button onClick={copy} className="text-[10px] text-brand-600 hover:text-brand-700">
-          {copied ? 'Copied!' : 'Copy'}
-        </button>
-      </div>
-      <pre className="text-[10px] font-mono text-brand-950 p-3 overflow-x-auto leading-relaxed bg-white">{code}</pre>
     </div>
   )
 }
