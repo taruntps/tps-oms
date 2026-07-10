@@ -62,7 +62,9 @@ serve(async (req) => {
           type: 'template',
           template: {
             name: template,
-            language: { code: 'en_US' },
+            // Templates were created in "English" (en) in Meta WhatsApp Manager —
+            // en_US fails with error 132001 (template does not exist in en_US).
+            language: { code: 'en' },
             components: params.length > 0
               ? [{
                   type: 'body',
