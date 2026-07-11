@@ -1,0 +1,1 @@
+-- CAPA P-4 + S-3: drop duplicate index stage_timeline_stage_idx; revoke anon EXECUTE on admin_create_user/admin_reset_password/delete_client/delete_project (applied via MCP 2026-07-11).

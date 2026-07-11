@@ -1,0 +1,1 @@
+-- CAPA P-3: covering indexes on 45 unindexed FKs (applied via MCP 2026-07-11). See migration 073 in DB.
