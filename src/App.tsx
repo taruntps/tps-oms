@@ -22,6 +22,7 @@ import UserManagementPage from '@/pages/admin/UserManagementPage'
 import EmployeesPage from '@/pages/employees/EmployeesPage'
 import EmployeeDetailPage from '@/pages/employees/EmployeeDetailPage'
 import AttendancePage from '@/pages/attendance/AttendancePage'
+import AttendancePhotosPage from '@/pages/attendance/AttendancePhotosPage'
 import ReferralsPage from '@/pages/referrals/ReferralsPage'
 import TasksPage from '@/pages/tasks/TasksPage'
 import NotificationsPage from '@/pages/notifications/NotificationsPage'
@@ -70,6 +71,11 @@ export default function App() {
 
               {/* General authenticated routes */}
               <Route path="attendance" element={<AttendancePage />} />
+              <Route path="attendance/photos" element={
+                <ProtectedRoute allowedRoles={['super_admin','director','manager','hr']}>
+                  <AttendancePhotosPage />
+                </ProtectedRoute>
+              } />
               <Route path="tasks" element={<TasksPage />} />
               <Route path="notifications" element={<NotificationsPage />} />
               <Route path="clients" element={<ClientsPage />} />

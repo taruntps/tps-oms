@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { TopBar } from '@/components/layout/TopBar'
 import { Sym } from '@/components/shared/Sym'
 import { useAuth } from '@/contexts/AuthContext'
@@ -205,7 +206,12 @@ export default function AttendancePage() {
         {/* Team — Today (managers/HR/admin) */}
         {canSeeTeam && (
           <div>
-            <h3 className="font-display font-semibold text-white text-sm mb-3">Team — Today ({teamRows.length} punched in)</h3>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-display font-semibold text-white text-sm">Team — Today ({teamRows.length} punched in)</h3>
+              <Link to="/attendance/photos" className="text-xs text-white/80 hover:text-white flex items-center gap-1">
+                <Sym name="photo_camera" size={13} /> Punch photos
+              </Link>
+            </div>
             {teamRows.length === 0 ? (
               <div className="glass-panel rounded-xl border-dashed !border-white/20 p-6 text-center">
                 <p className="text-sm text-white/60">No one has punched in yet today.</p>

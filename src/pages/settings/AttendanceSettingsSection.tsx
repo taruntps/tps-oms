@@ -114,9 +114,9 @@ export function AttendanceSettingsSection() {
             {s.face_match_required && (
               <L label="Match Strictness" wide>
                 <label className="block text-[11px] text-muted-foreground mb-1">
-                  Similarity ≥ {s.face_match_threshold.toFixed(2)} (higher = stricter)
+                  Face similarity ≥ {Math.round(s.face_match_threshold * 100)}% (higher = stricter). 90% recommended.
                 </label>
-                <input type="range" min={0.3} max={0.8} step={0.01} value={s.face_match_threshold}
+                <input type="range" min={0.80} max={0.98} step={0.01} value={s.face_match_threshold}
                   onChange={e => setS(v => ({ ...v, face_match_threshold: Number(e.target.value) }))}
                   className="w-full max-w-xs" />
               </L>
