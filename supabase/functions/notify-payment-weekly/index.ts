@@ -44,28 +44,27 @@ serve(async (req) => {
     if (error) return json({ error: error.message }, 500)
     if (!projects?.length) return json({ skipped: 'No pending payments' })
 
-    // Only projects with a REAL positive balance count: a quote must be recorded
-    // (quoted_amount > 0) and still be partly unpaid (quoted > paid). This drops
-    // un-quoted projects (0/0) and negative balances. paid_amount already
-    // excludes govt pass-through fees (migration 062).
+    // Projects with a REAL positive balance (quote recorded + still unpaid) drive
+    // the rupee TOTAL. paid_amount already excludes govt fees (migration 062).
     const due = (p: any) => (p.quoted_amount ?? 0) > 0 && (p.quoted_amount ?? 0) > (p.paid_amount ?? 0)
-    const dueProjects   = projects.filter(due)
-    if (!dueProjects.length) return json({ skipped: 'No outstanding consulting dues' })
-
-    const completedDue  = dueProjects.filter((p: any) => p.status === 'completed')
-    const activeDue     = dueProjects.filter((p: any) => p.status === 'active')
+    const dueProjects  = projects.filter(due)
+    const completedDue = dueProjects.filter((p: any) => p.status === 'completed')
     const sumRs = (list: any[]) => Math.round(list.reduce((s, p) => s + ((p.quoted_amount ?? 0) - (p.paid_amount ?? 0)), 0) / 100)
-
-    const count       = dueProjects.length
     const totalRs     = sumRs(dueProjects)
     const completedRs = sumRs(completedDue)
 
-    // Client list — completed (priority) clients first, then active; capped at 5.
-    const names = (list: any[]) => [...new Set(list.map((p: any) => p.clients?.company_name).filter(Boolean))]
-    const ordered = [...names(completedDue), ...names(activeDue)]
-    const listStr = ordered.slice(0, 5).join(', ') + (ordered.length > 5 ? ` +${ordered.length - 5} more` : '')
-    // Lead with the completed-priority amount so it's unmissable in the message.
-    const clientList = (completedRs > 0 ? `Rs.${completedRs} on ${completedDue.length} completed (PRIORITY) — ` : '') + listStr
+    // Client NAMES + count include EVERY pending client (even those without a
+    // quote yet) so nothing slips through. Order: clients with a real due first
+    // (priority), then the rest. Capped for WhatsApp length; full list in portal.
+    const nameOf   = (p: any) => p.clients?.company_name
+    const dueNames = [...new Set(dueProjects.map(nameOf).filter(Boolean))]
+    const allNames = [...new Set(projects.map(nameOf).filter(Boolean))]
+    const restNames = allNames.filter((n: string) => !dueNames.includes(n))
+    const ordered  = [...dueNames, ...restNames]     // all distinct pending clients
+    const count    = ordered.length                  // every pending client
+    const CAP = 15
+    const listStr  = ordered.slice(0, CAP).join(', ') + (ordered.length > CAP ? ` +${ordered.length - CAP} more (see portal)` : '')
+    const clientList = (completedRs > 0 ? `Rs.${completedRs} on completed (PRIORITY). ` : '') + listStr
 
     // Send to all managers with WhatsApp number
     const { data: managers } = await supabase
