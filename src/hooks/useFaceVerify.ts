@@ -40,6 +40,14 @@ export function useEnrollFace() {
   })
 }
 
+/** Clear a stored reference face — self (no arg) or another user (admin, targetUserId). */
+export function useResetFace() {
+  return useMutation({
+    mutationFn: async ({ targetUserId }: { targetUserId?: string } = {}) =>
+      invoke('attendance-enroll-face', { reset: true, targetUserId }) as Promise<{ ok: boolean; reset?: boolean }>,
+  })
+}
+
 /** Punch with server-side face verification (matching + recording happen in the edge fn). */
 export function useVerifiedPunch() {
   const qc = useQueryClient()

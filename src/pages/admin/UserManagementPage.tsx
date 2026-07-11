@@ -6,7 +6,7 @@ import { toast } from '@/components/shared/Toast'
 import { useAuth } from '@/contexts/AuthContext'
 import { Sym } from '@/components/shared/Sym'
 import { cn, formatDate } from '@/lib/utils'
-import { useResetFaceEnrollment } from '@/hooks/useFaceEnrollment'
+import { useResetFace } from '@/hooks/useFaceVerify'
 
 const ROLES = ['executive', 'manager', 'director', 'accounts', 'super_admin'] as const
 type Role = typeof ROLES[number]
@@ -79,10 +79,10 @@ export default function UserManagementPage() {
   const [resetUser, setResetUser] = useState<UserRow | null>(null)
   const [newPwd, setNewPwd] = useState('')
 
-  const resetFace = useResetFaceEnrollment()
+  const resetFace = useResetFace()
   const onResetFace = async (id: string, name: string) => {
-    if (!confirm(`Clear ${name}'s face enrolment? They will re-enrol on their next punch.`)) return
-    try { await resetFace.mutateAsync(id); toast.success('Face enrolment cleared') }
+    if (!confirm(`Clear ${name}'s face registration? They will re-register (guided scan) on their next punch.`)) return
+    try { await resetFace.mutateAsync({ targetUserId: id }); toast.success('Face registration cleared') }
     catch (e: any) { toast.error('Failed', e.message) }
   }
 

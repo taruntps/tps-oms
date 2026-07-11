@@ -10,7 +10,7 @@ import {
 } from '@/hooks/useAttendance'
 import { PlainCapture } from './PlainCapture'
 import { FaceScanRing } from './FaceScanRing'
-import { useEnrollFace, useVerifiedPunch } from '@/hooks/useFaceVerify'
+import { useEnrollFace, useVerifiedPunch, useResetFace } from '@/hooks/useFaceVerify'
 
 const fmtTime = (iso: string) =>
   new Date(iso).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' })
@@ -40,8 +40,20 @@ export default function AttendancePage() {
 
   const enrollFace = useEnrollFace()
   const verifiedPunch = useVerifiedPunch()
+  const resetFace = useResetFace()
   const faceOn = !!(settings as any)?.face_match_required
   const [mode, setMode] = useState<null | 'enroll' | 'punch' | 'selfie'>(null)
+
+  // Clear my stored face and immediately re-scan (new phone / changed appearance).
+  const reRegisterMyFace = async () => {
+    if (!window.confirm('Re-register your face? Your current face data is cleared and you scan again now.')) return
+    try {
+      await resetFace.mutateAsync({})
+      setMode('enroll')
+    } catch (e: any) {
+      toast.error('Could not reset', e?.message ?? 'Try again')
+    }
+  }
 
   const firstIn = today[0]
   const lastPunch = today[today.length - 1]
@@ -174,9 +186,15 @@ export default function AttendancePage() {
             </p>
           )}
           {faceOn && (
-            <p className="text-[11px] text-white/55 mt-1 flex items-center justify-center gap-1">
-              <Sym name="face" size={12} /> Face verification is on. Your first punch registers your face (one-time).
-            </p>
+            <>
+              <p className="text-[11px] text-white/55 mt-1 flex items-center justify-center gap-1">
+                <Sym name="face" size={12} /> Face verification is on. Your first punch registers your face (one-time).
+              </p>
+              <button onClick={reRegisterMyFace} disabled={resetFace.isPending}
+                className="mt-2 text-[11px] text-white/70 hover:text-white underline underline-offset-2 inline-flex items-center gap-1 disabled:opacity-50">
+                <Sym name="restart_alt" size={12} /> {resetFace.isPending ? 'Resetting…' : 'Re-register my face'}
+              </button>
+            </>
           )}
         </div>
 

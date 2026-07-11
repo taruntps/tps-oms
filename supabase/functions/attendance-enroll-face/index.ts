@@ -24,18 +24,28 @@ serve(async (req) => {
     const uid = userData?.user?.id
     if (!uid) return json({ error: 'Not signed in' }, 401)
 
-    // want: 'center' stores the reference on a good frontal; 'scan' just reports the
-    // detected direction (to fill the ring); omitted → legacy single-photo enroll.
-    const { photo, want, targetUserId } = await req.json() as
-      { photo: string; want?: 'center' | 'scan'; targetUserId?: string }
-    if (!photo) return json({ error: 'No photo' }, 400)
+    // reset: delete the reference (self, or admin for another user). Otherwise:
+    // want:'center' stores the reference on a good frontal; 'scan' reports the detected
+    // direction (to fill the ring); omitted → legacy single-photo enroll.
+    const { photo, want, targetUserId, reset } = await req.json() as
+      { photo?: string; want?: 'center' | 'scan'; targetUserId?: string; reset?: boolean }
 
+    // Resolve the subject (admins may act on another user; everyone may act on self).
     let subject = uid
     if (targetUserId && targetUserId !== uid) {
       const { data: me } = await supa.from('profiles').select('role').eq('id', uid).single()
       if (!['super_admin', 'director', 'manager'].includes(me?.role ?? '')) return json({ error: 'Not allowed' }, 403)
       subject = targetUserId
     }
+
+    // Reset: clear the stored reference via the Storage API (SQL delete is blocked).
+    if (reset) {
+      const { error } = await supa.storage.from('face-refs').remove([`${subject}/reference.jpg`])
+      if (error) return json({ error: error.message }, 500)
+      return json({ ok: true, reset: true })
+    }
+
+    if (!photo) return json({ error: 'No photo' }, 400)
 
     const det = await rekognition('DetectFaces', { Image: { Bytes: photo }, Attributes: ['DEFAULT'] })
     const faces = det.FaceDetails ?? []
