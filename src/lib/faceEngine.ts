@@ -58,14 +58,27 @@ async function getHuman(): Promise<Human> {
   return _human
 }
 
+// Race a promise against a timeout so a stalled engine can never hang the scan
+// forever. Resolves to `fallback` if `p` doesn't settle within `ms`.
+function withTimeout<T>(p: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>(resolve => setTimeout(() => resolve(fallback), ms)),
+  ])
+}
+
 /** Detect exactly one good face in the source and return its embedding. */
 export async function getDescriptor(
   source: HTMLVideoElement | HTMLCanvasElement | HTMLImageElement,
 ): Promise<DescriptorResult> {
-  let h: Human
-  try { h = await getHuman() } catch { return { ok: false, reason: 'engine' } }
+  let h: Human | null
+  // Model load + WebGL warmup can stall on some devices; cap it so the caller
+  // gets a graceful error (→ "use password") instead of an endless spinner.
+  try { h = await withTimeout(getHuman(), 15000, null) } catch { return { ok: false, reason: 'engine' } }
+  if (!h) return { ok: false, reason: 'engine' }
   try {
-    const res = await h.detect(source as any)
+    const res = await withTimeout(h.detect(source as any), 6000, null)
+    if (!res) return { ok: false, reason: 'engine' }
     const faces = res.face ?? []
     if (faces.length === 0) return { ok: false, reason: 'no_face' }
     if (faces.length > 1) return { ok: false, reason: 'multiple_faces' }
