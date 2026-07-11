@@ -6,6 +6,35 @@ const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers
 const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { ...cors, 'Content-Type': 'application/json' } })
 const mapVerification = (sim: number | null, thr: number) => sim == null ? 'unverified' : sim >= thr ? 'verified' : 'no_match'
 
+/**
+ * Quality gate: returns a retake reason string if the punch photo isn't a single,
+ * clear, centred, front-facing face; null if it's good. AWS/network errors return
+ * null (never block a punch on our infra failing).
+ */
+async function retakeReason(photo: string): Promise<string | null> {
+  try {
+    const det = await Promise.race([
+      rekognition('DetectFaces', { Image: { Bytes: photo }, Attributes: ['DEFAULT'] }),
+      new Promise<null>(r => setTimeout(() => r(null), 6000)),
+    ]) as any
+    if (det == null) return null                                   // timeout → don't block
+    const faces = det.FaceDetails ?? []
+    if (faces.length === 0) return 'No face detected — face the camera in good light.'
+    if (faces.length > 1) return 'More than one face in frame — only you should be visible.'
+    const f = faces[0]
+    if ((f.Confidence ?? 0) < 90) return 'Face unclear — move closer, in good light.'
+    const bb = f.BoundingBox ?? {}
+    const L = bb.Left ?? 0, T = bb.Top ?? 0, W = bb.Width ?? 0, H = bb.Height ?? 0
+    const cx = L + W / 2, cy = T + H / 2                            // face centre
+    if (W < 0.20 || H < 0.24) return 'Move closer — your face should fill more of the frame.'
+    if (cx < 0.30 || cx > 0.70 || cy < 0.24 || cy > 0.74) return 'Center your face in the middle of the frame.'
+    if (L < 0.02 || T < 0.02 || L + W > 0.98 || T + H > 0.98) return 'Keep your whole face inside the frame.'
+    const p = f.Pose ?? {}
+    if (Math.abs(p.Yaw ?? 0) > 22 || Math.abs(p.Pitch ?? 0) > 22) return 'Look straight at the camera.'
+    return null
+  } catch { return null }                                          // AWS error → don't block
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
   try {
@@ -22,10 +51,15 @@ serve(async (req) => {
     const { data: settings } = await admin.from('attendance_settings').select('face_match_threshold').maybeSingle()
     const thresholdPct = Math.round((Number(settings?.face_match_threshold ?? 0.90)) * 100)
 
-    // Compare against the enrolled reference (if any). Failures never block.
-    let similarity: number | null = null
     const { data: ref } = await admin.storage.from('face-refs').download(`${uid}/reference.jpg`)
     if (!ref) return json({ ok: false, needs_enrollment: true })
+
+    // Quality gate — reject partial/off-centre/tiny/turned faces (ask for a retake, do NOT record).
+    const reason = await retakeReason(photo)
+    if (reason) return json({ ok: false, needs_retake: true, reason })
+
+    // Compare against the enrolled reference. Failures never block.
+    let similarity: number | null = null
     try {
       const refBytes = new Uint8Array(await ref.arrayBuffer())
       let s = ''; for (let i = 0; i < refBytes.length; i++) s += String.fromCharCode(refBytes[i])

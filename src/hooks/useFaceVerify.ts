@@ -12,7 +12,27 @@ async function invoke(fn: string, body: Record<string, unknown>) {
   return data
 }
 
-/** Register / re-register the caller's reference face (one-time). */
+export type EnrollFrame = {
+  ok: boolean
+  matched: boolean
+  detected?: 'center' | 'left' | 'right' | 'up' | 'down'
+  savedReference?: boolean
+  reason?: string
+}
+
+/**
+ * Send one live frame to the enroll function.
+ * - want:'center' validates a clean frontal face and STORES the reference.
+ * - want:'scan'   just reports which direction the head is turned (fills the ring).
+ * Called repeatedly by the guided scan, so it's a plain function, not a mutation.
+ */
+export async function enrollFrame(
+  photo: string, want: 'center' | 'scan', targetUserId?: string,
+): Promise<EnrollFrame> {
+  return invoke('attendance-enroll-face', { photo, want, targetUserId }) as Promise<EnrollFrame>
+}
+
+/** Register / re-register a reference face in one shot (admin / legacy single photo). */
 export function useEnrollFace() {
   return useMutation({
     mutationFn: async ({ photo, targetUserId }: { photo: string; targetUserId?: string }) =>
@@ -25,7 +45,8 @@ export function useVerifiedPunch() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async ({ photo, gps }: { photo: string; gps: { lat: number; lng: number; accuracy: number } }) =>
-      invoke('attendance-verify-punch', { photo, gps }) as Promise<{ ok: boolean; status?: string; needs_enrollment?: boolean }>,
+      invoke('attendance-verify-punch', { photo, gps }) as
+        Promise<{ ok: boolean; status?: string; needs_enrollment?: boolean; needs_retake?: boolean; reason?: string }>,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['attendance_today'] })
       qc.invalidateQueries({ queryKey: ['attendance_days'] })

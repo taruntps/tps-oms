@@ -9,6 +9,7 @@ import {
   useAttendanceSettings, useTodayPunches, useMyAttendanceDays, usePunch, useTeamToday,
 } from '@/hooks/useAttendance'
 import { PlainCapture } from './PlainCapture'
+import { FaceScanRing } from './FaceScanRing'
 import { useEnrollFace, useVerifiedPunch } from '@/hooks/useFaceVerify'
 
 const fmtTime = (iso: string) =>
@@ -123,8 +124,13 @@ export default function AttendancePage() {
         gps: { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy },
       })
       if (res.needs_enrollment) {                    // first ever punch → enrol first
-        toast.success('One-time face setup', 'Capture your face to register, then punch.')
+        toast.success('One-time face setup', 'Scan your face to register, then punch.')
         setMode('enroll'); setBusy(false)
+        return
+      }
+      if (res.needs_retake) {                        // bad photo → keep modal open, ask again
+        toast.error('Please retake', res.reason ?? 'Center your face and try again.')
+        setBusy(false)
         return
       }
       setMode(null)
@@ -289,15 +295,22 @@ export default function AttendancePage() {
               {mode === 'enroll' ? 'Register your face' : mode === 'selfie' ? 'Take your selfie' : 'Face verification'}
             </h2>
             <p className="text-xs text-muted-foreground text-center mb-3">
-              {mode === 'enroll' ? 'One-time — look straight at the camera in good light, then Capture.'
+              {mode === 'enroll' ? 'One-time setup — follow the prompts to scan your face.'
                 : 'Center your face and tap Capture.'}
             </p>
-            <PlainCapture
-              busy={busy}
-              label={mode === 'enroll' ? 'Register' : 'Capture & Punch'}
-              onCapture={onPhoto}
-              onCancel={() => { setMode(null); setBusy(false) }}
-            />
+            {mode === 'enroll' ? (
+              <FaceScanRing
+                onDone={() => { toast.success('Face registered ✓', 'Now punching…'); setMode('punch') }}
+                onCancel={() => { setMode(null); setBusy(false) }}
+              />
+            ) : (
+              <PlainCapture
+                busy={busy}
+                label={mode === 'selfie' ? 'Capture & Punch' : 'Capture & Punch'}
+                onCapture={onPhoto}
+                onCancel={() => { setMode(null); setBusy(false) }}
+              />
+            )}
           </div>
         </div>
       )}
