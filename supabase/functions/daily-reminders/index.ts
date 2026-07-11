@@ -121,16 +121,21 @@ serve(async (req) => {
       .eq('projects.status', 'active')
       .in('status', ['pending', 'in_progress'])
 
-    // Per-user project rows (active only) — a project is "mine" if I'm the
-    // assignee OR the manager, matching the app's My Projects definition.
+    // Per-user project rows (active, NOT blocked) — a project is "mine" if I'm
+    // the assignee OR the manager. Excluding blocked matches the Projects page
+    // Active tab (blocked projects live under the Blocked tab, clock stopped).
     const { data: projRows } = await supabase
       .from('projects')
-      .select('assigned_to, manager_id')
+      .select('assigned_to, manager_id, is_blocked')
       .eq('status', 'active')
 
     for (const s of staff ?? []) {
       const phone = (s as any).whatsapp_number
       if (!phone) continue
+      // The morning digest is a personal work reminder for people who do project
+      // work. Admins (super_admin/director) oversee everything via the Dashboard,
+      // so a "your pending work" digest is just the whole company — skip them.
+      if (['super_admin', 'director'].includes(s.role)) continue
       if (await alreadySent(supabase, 'wa_morning_digest', null, s.id, today)) continue
 
       const myStages = (stageRows ?? []).filter((r: any) => r.assigned_to === s.id)
@@ -140,8 +145,8 @@ serve(async (req) => {
       const pending  = myStages.filter((r: any) => r.status === 'in_progress').length
       // Overdue = any incomplete stage of theirs past its due date (urgent flag).
       const overdue  = myStages.filter((r: any) => r.due_date && r.due_date < today).length
-      // Their own active projects (assignee or manager) — NOT the company total.
-      const myProjects = (projRows ?? []).filter((r: any) => r.assigned_to === s.id || r.manager_id === s.id).length
+      // Their own active, non-blocked projects (assignee or manager).
+      const myProjects = (projRows ?? []).filter((r: any) => (r.assigned_to === s.id || r.manager_id === s.id) && !r.is_blocked).length
 
       if (pending === 0 && overdue === 0 && myProjects === 0) continue
 
