@@ -3,8 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { Sym } from '@/components/shared/Sym'
 import { cn } from '@/lib/utils'
-import { FaceCapture } from '@/pages/attendance/FaceCapture'
-import { preloadFaceEngine } from '@/lib/faceEngine'
+import { PlainCapture } from '@/pages/attendance/PlainCapture'
 
 export default function LoginPage() {
   const navigate = useNavigate()
@@ -18,13 +17,11 @@ export default function LoginPage() {
   const [faceScanOpen, setFaceScanOpen] = useState(false)
   const [faceScanBusy, setFaceScanBusy] = useState(false)
 
-  // Request camera + location permissions on mount so they're remembered.
-  // Also kick off face model loading so Face ID tap is near-instant.
+  // Request camera permission on mount so the Face ID tap opens instantly.
   useEffect(() => {
     navigator.mediaDevices?.getUserMedia({ video: true, audio: false })
-      .then(s => { s.getTracks().forEach(t => t.stop()); preloadFaceEngine() })
+      .then(s => { s.getTracks().forEach(t => t.stop()) })
       .catch(() => {})
-    navigator.geolocation?.getCurrentPosition(() => {}, () => {})
   }, [])
 
   async function handleSubmit(e: React.FormEvent) {
@@ -73,11 +70,11 @@ export default function LoginPage() {
     setFaceScanOpen(true)
   }
 
-  const onFaceCapture = async ({ descriptor }: { canvas: HTMLCanvasElement; descriptor: number[] }) => {
+  const onFaceCapture = async (photo: string) => {
     setFaceScanBusy(true)
     try {
       const { data, error: fnErr } = await supabase.functions.invoke('face-login', {
-        body: { identifier: email.trim(), faceDescriptor: descriptor },
+        body: { identifier: email.trim(), photo },
       })
       let errMsg: string | null = null
       if (fnErr) {
@@ -98,7 +95,8 @@ export default function LoginPage() {
       const raw = e.message ?? ''
       setError(
         raw.includes('not recognized') ? 'Face not recognized — use password to sign in.' :
-        raw.includes('No face enrolled') ? 'No face registered for this account — use password.' :
+        raw.includes('timed out') ? 'Face check timed out — use password to sign in.' :
+        raw.includes('No face registered') ? 'No face registered for this account — register on your first attendance punch, or use password.' :
         raw.includes('not found') || raw.includes('User not found') ? 'User not found.' :
         `Face sign-in failed: ${raw}`
       )
@@ -228,13 +226,10 @@ export default function LoginPage() {
         </p>
       </div>
 
-      {/* Face scan modal */}
+      {/* Face scan modal — plain photo, verified server-side (no on-device engine) */}
       {faceScanOpen && (
-        <FaceCapture
-          title="Hold still — scanning 3 frames for secure verification"
-          actionLabel="Scan"
-          autoCapture={true}
-          captureFrames={3}
+        <PlainCapture
+          label="Sign in with Face"
           busy={faceScanBusy}
           onCapture={onFaceCapture}
           onCancel={() => { setFaceScanOpen(false); setFaceScanBusy(false) }}
