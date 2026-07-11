@@ -54,17 +54,30 @@ serve(async (req) => {
     const completedRs = sumRs(completedDue)
 
     // Client NAMES + count include EVERY pending client (even those without a
-    // quote yet) so nothing slips through. Order: clients with a real due first
-    // (priority), then the rest. Capped for WhatsApp length; full list in portal.
+    // quote yet). Order: clients with a real due first (priority), then the rest.
     const nameOf   = (p: any) => p.clients?.company_name
     const dueNames = [...new Set(dueProjects.map(nameOf).filter(Boolean))]
     const allNames = [...new Set(projects.map(nameOf).filter(Boolean))]
     const restNames = allNames.filter((n: string) => !dueNames.includes(n))
     const ordered  = [...dueNames, ...restNames]     // all distinct pending clients
     const count    = ordered.length                  // every pending client
-    const CAP = 15
-    const listStr  = ordered.slice(0, CAP).join(', ') + (ordered.length > CAP ? ` +${ordered.length - CAP} more (see portal)` : '')
-    const clientList = (completedRs > 0 ? `Rs.${completedRs} on completed (PRIORITY). ` : '') + listStr
+
+    // Trim legal suffixes so ALL names fit within WhatsApp's ~1024-char limit.
+    const shorten = (n: string) =>
+      n.replace(/[.,]?\s*(private\s+limited|pvt\.?\s*ltd\.?|limited|llp|enterprises?)\.?\s*$/i, '').trim()
+    // Add names until the length budget is hit, then "+N more (see portal)".
+    const prefix = completedRs > 0 ? `Rs.${completedRs} on completed (PRIORITY). ` : ''
+    const LIMIT = 900 - prefix.length
+    const picked: string[] = []
+    let used = 0
+    for (const full of ordered) {
+      const s = shorten(full)
+      if (used + s.length + 2 > LIMIT) break
+      picked.push(s); used += s.length + 2
+    }
+    const remaining = ordered.length - picked.length
+    const listStr = picked.join(', ') + (remaining > 0 ? ` +${remaining} more (see portal)` : '')
+    const clientList = prefix + listStr
 
     // Send to all managers with WhatsApp number
     const { data: managers } = await supabase
