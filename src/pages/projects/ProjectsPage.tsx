@@ -7,6 +7,7 @@ import { computeStageClocks, isAuthorityOnly, clockBucket } from '@/lib/projectC
 import { SERVICE_TYPES } from '@/data/india'
 import { ProjectForm } from './ProjectForm'
 import { useProjects } from '@/hooks/useProjects'
+import { useEmployees } from '@/hooks/useEmployees'
 import { useAuth } from '@/contexts/AuthContext'
 import { formatDate, cn } from '@/lib/utils'
 import { toast } from '@/components/shared/Toast'
@@ -66,6 +67,7 @@ export default function ProjectsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const { profile } = useAuth()
   const { data: projects = [], isLoading } = useProjects()
+  const { data: employees = [] } = useEmployees()
   const [showForm, setShowForm] = useState(false)
 
   // Filters live in the URL so "Back to Projects" (and browser back / refresh)
@@ -74,6 +76,7 @@ export default function ProjectsPage() {
   const statusFilter = (searchParams.get('status') as FilterValue) ?? 'pending'
   const typeFilter   = searchParams.get('type') ?? 'all'
   const scope        = (searchParams.get('scope') as 'mine' | 'all') ?? 'mine'
+  const empFilter    = searchParams.get('emp') ?? ''   // employee id, admin only
 
   const setParam = (key: string, value: string, defaultVal: string) =>
     setSearchParams(prev => {
@@ -85,6 +88,7 @@ export default function ProjectsPage() {
   const setSearch       = (v: string) => setParam('q', v, '')
   const setTypeFilter   = (v: string) => setParam('type', v, 'all')
   const setScope        = (v: 'mine' | 'all') => setParam('scope', v, 'mine')
+  const setEmpFilter    = (v: string) => setParam('emp', v, '')
   // Clicking a status tab also clears the dashboard chip filters (due/blocked),
   // otherwise "overdue AND <tab>" silently shows nothing.
   const setStatusFilter = (v: FilterValue) => setSearchParams(prev => {
@@ -114,7 +118,15 @@ export default function ProjectsPage() {
   // Without the Visibility flag, RLS only returns own projects anyway — so "all"
   // collapses to "mine". Force scope to 'mine' when the user can't view all.
   const effectiveScope = canViewAll ? scope : 'mine'
-  const scoped = effectiveScope === 'mine' ? projects.filter(isMine) : projects
+  // Employee filter (admins): when an employee is picked, show that person's
+  // projects (assignee or manager) across everything, overriding the scope toggle.
+  const activeEmp = canViewAll ? empFilter : ''
+  const isEmp = (p: typeof projects[number]) =>
+    p.assigned_to === activeEmp || p.manager_id === activeEmp
+  const scoped = activeEmp
+    ? projects.filter(isEmp)
+    : (effectiveScope === 'mine' ? projects.filter(isMine) : projects)
+  const empName = employees.find((e: any) => e.id === activeEmp)?.name
 
   const todayMs = Date.now()
 
@@ -151,7 +163,11 @@ export default function ProjectsPage() {
     <div>
       <TopBar
         title="Projects"
-        subtitle={effectiveScope === 'mine' ? `${mineCount} assigned to you` : `${projects.length} total`}
+        subtitle={
+          activeEmp ? `${scoped.length} for ${empName ?? 'employee'}`
+          : effectiveScope === 'mine' ? `${mineCount} assigned to you`
+          : `${projects.length} total`
+        }
       />
 
       <div className="p-6 animate-fade-up space-y-5">
@@ -211,6 +227,24 @@ export default function ProjectsPage() {
               className="w-full pl-8 pr-3 py-2 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-600/20 focus:border-brand-600"
             />
           </div>
+
+          {/* Employee filter — admins only: browse one person's projects */}
+          {canViewAll && (
+            <select
+              value={empFilter}
+              onChange={e => setEmpFilter(e.target.value)}
+              className={cn(
+                'px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-600/20',
+                empFilter ? 'bg-brand-50 border-brand-300 text-brand-800 font-medium' : 'bg-white border-border'
+              )}
+              title="Filter projects by employee"
+            >
+              <option value="">All employees</option>
+              {employees.filter((e: any) => e.is_active).map((e: any) => (
+                <option key={e.id} value={e.id}>{e.name}</option>
+              ))}
+            </select>
+          )}
 
           <select
             value={typeFilter}
