@@ -35,9 +35,8 @@ async function getHuman(): Promise<Human> {
       const h = new (Human as any)({
         modelBasePath: '/models',
         cacheModels: true,
-        // Pin WebGL — the fast GPU backend. Without this, some devices silently
-        // fall back to WASM/CPU (much slower), the likely cause of occasional lag.
-        backend: 'webgl',
+        // Let Human auto-select the backend (reverted the hard 'webgl' pin — it
+        // could stall on devices where WebGL init is slow/unavailable at login).
         // Only one face needed; lower minConfidence → faster first detection.
         face: {
           enabled: true,
