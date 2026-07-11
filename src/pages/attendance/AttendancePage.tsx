@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState } from 'react'
 import { TopBar } from '@/components/layout/TopBar'
 import { Sym } from '@/components/shared/Sym'
 import { useAuth } from '@/contexts/AuthContext'
@@ -7,9 +7,8 @@ import { toast } from '@/components/shared/Toast'
 import {
   useAttendanceSettings, useTodayPunches, useMyAttendanceDays, usePunch, useTeamToday,
 } from '@/hooks/useAttendance'
-import { FaceCapture } from './FaceCapture'
-import { useFaceEnrollment, useSaveFaceEnrollment } from '@/hooks/useFaceEnrollment'
-import { averageDescriptors, similarity, preloadFaceEngine } from '@/lib/faceEngine'
+import { PlainCapture } from './PlainCapture'
+import { useEnrollFace, useVerifiedPunch } from '@/hooks/useFaceVerify'
 
 const fmtTime = (iso: string) =>
   new Date(iso).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' })
@@ -37,16 +36,10 @@ export default function AttendancePage() {
   const punch = usePunch()
   const [busy, setBusy] = useState(false)
 
-  const { data: enrollment } = useFaceEnrollment(user?.id)
-  const saveEnroll = useSaveFaceEnrollment()
+  const enrollFace = useEnrollFace()
+  const verifiedPunch = useVerifiedPunch()
   const faceOn = !!(settings as any)?.face_match_required
-  const threshold = Number((settings as any)?.face_match_threshold ?? 0.40)
-  const [mode, setMode] = useState<null | 'enroll' | 'punch'>(null)
-  const enrollFrames = useRef<number[][]>([])
-
-  // Warm the face engine in the background as soon as we know face-match is on,
-  // so the first capture doesn't pay the model-load + shader-compile cost (~5-8s).
-  useEffect(() => { if (faceOn) preloadFaceEngine() }, [faceOn])
+  const [mode, setMode] = useState<null | 'enroll' | 'punch' | 'selfie'>(null)
 
   const firstIn = today[0]
   const lastPunch = today[today.length - 1]
@@ -86,58 +79,65 @@ export default function AttendancePage() {
   }
 
   const onPunchClick = () => {
-    if (faceOn) {
-      if (!enrollment?.enrolled) { enrollFrames.current = []; setMode('enroll') }
-      else setMode('punch')
-    } else if (settings?.selfie_required) {
-      setMode('punch')          // legacy selfie path: capture, no match
-    } else {
-      doPunch(null)
-    }
+    if (faceOn) setMode('punch')                    // server-side face verification
+    else if (settings?.selfie_required) setMode('selfie')  // photo record, no match
+    else doPunch(null)                              // plain GPS/time punch
   }
 
-  const uploadSelfie = async (canvas: HTMLCanvasElement): Promise<string | null> => {
+  // Upload a base64 selfie to the attendance bucket (photo-only mode, no face match).
+  const uploadSelfieB64 = async (b64: string): Promise<string | null> => {
     if (!user) return null
-    const blob: Blob = await new Promise((res, rej) =>
-      canvas.toBlob(b => b ? res(b) : rej(new Error('Capture failed')), 'image/jpeg', 0.6))
+    const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0))
     const path = `${user.id}/${new Date().toISOString().slice(0, 10)}/${Date.now()}.jpg`
-    const { error } = await supabase.storage.from('attendance').upload(path, blob, { contentType: 'image/jpeg' })
+    const { error } = await supabase.storage.from('attendance').upload(path, bytes, { contentType: 'image/jpeg' })
     if (error) throw error
     return path
   }
 
-  const onCapture = async ({ canvas, descriptor }: { canvas: HTMLCanvasElement; descriptor: number[] }) => {
+  // PlainCapture hands back a base64 JPEG (no on-device face engine — cannot hang).
+  const onPhoto = async (b64: string) => {
     if (!user) return
     try {
       setBusy(true)
-      if (mode === 'enroll') {
-        enrollFrames.current.push(descriptor)
-        if (enrollFrames.current.length < 3) {
-          setBusy(false)
-          toast.success(`Captured ${enrollFrames.current.length}/3`, 'Hold still for the next shot')
-          return // keep the modal open for the next frame
-        }
-        await saveEnroll.mutateAsync({ userId: user.id, descriptor: averageDescriptors(enrollFrames.current) })
-        setMode(null); setBusy(false)
-        toast.success('Face enrolled', 'You can now punch with face verification')
+
+      if (mode === 'selfie') {                      // photo record only
+        const path = await uploadSelfieB64(b64)
+        setMode(null)
+        await doPunch(path)
         return
       }
-      // mode === 'punch'
-      let faceMatched: boolean | null = null, faceScore: number | null = null
-      if (faceOn && enrollment?.descriptor) {
-        faceScore = Number(similarity(descriptor, enrollment.descriptor).toFixed(4))
-        faceMatched = faceScore >= threshold
-        if (!faceMatched) {
-          setBusy(false)
-          toast.error('Face did not match', 'Try again in better light, facing the camera.')
-          return // keep modal open to retry
-        }
+
+      if (mode === 'enroll') {                       // one-time face registration
+        await enrollFace.mutateAsync({ photo: b64 })
+        toast.success('Face registered', 'Now punching…')
+        setMode('punch')                             // reopen capture to actually punch
+        setBusy(false)
+        return
       }
-      const path = await uploadSelfie(canvas)
+
+      // mode === 'punch' with face verification: the edge function matches + records.
+      const pos = await getPosition()
+      const res = await verifiedPunch.mutateAsync({
+        photo: b64,
+        gps: { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy },
+      })
+      if (res.needs_enrollment) {                    // first ever punch → enrol first
+        toast.success('One-time face setup', 'Capture your face to register, then punch.')
+        setMode('enroll'); setBusy(false)
+        return
+      }
       setMode(null)
-      await doPunch(path, faceMatched, faceScore)
+      if (res.status === 'verified') toast.success('Punched ✓', 'Face verified')
+      else if (res.status === 'no_match') toast.error('Punched — face not matched', 'Recorded & flagged for HR review')
+      else toast.success('Punched', 'Recorded (verification temporarily skipped)')
     } catch (e: any) {
-      toast.error('Punch failed', e.message); setBusy(false)
+      const msg = e?.code === 1 ? 'Location is blocked for this site — allow it (see help below) and retry.'
+        : e?.code === 2 ? 'Location unavailable — turn on GPS and retry.'
+        : e?.code === 3 ? 'Location timed out — move to an open area and retry.'
+        : e?.message ?? 'Could not punch'
+      toast.error('Punch failed', msg)
+    } finally {
+      if (mode !== 'enroll') setBusy(false)
     }
   }
 
@@ -168,8 +168,7 @@ export default function AttendancePage() {
           )}
           {faceOn && (
             <p className="text-[11px] text-white/55 mt-1 flex items-center justify-center gap-1">
-              <Sym name="face" size={12} />
-              {enrollment?.enrolled ? 'Face verification is on at each punch.' : 'First punch will enrol your face.'}
+              <Sym name="face" size={12} /> Face verification is on. Your first punch registers your face (one-time).
             </p>
           )}
         </div>
@@ -278,14 +277,23 @@ export default function AttendancePage() {
       </div>
 
       {mode && (
-        <FaceCapture
-          title={mode === 'enroll' ? `Enrol your face (${enrollFrames.current.length}/3) — center one face` : 'Hold still — face auto-detected'}
-          actionLabel={mode === 'enroll' ? 'Capture' : 'Capture & Punch'}
-          autoCapture={mode === 'punch'}
-          busy={busy}
-          onCapture={onCapture}
-          onCancel={() => { setMode(null); setBusy(false) }}
-        />
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-5">
+            <h2 className="font-display font-semibold text-brand-950 text-center mb-1">
+              {mode === 'enroll' ? 'Register your face' : mode === 'selfie' ? 'Take your selfie' : 'Face verification'}
+            </h2>
+            <p className="text-xs text-muted-foreground text-center mb-3">
+              {mode === 'enroll' ? 'One-time — look straight at the camera in good light, then Capture.'
+                : 'Center your face and tap Capture.'}
+            </p>
+            <PlainCapture
+              busy={busy}
+              label={mode === 'enroll' ? 'Register' : 'Capture & Punch'}
+              onCapture={onPhoto}
+              onCancel={() => { setMode(null); setBusy(false) }}
+            />
+          </div>
+        </div>
       )}
     </div>
   )
