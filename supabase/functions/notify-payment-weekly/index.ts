@@ -32,12 +32,13 @@ serve(async (req) => {
     const cfg = Object.fromEntries((settings ?? []).map((r: any) => [r.key, r.value]))
     if (cfg.whatsapp_enabled !== 'true') return json({ skipped: 'WhatsApp disabled' })
 
-    // Query active projects with pending/partial payments
+    // Active AND completed projects with pending/partial payments. Completed =
+    // work delivered, money owed — the highest-priority dues to collect.
     const { data: projects, error } = await supabase
       .from('projects')
-      .select('id, project_code, project_name, quoted_amount, paid_amount, payment_status, clients:client_id(company_name)')
+      .select('id, project_code, project_name, status, quoted_amount, paid_amount, payment_status, clients:client_id(company_name)')
       .in('payment_status', ['pending', 'partial'])
-      .eq('status', 'active')
+      .in('status', ['active', 'completed'])
       .order('payment_status')
 
     if (error) return json({ error: error.message }, 500)
@@ -45,20 +46,26 @@ serve(async (req) => {
 
     // Only projects with a REAL positive balance count: a quote must be recorded
     // (quoted_amount > 0) and still be partly unpaid (quoted > paid). This drops
-    // un-quoted projects (0/0) and negative balances (a payment logged with no
-    // quote yet). paid_amount already excludes govt pass-through fees (mig 062).
-    const dueProjects = projects.filter((p: any) =>
-      (p.quoted_amount ?? 0) > 0 && (p.quoted_amount ?? 0) > (p.paid_amount ?? 0))
+    // un-quoted projects (0/0) and negative balances. paid_amount already
+    // excludes govt pass-through fees (migration 062).
+    const due = (p: any) => (p.quoted_amount ?? 0) > 0 && (p.quoted_amount ?? 0) > (p.paid_amount ?? 0)
+    const dueProjects   = projects.filter(due)
     if (!dueProjects.length) return json({ skipped: 'No outstanding consulting dues' })
 
-    // Build summary
-    const count = dueProjects.length
-    const totalPaise = dueProjects.reduce((sum: number, p: any) => sum + ((p.quoted_amount ?? 0) - (p.paid_amount ?? 0)), 0)
-    const totalRs = Math.round(totalPaise / 100)
+    const completedDue  = dueProjects.filter((p: any) => p.status === 'completed')
+    const activeDue     = dueProjects.filter((p: any) => p.status === 'active')
+    const sumRs = (list: any[]) => Math.round(list.reduce((s, p) => s + ((p.quoted_amount ?? 0) - (p.paid_amount ?? 0)), 0) / 100)
 
-    // Client list (max 5 names to keep message short)
-    const clientNames = [...new Set(dueProjects.map((p: any) => p.clients?.company_name).filter(Boolean))]
-    const clientList = clientNames.slice(0, 5).join(', ') + (clientNames.length > 5 ? ` +${clientNames.length - 5} more` : '')
+    const count       = dueProjects.length
+    const totalRs     = sumRs(dueProjects)
+    const completedRs = sumRs(completedDue)
+
+    // Client list — completed (priority) clients first, then active; capped at 5.
+    const names = (list: any[]) => [...new Set(list.map((p: any) => p.clients?.company_name).filter(Boolean))]
+    const ordered = [...names(completedDue), ...names(activeDue)]
+    const listStr = ordered.slice(0, 5).join(', ') + (ordered.length > 5 ? ` +${ordered.length - 5} more` : '')
+    // Lead with the completed-priority amount so it's unmissable in the message.
+    const clientList = (completedRs > 0 ? `Rs.${completedRs} on ${completedDue.length} completed (PRIORITY) — ` : '') + listStr
 
     // Send to all managers with WhatsApp number
     const { data: managers } = await supabase

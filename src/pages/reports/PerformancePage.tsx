@@ -501,13 +501,14 @@ function PendingPaymentsTab() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('projects')
-        .select('id, project_code, service_type, status, is_blocked, quoted_amount, paid_amount, payment_status, created_at, clients(company_name)')
+        .select('id, project_code, service_type, status, is_blocked, block_type, quoted_amount, paid_amount, payment_status, created_at, clients(company_name)')
         .neq('payment_status', 'paid')
         .in('status', ['active', 'completed'])   // only active + completed
         .order('created_at', { ascending: true })
       if (error) throw error
-      // Exclude blocked projects too — cancelled/on-hold already excluded above.
-      return (data ?? []).filter((p: any) => !p.is_blocked)
+      // Hide blocked projects EXCEPT those blocked for a payment reason — those
+      // are exactly the dues we still need to chase, so keep them (flagged).
+      return (data ?? []).filter((p: any) => !p.is_blocked || p.block_type === 'payment_pending')
     },
     staleTime: 0,
   })
@@ -596,9 +597,14 @@ function PendingPaymentsTab() {
                       <td className="px-5 py-3 font-mono text-muted-foreground">{p.project_code ?? '—'}</td>
                       <td className="px-5 py-3 text-muted-foreground capitalize">{(p.service_type ?? '—').replace(/_/g, ' ')}</td>
                       <td className="px-5 py-3">
-                        {p.status === 'completed'
-                          ? <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-red-100 text-red-700">✅ Completed</span>
-                          : <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700">Active</span>}
+                        <div className="flex items-center gap-1 flex-wrap">
+                          {p.status === 'completed'
+                            ? <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-red-100 text-red-700">✅ Completed</span>
+                            : <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700">Active</span>}
+                          {p.is_blocked && (
+                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-red-600 text-white" title="Blocked for pending payment">🔒 payment</span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-5 py-3 font-mono">{hasQuote ? formatRupees(quoted) : <span className="text-amber-600" title="No quote entered for this project">— quote not set</span>}</td>
                       <td className="px-5 py-3 font-mono text-green-700">{formatRupees(p.paid_amount ?? 0)}</td>
