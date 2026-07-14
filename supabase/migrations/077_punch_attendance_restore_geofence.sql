@@ -1,0 +1,6 @@
+-- 077: Restore the geofence block for non-field staff. Migration 076 removed it
+-- while fixing the unrelated face-gate bug; office attendance must stay inside the
+-- geofence. Face remains allow-and-flag (edge function owns it). Field staff
+-- (is_field_staff) may punch anywhere. Radius is per-office (office_locations.radius_m).
+-- See the applied migration in Supabase for the full function body (identical to
+-- 076 plus the geofence raise before the insert).
