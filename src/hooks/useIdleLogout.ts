@@ -3,10 +3,10 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { toast } from '@/components/shared/Toast'
 
-const IDLE_MS = 30 * 60 * 1000 // 30 minutes
+const IDLE_MS = 15 * 60 * 1000 // 15 minutes
 
 /**
- * Signs the user out after 30 minutes of no interaction. Applies app-wide while
+ * Signs the user out after 15 minutes of no interaction. Applies app-wide while
  * authenticated. Independent of "Remember me" (that only controls whether the next
  * visit needs a fresh login — idle logout always applies for security).
  */

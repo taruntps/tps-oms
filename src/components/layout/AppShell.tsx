@@ -6,7 +6,7 @@ import { useIdleLogout } from '@/hooks/useIdleLogout'
 
 export function AppShell() {
   const [mobileOpen, setMobileOpen] = useState(false)
-  useIdleLogout() // sign out after 30 min of inactivity
+  useIdleLogout() // sign out after 15 min of inactivity
 
   return (
     <div className="flex h-screen overflow-hidden">
