@@ -188,7 +188,7 @@ export default function AttendancePage() {
           {faceOn && (
             <>
               <p className="text-[11px] text-white/55 mt-1 flex items-center justify-center gap-1">
-                <Sym name="face" size={12} /> Face verification is on. Your first punch registers your face (one-time).
+                <Sym name="face" size={12} /> Face verification is on. New staff register once (guided scan) on their first punch.
               </p>
               <button onClick={reRegisterMyFace} disabled={resetFace.isPending}
                 className="mt-2 text-[11px] text-white/70 hover:text-white underline underline-offset-2 inline-flex items-center gap-1 disabled:opacity-50">

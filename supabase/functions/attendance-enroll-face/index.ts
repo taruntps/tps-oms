@@ -42,6 +42,8 @@ serve(async (req) => {
     if (reset) {
       const { error } = await supa.storage.from('face-refs').remove([`${subject}/reference.jpg`])
       if (error) return json({ error: error.message }, 500)
+      // Keep the profile flag in sync so the admin UI shows "No face".
+      await supa.from('profiles').update({ face_enrolled_at: null }).eq('id', subject)
       return json({ ok: true, reset: true })
     }
 
@@ -74,6 +76,8 @@ serve(async (req) => {
     const { error: upErr } = await supa.storage.from('face-refs')
       .upload(`${subject}/reference.jpg`, bytes, { contentType: 'image/jpeg', upsert: true })
     if (upErr) return json({ error: upErr.message }, 500)
+    // Flag the profile as enrolled so the admin UI shows "Enrolled" + a reset button.
+    await supa.from('profiles').update({ face_enrolled_at: new Date().toISOString() }).eq('id', subject)
     return json({ ok: true, matched: true, detected: 'center', savedReference: true })
   } catch (e) { return json({ error: e instanceof Error ? e.message : String(e) }, 500) }
 })
