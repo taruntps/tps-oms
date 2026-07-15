@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
 import { supabase, getProfile } from '@/lib/supabase'
 import type { UserProfile } from '@/types'
@@ -19,13 +19,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
+  // V2: tracks which user's profile is already loaded so the initial
+  // getSession() + onAuthStateChange (and token refreshes) don't each refetch
+  // the profile. Eliminates the duplicate `profiles` request seen in doc 18.
+  const loadedFor = useRef<string | null>(null)
 
-  async function loadProfile(userId: string) {
+  async function loadProfile(userId: string, force = false) {
+    if (!force && loadedFor.current === userId) return
+    loadedFor.current = userId
     try {
       const p = await getProfile(userId)
       setProfile(p as unknown as UserProfile)
     } catch {
       setProfile(null)
+      loadedFor.current = null
     }
   }
 
@@ -58,10 +65,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(null)
     setUser(null)
     setProfile(null)
+    loadedFor.current = null
   }
 
   async function refreshProfile() {
-    if (user?.id) await loadProfile(user.id)
+    if (user?.id) await loadProfile(user.id, true)
   }
 
   return (
