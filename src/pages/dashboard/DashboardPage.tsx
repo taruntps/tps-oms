@@ -234,14 +234,18 @@ export default function DashboardPage() {
                           <p className="text-xs font-medium text-white">{punch.profiles?.name ?? '—'}</p>
                         )}
                         <p className="text-[11px] text-white/60">
-                          {new Date(punch.punch_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                          {new Date(punch.punch_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
                         </p>
                       </div>
+                      {/* V2: attendance_punches has no in/out `punch_type`; show the real
+                          location state (within_fence / field) instead. */}
                       <span className={cn(
                         'text-[10px] px-2 py-0.5 rounded-full font-medium',
-                        punch.punch_type === 'in' ? 'bg-green-500/20 text-green-300' : 'bg-red-500/20 text-red-300'
+                        punch.within_fence ? 'bg-green-500/20 text-green-300'
+                          : punch.is_field ? 'bg-blue-500/20 text-blue-300'
+                          : 'bg-amber-500/20 text-amber-300'
                       )}>
-                        {punch.punch_type === 'in' ? 'IN' : 'OUT'}
+                        {punch.within_fence ? 'OFFICE' : punch.is_field ? 'FIELD' : 'OFF-SITE'}
                       </span>
                     </div>
                   ))}

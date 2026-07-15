@@ -42,15 +42,19 @@ export function useTodayPunches() {
     enabled: !!profile?.id,
     queryFn: async () => {
       const today = new Date().toISOString().split('T')[0]
+      // V2 fix: query real columns. The previous query selected/ordered by
+      // `punch_time`/`punch_type`/`office_name` which do not exist on
+      // attendance_punches (real columns: punch_at, within_fence, is_field, …),
+      // so PostgREST returned 400 and the widget silently showed nothing.
       let q = supabase
         .from('attendance_punches')
         .select(`
-          id, punch_time, punch_type, office_name,
+          id, user_id, punch_at, within_fence, is_field,
           profiles!attendance_punches_user_id_fkey(name, role)
         `)
-        .gte('punch_time', `${today}T00:00:00`)
-        .lte('punch_time', `${today}T23:59:59`)
-        .order('punch_time', { ascending: true }) as any
+        .gte('punch_at', `${today}T00:00:00`)
+        .lte('punch_at', `${today}T23:59:59`)
+        .order('punch_at', { ascending: true }) as any
 
       if (!isAdmin) {
         q = q.eq('user_id', profile!.id)
