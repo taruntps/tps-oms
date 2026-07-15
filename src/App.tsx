@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider } from '@/contexts/AuthContext'
@@ -6,32 +7,53 @@ import { AppShell } from '@/components/layout/AppShell'
 import { RoleBasedRedirect } from '@/components/shared/RoleBasedRedirect'
 import { ToastProvider } from '@/components/shared/Toast'
 import { ErrorBoundary } from '@/components/shared/ErrorBoundary'
-import LoginPage from '@/pages/auth/LoginPage'
-import DashboardPage from '@/pages/dashboard/DashboardPage'
-import ClientsPage from '@/pages/clients/ClientsPage'
-import ClientDetailPage from '@/pages/clients/ClientDetailPage'
-import ProjectsPage from '@/pages/projects/ProjectsPage'
-import ProjectDetailPage from '@/pages/projects/ProjectDetailPage'
-import OperationsPage from '@/pages/operations/OperationsPage'
-import DirectorPage from '@/pages/director/DirectorPage'
-import SettingsPage from '@/pages/settings/SettingsPage'
-import PerformancePage from '@/pages/reports/PerformancePage'
-import QueriesReportPage from '@/pages/reports/QueriesReportPage'
-import KnowledgePage from '@/pages/knowledge/KnowledgePage'
-import UserManagementPage from '@/pages/admin/UserManagementPage'
-import EmployeesPage from '@/pages/employees/EmployeesPage'
-import EmployeeDetailPage from '@/pages/employees/EmployeeDetailPage'
-import AttendancePage from '@/pages/attendance/AttendancePage'
-import AttendancePhotosPage from '@/pages/attendance/AttendancePhotosPage'
-import ReferralsPage from '@/pages/referrals/ReferralsPage'
-import TasksPage from '@/pages/tasks/TasksPage'
-import NotificationsPage from '@/pages/notifications/NotificationsPage'
+
+// V2: route-based code splitting — each page is a lazily-loaded chunk so the
+// initial JS payload is a fraction of the previous single ~1.3 MB bundle.
+// URLs, guards, and page behavior are unchanged.
+const LoginPage = lazy(() => import('@/pages/auth/LoginPage'))
+const DashboardPage = lazy(() => import('@/pages/dashboard/DashboardPage'))
+const ClientsPage = lazy(() => import('@/pages/clients/ClientsPage'))
+const ClientDetailPage = lazy(() => import('@/pages/clients/ClientDetailPage'))
+const ProjectsPage = lazy(() => import('@/pages/projects/ProjectsPage'))
+const ProjectDetailPage = lazy(() => import('@/pages/projects/ProjectDetailPage'))
+const OperationsPage = lazy(() => import('@/pages/operations/OperationsPage'))
+const DirectorPage = lazy(() => import('@/pages/director/DirectorPage'))
+const SettingsPage = lazy(() => import('@/pages/settings/SettingsPage'))
+const PerformancePage = lazy(() => import('@/pages/reports/PerformancePage'))
+const QueriesReportPage = lazy(() => import('@/pages/reports/QueriesReportPage'))
+const KnowledgePage = lazy(() => import('@/pages/knowledge/KnowledgePage'))
+const UserManagementPage = lazy(() => import('@/pages/admin/UserManagementPage'))
+const EmployeesPage = lazy(() => import('@/pages/employees/EmployeesPage'))
+const EmployeeDetailPage = lazy(() => import('@/pages/employees/EmployeeDetailPage'))
+const AttendancePage = lazy(() => import('@/pages/attendance/AttendancePage'))
+const AttendancePhotosPage = lazy(() => import('@/pages/attendance/AttendancePhotosPage'))
+const ReferralsPage = lazy(() => import('@/pages/referrals/ReferralsPage'))
+const TasksPage = lazy(() => import('@/pages/tasks/TasksPage'))
+const NotificationsPage = lazy(() => import('@/pages/notifications/NotificationsPage'))
 
 const queryClient = new QueryClient({
   defaultOptions: {
-    queries: { staleTime: 0, retry: 1, refetchOnWindowFocus: true },
+    queries: {
+      // V2: data is considered fresh for 60s and the cache is retained for 5m.
+      // This eliminates the refetch storm (duplicate profile/notification/project
+      // fetches on every mount/focus) measured in the performance audit (doc 18).
+      staleTime: 60_000,
+      gcTime: 5 * 60_000,
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
   },
 })
+
+// Lightweight fallback shown while a route chunk loads.
+function RouteFallback() {
+  return (
+    <div className="flex-1 flex items-center justify-center min-h-[40vh]">
+      <div className="w-7 h-7 border-2 border-white/20 border-t-white/70 rounded-full animate-spin" />
+    </div>
+  )
+}
 
 export default function App() {
   return (
@@ -40,6 +62,7 @@ export default function App() {
       <AuthProvider>
         <ToastProvider />
         <BrowserRouter>
+          <Suspense fallback={<RouteFallback />}>
           <Routes>
             {/* Public */}
             <Route path="/login" element={<LoginPage />} />
@@ -122,6 +145,7 @@ export default function App() {
 
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
+          </Suspense>
         </BrowserRouter>
       </AuthProvider>
     </QueryClientProvider>
