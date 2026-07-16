@@ -1,16 +1,19 @@
-import { useState } from 'react'
+import { useState, lazy, Suspense } from 'react'
 import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import { Sym }             from '@/components/shared/Sym'
 import { TopBar }          from '@/components/layout/TopBar'
 import { RoleGuard }       from '@/components/shared/ProtectedRoute'
 import { ClockBadge }      from '@/components/shared/ClockBadge'
-import { StagesTab }       from './tabs/StagesTab'
-import { PaymentsTab }     from './tabs/PaymentsTab'
-import { QueriesTab }      from './tabs/QueriesTab'
-import { SoiTab }          from './tabs/SoiTab'
-import { DriveTab }        from '@/components/shared/DriveTab'
-import { ActivityTab }     from './tabs/ActivityTab'
-import { RemarksTab }      from './tabs/RemarksTab'
+// V2 perf: tabs are lazy-loaded so each becomes its own chunk. This keeps the heavy
+// SoiTab (which pulls in the ~400KB `xlsx` library) out of the ProjectDetailPage
+// bundle — xlsx now loads only when a user actually opens the SOI Archive tab.
+const StagesTab   = lazy(() => import('./tabs/StagesTab').then(m => ({ default: m.StagesTab })))
+const PaymentsTab = lazy(() => import('./tabs/PaymentsTab').then(m => ({ default: m.PaymentsTab })))
+const QueriesTab  = lazy(() => import('./tabs/QueriesTab').then(m => ({ default: m.QueriesTab })))
+const SoiTab      = lazy(() => import('./tabs/SoiTab').then(m => ({ default: m.SoiTab })))
+const DriveTab    = lazy(() => import('@/components/shared/DriveTab').then(m => ({ default: m.DriveTab })))
+const ActivityTab = lazy(() => import('./tabs/ActivityTab').then(m => ({ default: m.ActivityTab })))
+const RemarksTab  = lazy(() => import('./tabs/RemarksTab').then(m => ({ default: m.RemarksTab })))
 import { BlockRequestForm } from './BlockRequestForm'
 import { TransferProjectButton } from './ProjectTransfer'
 import { EditProjectModal } from './EditProjectModal'
@@ -556,6 +559,7 @@ export default function ProjectDetailPage() {
         </div>
 
         {/* Tab content */}
+        <Suspense fallback={<div className="bg-white rounded-xl border border-border p-8 text-center text-sm text-brand-400">Loading…</div>}>
         {effectiveTab === 'overview' && (
           <div className="bg-white rounded-xl border border-border p-5">
             <h3 className="font-display font-semibold text-brand-950 text-sm mb-4">Project Summary</h3>
@@ -596,6 +600,7 @@ export default function ProjectDetailPage() {
         )}
         {effectiveTab === 'activity' && <ActivityTab projectId={id!} />}
         {effectiveTab === 'remarks'  && <RemarksTab  projectId={id!} />}
+        </Suspense>
       </div>
 
       {/* Modals */}
