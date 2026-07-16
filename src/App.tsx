@@ -7,7 +7,7 @@ import { AppShell } from '@/components/layout/AppShell'
 import { RoleBasedRedirect } from '@/components/shared/RoleBasedRedirect'
 import { ToastProvider } from '@/components/shared/Toast'
 import { ErrorBoundary } from '@/components/shared/ErrorBoundary'
-import { operationsModule } from '@/modules/operations'
+import { getAllRoutes } from '@/core/registry'
 
 // V2: route-based code splitting — each page is a lazily-loaded chunk so the
 // initial JS payload is a fraction of the previous single ~1.3 MB bundle.
@@ -87,10 +87,10 @@ export default function App() {
                   </ProtectedRoute>
                 }
               />
-              {/* Operations module — routes contributed via the module registry
-                  (operations, projects, projects/:id). Same paths, same guards,
-                  same lazy page components; ownership now lives in the module. */}
-              {operationsModule.routes.map((r) => (
+              {/* Module-registry routes (Operations + Wave-1: Administration, Documents,
+                  Knowledge). Existing hardcoded routes below remain for backward compatibility
+                  (e.g. /admin/users, /knowledge, /settings) — modules only add NEW routes. */}
+              {getAllRoutes().map((r) => (
                 <Route key={r.path} path={r.path} element={r.element} />
               ))}
 

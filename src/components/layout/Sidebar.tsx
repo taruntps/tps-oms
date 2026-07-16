@@ -23,10 +23,13 @@ const NAV: NavItem[] = [
   { href: '/referrals',          label: 'Referrals',      icon: 'handshake',               roles: ['super_admin','director','manager'] },
   { href: '/projects',           label: 'Projects',       icon: 'assignment',              roles: ['super_admin','director','manager','executive'] },
   { href: '/employees',          label: 'Employees',      icon: 'badge',                   roles: ['super_admin','director','manager','hr'] },
+  { href: '/documents',          label: 'Documents',      icon: 'folder_open',             roles: ['super_admin','director','manager','executive','accounts','hr','auditor'] },
   { href: '/knowledge',          label: 'Knowledge Base', icon: 'menu_book',               roles: ['super_admin','director','manager','executive','auditor'] },
   { href: '/reports/performance',label: 'Reports',        icon: 'bar_chart',               roles: ['super_admin','director','manager'] },
   { href: '/settings',           label: 'Settings',       icon: 'settings',                roles: ['super_admin'] },
   { href: '/admin/users',        label: 'User Management',icon: 'admin_panel_settings',    roles: ['super_admin','director'] },
+  { href: '/admin/roles',        label: 'Roles & Access', icon: 'shield_person',           roles: ['super_admin','director'] },
+  { href: '/admin/audit',        label: 'Audit Log',      icon: 'history',                 roles: ['super_admin','director'] },
 ]
 
 export function Sidebar() {

@@ -5,8 +5,17 @@
 import type { RouteObject } from 'react-router-dom'
 import type { ModuleDef, NavEntry } from './moduleTypes'
 import { operationsModule } from '@/modules/operations'
+import { administrationModule } from '@/modules/administration'
+import { documentsModule } from '@/modules/documents'
+import { knowledgeModule } from '@/modules/knowledge'
 
-export const MODULES: ModuleDef[] = [operationsModule]
+// Wave 1 adds Administration, Document Management, Knowledge Base alongside Operations.
+export const MODULES: ModuleDef[] = [
+  operationsModule,
+  administrationModule,
+  documentsModule,
+  knowledgeModule,
+]
 
 /** All module-owned routes, flattened, for mounting into the router tree. */
 export function getAllRoutes(): RouteObject[] {
