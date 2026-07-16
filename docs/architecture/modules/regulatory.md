@@ -18,7 +18,10 @@ The Regulatory module is the system of record for a client's **FSSAI regulatory 
 3. **SOI & label compliance** — absorbs `soi_archive` + `soi_products`. Statement of Ingredients versioning, ingredient checks against FSSR 2011 permitted lists / additive schedules / nutraceutical schedules (Schedule VI–VIII of the Health Supplements & Nutraceuticals Regulations 2022), and label review against **FSS (Labelling & Display) Regulations 2020** (mandatory declarations, font/area rules, nutritional panel, allergen & veg/non-veg mark, RDA %).
 4. **Compliance calendar** — renewals, **annual return Form D-1** (due 31 May for the prior FY; Form D-2 half-yearly for milk products), Form II / inspection follow-ups, and per-licence recurring obligations.
 5. **Product master & category mapping** — canonical product records mapped to FSSAI **category** trees (nutraceutical / health supplement / FSMP / general food) driving which SOI/label rules apply.
-6. **FoSCoS credential vault** — existing Supabase Vault credential store (`reveal_fssai_credential` SECURITY DEFINER + `credential_access_log`) plus a boundary for future FoSCoS portal integration (status sync, ARN tracking).
+6. **Product approval & ingredient NOC** — the distinct FSSAI **product approval / ingredient no-objection-certificate (NOC)** service line for nutraceuticals, health supplements and **novel foods** (non-standardised products, new ingredients, novel-food dossiers). Its own application lifecycle, review states and dossier, separate from the establishment licence.
+7. **Structured lab-result ingestion** — capture of **NABL lab test results** (electronic report or typed result set) as structured, comparable values that feed the SOI/label `compliance_reviews` engine, so the compliance verdict is computed against *tested* values (heavy metals, micro, assay/RDA actuals) rather than manually keyed ones. Sourced from the Vendor-Portal lab-test PO deliverable.
+8. **Inspection visits, recall & adverse events** — FSSAI/authority **inspection-visit** tracking (scheduled/surprise, observations, follow-up) and a **product-recall / adverse-event** workflow (trigger, classification, action, closure).
+9. **FoSCoS credential vault** — existing Supabase Vault credential store (`reveal_fssai_credential` SECURITY DEFINER + `credential_access_log`) plus a boundary for future FoSCoS portal integration (status sync, ARN tracking).
 
 **Explicitly NOT in scope (owned elsewhere)**
 - Project workflow, stages, three-clock timing, block requests → **Operations**.
@@ -38,6 +41,7 @@ The Regulatory module is the system of record for a client's **FSSAI regulatory 
 2. **Preparation.** Assemble Form A (Registration) or Form B (State/Central) supporting set: constitution proof, KYC, layout plan, list of directors, water test report, FSMS plan (State/Central), NOCs. SOI and product list are drafted/attached (§2.3).
 3. **Submission on FoSCoS.** Executive logs into FoSCoS using vault credentials (`reveal_fssai_credential`), submits, records the **Application Reference Number (ARN)**. Licence → `submitted`; a fee obligation is emitted to Finance.
 4. **Authority processing.** Department may raise a **query/deficiency** (§2.2). On clearance and (for State/Central) inspection, the licence is **granted**: capture `license_number`, `issue_date`, `expiry_date` (1–5 years as chosen). Licence → `active`.
+   - **Rejection → appeal → re-file.** If the authority **rejects** the application (unmet query, ineligibility, adverse inspection), the licence goes `rejected` with a captured reason. Two branches follow: (a) **appeal** to the Designated/Appellate Officer within the statutory window — licence → `appealed`, tracked with its own due clock and outcome (upheld → back to `active`/grant, dismissed → closes); or (b) **re-application** — a fresh application is filed, chained via `parent_license_id` to the rejected record for history. Mirrors the appeals model in `certification.md`.
 5. **Maintenance.** Recurring obligations materialize on the compliance calendar (annual return, renewal window). Modifications (address, product, KOB, capacity) run the **modify** sub-flow; loss/closure runs **surrender**.
 6. **Renewal.** 180 days before expiry a renewal obligation opens; ≤ expiry = on-time, > expiry incurs ₹100/day late fee (allowed up to a grace window, else re-apply as fresh). On grant, a new expiry is set; the old licence version is archived.
 
@@ -53,9 +57,16 @@ flowchart TD
   H --> G
   G -- No / cleared --> I{State or Central?}
   I -- Yes --> J[Inspection]
-  I -- No --> K[Grant]
-  J --> K[Grant: number, issue, expiry]
-  K --> L[Licence active + calendar obligations materialize]
+  I -- No --> DEC{Authority decision}
+  J --> DEC
+  DEC -- Grant --> K[Grant: number, issue, expiry]
+  DEC -- Reject --> RJ[Rejected: capture reason]
+  RJ --> AP{Appeal or re-file?}
+  AP -- Appeal --> APX[Appeal to Appellate Officer]
+  APX -- Upheld --> K
+  APX -- Dismissed --> PZ[Closed]
+  AP -- Re-file --> C
+  K[Grant: number, issue, expiry] --> L[Licence active + calendar obligations materialize]
   L --> M{Event}
   M -- 180d pre-expiry --> N[Renewal window opens]
   M -- Change --> O[Modification sub-flow]
@@ -89,6 +100,54 @@ flowchart LR
   R -- accepted / waived --> V[Compliance verdict + report PDF]
 ```
 
+### 2.4 Product approval & ingredient NOC (distinct FSSAI service line)
+
+A separate service from the establishment licence: obtaining FSSAI **product approval** or an **ingredient NOC** for a nutraceutical / health supplement / novel food that is not covered by an existing standard.
+
+1. **Initiate** from a product (§2.5 master). Create a `product_approval_applications` record: approval type (`product_approval | ingredient_noc | novel_food`), linked `product_id`, target category, and dossier checklist → state `draft`.
+2. **Compile dossier** — composition/SOI, safety/toxicology data, stability, intended use & dosage, supporting lab results (§2.5), literature/history-of-use. Feeds off the same SOI + compliance engine.
+3. **Submit** on FoSCoS (vault creds), capture ARN → `submitted`. A government-fee obligation is emitted to Finance (bigint paise).
+4. **Review loop** — authority/scientific-panel queries reuse the §2.2 query loop (linked by `product_approval_id`); states `under_review → clarification → recommended`.
+5. **Decision** — `approved` (capture approval no., validity, conditions) or `rejected` (reason; may **appeal** or re-file, mirroring §2.1). Approval outcome unlocks the ingredient/product for label use in §2.3.
+
+```mermaid
+flowchart LR
+  PA[Product] --> D0[Create approval application - draft]
+  D0 --> D1[Compile dossier + lab results]
+  D1 --> D2[Submit FoSCoS -> ARN + fee obligation]
+  D2 --> D3{Authority / panel review}
+  D3 -- Query --> D4[Query loop 2.2]
+  D4 --> D3
+  D3 -- Approve --> D5[Approved: no., validity, conditions]
+  D3 -- Reject --> D6[Rejected -> appeal / re-file]
+```
+
+### 2.5 Structured lab-result ingestion (NABL → compliance engine)
+
+Lab testing is procured as a **lab-test PO** in the Vendor Portal (module 14). Its deliverable — a NABL test report — is captured here as structured values, not just a PDF, so compliance is verdicted against tested numbers.
+
+1. A lab-test PO deliverable arrives (electronic report or manual entry). Create a `lab_results` (test report) header linked to `product_id`, `soi_id`, the source `vendor_po_id`, lab name, NABL scope, `report_no`, `report_date`.
+2. Capture per-analyte rows (`lab_result_items`): parameter, method, result value + unit, and the spec limit. Report file also stored via `core/files`.
+3. On save, results **wire back** into `compliance_reviews`: the ingredient/label engine compares tested actuals (heavy metals, microbiology, assay/RDA %) against `regulatory_rules` limits — the verdict now cites `lab_results`, not manually keyed figures.
+4. Out-of-spec analytes raise blocker findings and (if severe) can trigger the recall/adverse-event flow (§2.6).
+
+### 2.6 Inspection visits, recall & adverse events
+
+1. **Inspection visit** — record an authority inspection (`scheduled | surprise`), date, officer, scope, observations, and outcome; open follow-up obligations/queries. An adverse inspection can feed the rejection branch (§2.1).
+2. **Recall / adverse event** — on a trigger (out-of-spec lab result, consumer complaint, authority order, adverse-event report): classify (Class I/II/III or severity), record affected batches/products, action taken, authority intimation, and drive to `closed` with a closure report. Notifies manager/director.
+
+```mermaid
+flowchart LR
+  IV[Inspection visit logged] --> OBS[Observations]
+  OBS --> FU[Follow-up query / obligation]
+  OBS --> ADV{Adverse?}
+  ADV -- Yes --> RC
+  LAB[Out-of-spec lab result] --> RC[Recall / adverse-event case]
+  CMP[Complaint / authority order] --> RC
+  RC --> CL[Classify + affected batches + action]
+  CL --> CLO[Authority intimation -> closed + report]
+```
+
 ---
 
 ## 3. Screen flow
@@ -101,9 +160,12 @@ stateDiagram-v2
   RegDashboard --> ComplianceCalendar
   RegDashboard --> SoiList
   RegDashboard --> ProductMaster
+  RegDashboard --> ApprovalList
+  RegDashboard --> InspectionList
+  RegDashboard --> RecallList
 
   LicenceList --> LicenceDetail
-  LicenceDetail --> LicenceLifecycle : apply/renew/modify/surrender
+  LicenceDetail --> LicenceLifecycle : apply/renew/modify/surrender/reject/appeal
   LicenceDetail --> CredentialVault : reveal (guarded)
   LicenceDetail --> QueryList : linked queries
 
@@ -113,10 +175,18 @@ stateDiagram-v2
   SoiList --> SoiEditor
   SoiEditor --> ComplianceReview
   ComplianceReview --> ComplianceReport
+  ComplianceReview --> LabResults : tested values
+
+  ApprovalList --> ApprovalDetail
+  ApprovalDetail --> LabResults : dossier evidence
+  ApprovalDetail --> QueryDetail : review loop
 
   ComplianceCalendar --> ObligationDetail
   ObligationDetail --> LicenceDetail
   ProductMaster --> ProductDetail
+  ProductDetail --> LabResults
+  InspectionList --> InspectionDetail
+  RecallList --> RecallDetail
 ```
 
 | Route | Screen | Purpose | Primary permission |
@@ -133,6 +203,12 @@ stateDiagram-v2
 | `/regulatory/soi/:id/review` | Compliance Review | Ingredient + label findings, disposition | `regulatory.compliance.review` |
 | `/regulatory/calendar` | Compliance Calendar | Renewals, returns, Form II, obligations | `regulatory.calendar.view` |
 | `/regulatory/products` | Product Master | Products + FSSAI category mapping | `regulatory.product.view` |
+| `/regulatory/approvals` | Product Approval List | Product-approval / ingredient-NOC / novel-food applications | `regulatory.approval.view` |
+| `/regulatory/approvals/:id` | Approval Detail | Dossier, review loop, decision, appeal | `regulatory.approval.view` |
+| `/regulatory/lab-results` | Lab Results | NABL test reports + structured analyte values | `regulatory.labresult.view` |
+| `/regulatory/lab-results/:id` | Lab Result Detail | Per-analyte values vs spec; wire-back to review | `regulatory.labresult.view` |
+| `/regulatory/inspections` | Inspection Visits | Authority inspection log + follow-ups | `regulatory.inspection.view` |
+| `/regulatory/recalls` | Recall / Adverse Events | Recall & adverse-event cases | `regulatory.recall.view` |
 | `/regulatory/rules` | Rule Library (admin) | FSSR permitted lists / schedules / label rules | `regulatory.rule.manage` |
 
 ---
@@ -159,6 +235,15 @@ erDiagram
   fssai_categories ||--o{ products : "classifies"
   compliance_reviews ||--o{ compliance_findings : "produces"
   regulatory_rules ||--o{ compliance_findings : "cited by"
+  products ||--o{ product_approval_applications : "seeks approval"
+  product_approval_applications ||--o{ authority_queries : "review loop"
+  products ||--o{ lab_results : "tested"
+  soi_archive ||--o{ lab_results : "evidences"
+  lab_results ||--o{ lab_result_items : "analytes"
+  lab_results ||--o{ compliance_reviews : "feeds tested values"
+  licenses ||--o{ inspection_visits : "inspected"
+  products ||--o{ recall_events : "recalled"
+  lab_results ||--o{ recall_events : "may trigger"
 
   licenses {
     uuid id PK
@@ -174,7 +259,10 @@ erDiagram
     text vault_credential_id
     text credential_username
     timestamptz last_credential_accessed_at
-    uuid parent_license_id "EXPAND: renewal chain"
+    uuid parent_license_id "EXPAND: renewal / re-file chain"
+    text rejection_reason "EXPAND: nullable"
+    text appeal_status "EXPAND: none|appealed|upheld|dismissed"
+    date appeal_due_date "EXPAND: nullable"
   }
   licence_events {
     uuid id PK
@@ -189,6 +277,7 @@ erDiagram
     uuid id PK
     uuid project_id FK
     uuid license_id FK "EXPAND: nullable link"
+    uuid product_approval_id FK "EXPAND: nullable link"
     text query_type
     text query_status "EXPAND: open|drafting|responded|resolved|reraised"
     date received_date
@@ -253,8 +342,10 @@ erDiagram
     uuid id PK
     uuid soi_id FK
     uuid product_id FK
+    uuid lab_result_id FK "EXPAND: nullable, tested values"
     text review_kind "ingredient|label|combined"
     text verdict "pass|conditional|fail"
+    text value_basis "EXPAND: declared|tested"
     uuid reviewed_by FK
     text report_path
     timestamptz created_at
@@ -283,7 +374,72 @@ erDiagram
     text obligation_type "renewal|annual_return_d1|half_yearly_d2|form_ii|inspection"
     date due_date
     text status "upcoming|due|submitted|overdue|waived"
+    bigint govt_fee_paise "EXPAND: bigint paise"
+    uuid sales_opportunity_id "EXPAND: nullable -> sales"
     uuid completed_by FK
+  }
+  product_approval_applications {
+    uuid id PK
+    uuid client_id FK
+    uuid product_id FK
+    text approval_type "product_approval|ingredient_noc|novel_food"
+    text application_ref "FoSCoS ARN"
+    text status "draft|submitted|under_review|clarification|recommended|approved|rejected|appealed"
+    text approval_number
+    date approved_on
+    date validity_to
+    text rejection_reason
+    bigint govt_fee_paise "bigint paise"
+    jsonb dossier
+    uuid reviewed_by FK
+  }
+  lab_results {
+    uuid id PK
+    uuid client_id FK
+    uuid product_id FK
+    uuid soi_id FK "nullable"
+    uuid vendor_po_id "EXPAND: source lab-test PO"
+    text lab_name
+    text nabl_scope
+    text report_no
+    date report_date
+    text ingest_source "electronic|manual"
+    text report_path
+  }
+  lab_result_items {
+    uuid id PK
+    uuid lab_result_id FK
+    text parameter
+    text method
+    text result_value
+    text unit
+    text spec_limit
+    boolean out_of_spec
+  }
+  inspection_visits {
+    uuid id PK
+    uuid license_id FK
+    uuid client_id FK
+    text visit_type "scheduled|surprise"
+    date visit_date
+    text officer
+    text scope
+    text observations
+    text outcome "satisfactory|deficiency|adverse"
+    uuid recorded_by FK
+  }
+  recall_events {
+    uuid id PK
+    uuid client_id FK
+    uuid product_id FK
+    uuid lab_result_id FK "nullable trigger"
+    text trigger "lab_oos|complaint|authority_order|adverse_event"
+    text classification "class_i|class_ii|class_iii"
+    jsonb affected_batches
+    text action_taken
+    text status "open|action|intimated|closed"
+    text closure_report_path
+    uuid owner_id FK
   }
   credential_access_log {
     uuid id PK
@@ -297,14 +453,16 @@ erDiagram
 ### 4.2 Table catalogue (new vs expanded)
 
 **Expanded (existing tables — additive only):**
-- `licenses` — add `lifecycle_status regulatory_licence_status` (enum), `application_ref text` (FoSCoS ARN), `validity_years smallint`, `renewal_window_opens date generated always as (expiry_date - interval '180 days')` (or trigger-maintained to avoid non-immutable generated expr), `parent_license_id uuid references licenses(id)` for renewal chains. Existing vault columns unchanged.
-- `authority_queries` — add `license_id uuid references licenses(id)` (nullable — many queries also stand alone on a project), `query_status query_status_stage` (enum), `points_total int`, `points_resolved int`, `resolved_date date`. Keeps the append-only delete rule.
+- `licenses` — add `lifecycle_status regulatory_licence_status` (enum), `application_ref text` (FoSCoS ARN), `validity_years smallint`, `renewal_window_opens date generated always as (expiry_date - interval '180 days')` (or trigger-maintained to avoid non-immutable generated expr), `parent_license_id uuid references licenses(id)` for renewal/re-file chains, and the rejection/appeal fields `rejection_reason text`, `appeal_status text default 'none'`, `appeal_due_date date`. Existing vault columns unchanged.
+- `authority_queries` — add `license_id uuid references licenses(id)` (nullable — many queries also stand alone on a project), `product_approval_id uuid references product_approval_applications(id)` (nullable — approval-review loop), `query_status query_status_stage` (enum), `points_total int`, `points_resolved int`, `resolved_date date`. Keeps the append-only delete rule.
 - `soi_archive` — add `product_id uuid references products(id)`, `review_status text default 'draft'`. Keeps `soi_type`/`columns`/`version_no` from migration 040.
 - `soi_products` — unchanged (jsonb `data` per row).
 
-**New tables:** `licence_events`, `authority_query_points`, `authority_query_responses`, `products`, `fssai_categories`, `compliance_reviews`, `compliance_findings`, `regulatory_rules`, `compliance_obligations`.
+**New tables:** `licence_events`, `authority_query_points`, `authority_query_responses`, `products`, `fssai_categories`, `compliance_reviews`, `compliance_findings`, `regulatory_rules`, `compliance_obligations`, `product_approval_applications`, `lab_results`, `lab_result_items`, `inspection_visits`, `recall_events`.
 
-**New enums:** `regulatory_licence_status` (`draft, submitted, query_raised, granted, active, renewal_due, expired, surrendered, rejected`), `query_status_stage` (`open, drafting, responded, resolved, reraised`). Extend existing `notification_type` with `licence_granted`, `query_sla_breach`, `obligation_due`, `soi_review_flagged`.
+**Money columns are `bigint` paise** (platform standard, §9 of `00_ENTERPRISE_ARCHITECTURE.md`): `compliance_obligations.govt_fee_paise` and `product_approval_applications.govt_fee_paise`. Government fees post to Finance in paise — no `numeric`/rupee columns.
+
+**New enums:** `regulatory_licence_status` (`draft, submitted, query_raised, granted, active, renewal_due, expired, surrendered, rejected, appealed`), `query_status_stage` (`open, drafting, responded, resolved, reraised`), `product_approval_status` (`draft, submitted, under_review, clarification, recommended, approved, rejected, appealed`). Extend existing `notification_type` (lookup table per §9 of the enterprise doc) with `licence_granted`, `licence_rejected`, `query_sla_breach`, `obligation_due`, `soi_review_flagged`, `product_approval_decision`, `lab_result_oos`, `inspection_logged`, `recall_opened`.
 
 ### 4.3 RLS intent per table
 
@@ -316,6 +474,10 @@ erDiagram
 | `products` / `fssai_categories` | staff read | `regulatory.product.manage`; categories `regulatory.rule.manage` |
 | `soi_archive` / `soi_products` | staff read (existing permissive) — **tighten** to `auth_role()` on promotion | `regulatory.soi.edit` |
 | `compliance_reviews` / `_findings` | staff read | `regulatory.compliance.review` |
+| `product_approval_applications` | staff read | `regulatory.approval.manage` |
+| `lab_results` / `lab_result_items` | staff read | `regulatory.labresult.manage` |
+| `inspection_visits` | staff read | `regulatory.inspection.manage` |
+| `recall_events` | staff read | `regulatory.recall.manage` |
 | `regulatory_rules` | staff read | `regulatory.rule.manage` (super_admin/director) |
 | `compliance_obligations` | staff read | `regulatory.calendar.manage` |
 | `credential_access_log` | super_admin/director read | insert-only via RPC; existing no-update/no-delete rules |
@@ -326,6 +488,8 @@ erDiagram
 - `authority_queries` currently keyed to `project_id`; the new `license_id` is **additive/nullable** so existing rows and the Operations query flow keep working. Points/responses are new child tables — no reshaping of the parent.
 - `soi_products` permissive RLS from migration 040 is a known open policy; contract step (post-promotion) replaces `using (true)` with `auth_role()` once the module owns writes.
 - Credential vault is untouched: `reveal_fssai_credential` / `store_fssai_credential` SECURITY DEFINER + `credential_access_log` remain the only credential path.
+- `product_approval_id` on `authority_queries` and `lab_result_id` on `compliance_reviews` are **additive/nullable**, so the existing project-query and declared-value review flows keep working; the approval and lab-result loops are opt-in linkage, not a reshape.
+- `lab_results` carries `vendor_po_id` referencing the Vendor Portal's lab-test PO (module 14); cross-module linkage is by id only (no FK across module ownership), reconciled through the Vendor Portal public API.
 
 ---
 
@@ -335,17 +499,21 @@ Module `api/*` = thin typed Supabase wrappers; hooks wrap them in React Query wi
 
 **Data-access functions (`modules/regulatory/api/`)**
 - `listLicences(filters)` / `getLicence(id)` / `createLicenceDraft(input)` / `updateLicence(id, patch)` — CRUD over `licenses` (vault columns excluded from selects).
-- `transitionLicence(id, action, payload)` → validates lifecycle_status transition, writes `licence_events`, may emit obligation/fee. authz `regulatory.licence.manage`.
+- `transitionLicence(id, action, payload)` → validates lifecycle_status transition (`apply|grant|renew|modify|surrender|reject|appeal|refile`), writes `licence_events`, sets rejection/appeal fields, may emit obligation/fee, and on renewal seeds a Sales opportunity (§10). authz `regulatory.licence.manage`.
 - `listQueries(filters)` / `getQuery(id)` / `createQuery(input)` / `addQueryRound(id, payload)` / `upsertQueryPoint(...)` / `submitResponse(pointId, payload)` — authz `regulatory.query.manage`.
 - `listSois(filters)` / `getSoi(id)` / `saveSoi(id, columns, rows)` — over `soi_archive`/`soi_products`; authz `regulatory.soi.edit`.
 - `runComplianceReview(soiId, kind)` → creates `compliance_reviews` + `compliance_findings` by evaluating `regulatory_rules`; `disposeFinding(id, disposition, note)`. authz `regulatory.compliance.review`.
 - `listObligations(filters)` / `completeObligation(id, payload)` — over `compliance_obligations`; authz `regulatory.calendar.manage`.
 - `listProducts` / `upsertProduct` / `listCategories` — product master.
+- `listApprovals(filters)` / `getApproval(id)` / `createApproval(input)` / `transitionApproval(id, action, payload)` — over `product_approval_applications`; approve/reject/appeal transitions emit fee obligation + notification. authz `regulatory.approval.manage`.
+- `listLabResults(filters)` / `getLabResult(id)` / `ingestLabResult(input, items)` — header + `lab_result_items`; on save calls the review wire-back (below). Source `vendor_po_id` supplied from the Vendor Portal deliverable. authz `regulatory.labresult.manage`.
+- `listInspections` / `upsertInspection` — over `inspection_visits`; authz `regulatory.inspection.manage`.
+- `listRecalls(filters)` / `getRecall(id)` / `upsertRecall(...)` — over `recall_events`; authz `regulatory.recall.manage`.
 
 **RPCs (SECURITY DEFINER, existing + new)**
 - `reveal_fssai_credential(p_license_id, p_reason)` → text — **existing, unchanged.** Role-gated (`super_admin, director, manager, executive`), updates `last_credential_accessed_*`, inserts `credential_access_log` + `audit_log`. UI maps to `regulatory.credential.reveal`.
 - `store_fssai_credential(...)` — **existing, unchanged.** Vault write.
-- `run_ingredient_check(p_soi_id)` (new) — server-side evaluation of SOI rows against `regulatory_rules` (`additive`/`schedule`/`rda` domains); returns findings; keeps rule logic off the client. authz via `has_role`.
+- `run_ingredient_check(p_soi_id, p_lab_result_id default null)` (new) — server-side evaluation of SOI rows against `regulatory_rules` (`additive`/`schedule`/`rda` domains); when a `lab_result_id` is passed it compares **tested** analyte values (heavy metals/micro/assay) from `lab_result_items` against the rule limits and stamps `compliance_reviews.value_basis = 'tested'`, else declared values. Returns findings; keeps rule logic off the client. authz via `has_role`.
 - `licence_transition(p_license_id, p_action, p_payload jsonb)` (new, optional) — atomic status change + `licence_events` insert + obligation seeding, so lifecycle invariants live in the DB.
 
 **Edge Functions**
@@ -374,6 +542,14 @@ Keys namespaced `regulatory.<entity>.<action>`. RLS is authoritative; `useCan()`
 | `regulatory.calendar.manage` | ✔ | ✔ | ✔ | ✔ | – | – |
 | `regulatory.product.view` | ✔ | ✔ | ✔ | ✔ | – | ✔ |
 | `regulatory.product.manage` | ✔ | ✔ | ✔ | ✔ | – | – |
+| `regulatory.approval.view` | ✔ | ✔ | ✔ | ✔ | – | ✔ |
+| `regulatory.approval.manage` | ✔ | ✔ | ✔ | ✔ | – | – |
+| `regulatory.labresult.view` | ✔ | ✔ | ✔ | ✔ | – | ✔ |
+| `regulatory.labresult.manage` | ✔ | ✔ | ✔ | ✔ | – | – |
+| `regulatory.inspection.view` | ✔ | ✔ | ✔ | ✔ | – | ✔ |
+| `regulatory.inspection.manage` | ✔ | ✔ | ✔ | ✔ | – | – |
+| `regulatory.recall.view` | ✔ | ✔ | ✔ | ✔ | – | ✔ |
+| `regulatory.recall.manage` | ✔ | ✔ | ✔ | ✔ | – | – |
 | `regulatory.rule.manage` | ✔ | ✔ | – | – | – | – |
 
 **RLS mapping:** read permissions → `select` policies gated by `auth_role()`; `.manage`/`.edit`/`.review` → `insert/update` policies checking `has_role(...)` for the mapped roles. Credential reveal is **not** a table policy — it is the role guard inside `reveal_fssai_credential`, so the reveal path can never be reached by direct table select (vault columns hold only the secret *id*, never the plaintext). `auditor` is read-only across the board.
@@ -390,6 +566,10 @@ Keys namespaced `regulatory.<entity>.<action>`. RLS is authoritative; `useCan()`
 | SLA at risk / breached | queries with `response_due` ≤ T+3 / < today | `authority_queries` |
 | Obligations due this month | Form D-1/D-2, Form II, inspections | `compliance_obligations` |
 | SOI reviews flagged | reviews with `verdict != pass` / blocker findings | `compliance_reviews` + `compliance_findings` |
+| Product approvals in-flight | count by status; awaiting-panel age | `product_approval_applications` |
+| Lab results out-of-spec | analytes `out_of_spec` in last 30d | `lab_results` + `lab_result_items` |
+| Open recalls / adverse events | cases not `closed`, by classification | `recall_events` |
+| Upcoming / recent inspections | scheduled + adverse-outcome count | `inspection_visits` |
 | Credential reveals (30d) | audit count, by user | `credential_access_log` |
 | Licences by tier | Central/State/Registration split | `licenses` |
 
@@ -407,8 +587,12 @@ Widgets read via React Query keys `['regulatory','dashboard',widget]`, staleTime
 | SLA compliance | query, due, submitted, on-time?, days variance | period, executive | CSV |
 | SOI / compliance review | product, SOI version, verdict, blocker count, reviewer | verdict, product kind, period | CSV, PDF |
 | Compliance calendar | client, licence, obligation, due, status | obligation type, status, month | CSV, PDF, iCal |
+| Product approval register | client, product, approval type, ARN, status, approval no., validity | type, status, client | CSV, PDF |
+| Lab results / OOS | product, report no., lab, date, out-of-spec analytes, linked review | product, OOS-only, period | CSV, PDF |
+| Inspection log | client, licence, date, type, officer, outcome, follow-up | outcome, type, period | CSV, PDF |
+| Recall / adverse-event log | client, product, trigger, classification, status, closed date | classification, status, period | CSV, PDF |
 | Credential access audit | licence, user, accessed_at, reason | user, licence, date | CSV (super_admin/director only) |
-| Government-fee obligations | licence, action, amount, emitted, Finance ref | status, period | CSV (shared with Finance) |
+| Government-fee obligations | licence, action, amount (₹ from paise), emitted, Finance ref | status, period | CSV (shared with Finance) |
 
 Export via `core/ui` DataTable export + a PDF/CSV helper; iCal for the calendar.
 
@@ -423,10 +607,15 @@ Via `core/notifications` only; `notification_type` extended. Delivery gated by `
 | Licence 90/60/30/7d to expiry | `license_expiring` (existing) | assigned executive, manager | in-app, email |
 | Renewal window opened (T-180d) | `obligation_due` (new) | executive, manager | in-app, email |
 | Licence granted | `licence_granted` (new) | executive, manager, director | in-app, email |
+| Licence rejected | `licence_rejected` (new) | executive, manager, director | in-app, email |
 | Authority query received | `query_received` (existing) | assigned executive, manager | in-app, email, WhatsApp* |
 | Query SLA T-3 / breached | `query_sla_breach` (new) | executive, manager, director on breach | in-app, email |
 | Obligation due (Form D-1/D-2, Form II) | `obligation_due` (new) | executive, manager | in-app, email |
 | SOI review flagged (blocker) | `soi_review_flagged` (new) | reviewer, manager | in-app |
+| Product approval decision (approved/rejected) | `product_approval_decision` (new) | executive, manager, director | in-app, email |
+| Lab result out-of-spec | `lab_result_oos` (new) | reviewer, manager | in-app, email |
+| Inspection logged (adverse) | `inspection_logged` (new) | manager, director | in-app, email |
+| Recall / adverse event opened | `recall_opened` (new) | manager, director | in-app, email |
 | Credential revealed | (audit only, no push by default) | — | audit_log |
 
 \*WhatsApp stays a stub/toggle until the BSP number is live (per project standard).
@@ -437,15 +626,18 @@ Via `core/notifications` only; `notification_type` extended. Delivery gated by `
 
 | Job | Trigger | Cadence | Action |
 |---|---|---|---|
-| Expiry & renewal sweep | pg_cron → `regulatory-daily` Edge Fn | daily 06:30 IST | open renewal windows, set `renewal_due`, emit expiry notifications |
-| Obligation materializer | pg_cron | daily | ensure Form D-1 (due 31 May), D-2 (half-yearly), Form II rows exist per active licence; flip `upcoming→due→overdue` by date |
-| SLA monitor | pg_cron | daily 07:00 | mark queries `query_sla_breach`, notify |
+| Expiry & renewal sweep | pg_cron → `regulatory-daily` Edge Fn | daily 06:30 IST | open renewal windows, set `renewal_due`, emit expiry notifications; **also raise a Sales opportunity/quotation for the renewal consulting fee** (see revenue automation below) |
+| Obligation materializer | pg_cron | daily | ensure Form D-1 (due **31 May** for prior FY), D-2 (half-yearly), Form II rows exist per active licence; flip `upcoming→due→overdue` by **working-day** date math (holiday calendar) |
+| **Recurring-work → booked revenue** | pg_cron (part of `regulatory-daily`), idempotent per period | daily | For each recurring obligation that carries a consulting fee — **licence renewals** and the **statutory returns (D-1 due 31 May, half-yearly D-2)** — auto-raise a **Sales opportunity + draft quotation** for the TPS service fee (distinct from the pass-through government fee) and stamp `compliance_obligations.sales_opportunity_id`. Deduplicated per (licence/client, obligation, period) so a window that reopens daily does not spawn duplicates. Cross-module via the Sales public API (see `sales.md`); Regulatory never writes Sales tables directly. This is the highest-ROI automation: recurring statutory work becomes booked pipeline without manual quoting. |
+| SLA monitor | pg_cron | daily 07:00 | mark queries `query_sla_breach`, notify. Query-response, renewal-window and return-due clocks use **working days against a shared gazetted government-holiday calendar** (below), not raw calendar days |
 | Licence event log | DB trigger on `licenses` update | event | write `licence_events(before/after)` + `audit_log` |
 | Query rollups | DB trigger on `authority_query_points` | event | recompute `points_total/points_resolved`, auto-close query when all points closed |
 | SOI review on save | app-invoked RPC `run_ingredient_check` | on demand | regenerate findings; optionally auto on `saveSoi` |
 | FoSCoS status reconcile | `foscos-sync` Edge Fn (future) | hourly when enabled | poll ARN, update `lifecycle_status` |
 
 All scheduled work gated by settings flags so staging stays sandboxed.
+
+**Government holiday calendar (working-day math).** SLA and window calculations (query `response_due`, renewal window, return/obligation due dates) must be computed on **working days** using a **shared gazetted-holiday calendar** (Core/Admin reference data — national + applicable state holidays + weekends), not raw calendar days. A due date that lands on a holiday/weekend rolls to the next working day, and amber/red SLA thresholds skip non-working days. The calendar is shared reference data so Certification and Operations SLA math stay consistent; it is not owned by Regulatory.
 
 ---
 
@@ -455,7 +647,9 @@ All scheduled work gated by settings flags so staging stays sandboxed.
 |---|---|---|
 | **FSSAI FoSCoS portal** | out (submit), in (status) | **Manual-assisted today** via credential vault; **`foscos-sync` Edge Function** is the future automated boundary (ARN submit/poll). All portal access flows through `reveal_fssai_credential` — plaintext never leaves the DB function; the frontend receives the secret only at reveal time over the authenticated RPC and never persists it. |
 | **Supabase Vault** | store/reveal | `store_fssai_credential` / `reveal_fssai_credential` SECURITY DEFINER; `credential_access_log` + `audit_log` append-only. Unchanged by this module. |
-| **Finance & Accounts** | out | Regulatory emits a government-fee obligation on submission/renewal; Finance records the payment and returns a ref. Cross-module via Finance's public API, not direct table writes. |
+| **Finance & Accounts** | out | Regulatory emits a government-fee obligation (bigint paise) on submission/renewal/approval; Finance records the payment and returns a ref. Cross-module via Finance's public API, not direct table writes. |
+| **Sales** | out | Recurring work (licence renewals, statutory returns D-1/D-2) auto-raises a Sales **opportunity + draft quotation** for the consulting fee via the Sales public API; `compliance_obligations.sales_opportunity_id` back-links. See §10 and `sales.md`. |
+| **Vendor Portal** (module 14) | in | NABL **lab-test PO deliverables** flow in as structured `lab_results` (referenced by `vendor_po_id`); the tested values feed `compliance_reviews`. Linkage by id via the Vendor Portal public API — no cross-module table writes. |
 | **core/notifications** | out | `notify({...channels})` — email (ZeptoMail), in-app, WhatsApp (BSP, gated). |
 | **core/files / Document Management** | in/out | SOI PDFs, query responses, licence certificates stored via `core/files` (bucket `documents`/`regulatory`), referenced by path — module does not own storage mechanics. |
 | **AI Assistant** (module 12) | out | SOI/label findings and FSSR rule context can seed regulatory Q&A / response drafting (read-only reference). |
@@ -502,6 +696,9 @@ flowchart TB
     T4[(products + fssai_categories)]
     T5[(compliance_reviews + findings + regulatory_rules)]
     T6[(compliance_obligations)]
+    T7[(product_approval_applications)]
+    T8[(lab_results + lab_result_items)]
+    T9[(inspection_visits + recall_events)]
     RPC{{SECURITY DEFINER: reveal/store_fssai_credential, run_ingredient_check, licence_transition}}
     VAULT[[Supabase Vault + credential_access_log + audit_log]]
     CRON[[pg_cron]]
@@ -512,25 +709,43 @@ flowchart TB
     ED2[foscos-sync - future/gated]
   end
 
-  subgraph EXT["External"]
+  subgraph EXT["External / other modules"]
     FOSCOS[(FSSAI FoSCoS portal)]
     FIN[Finance module API]
+    SALES[Sales module API]
+    VP[Vendor Portal API]
     MAIL[ZeptoMail / WhatsApp BSP]
   end
 
   API -->|auth session| AUTH
   API -->|guard| ACC
-  API --> T1 & T2 & T3 & T4 & T5 & T6
+  API --> T1 & T2 & T3 & T4 & T5 & T6 & T7 & T8 & T9
   API -->|reveal creds| RPC
   RPC --> VAULT
   API --> NOT --> MAIL
   API --> FIL
   CRON --> ED1 --> T1 & T6
   ED1 --> NOT
+  ED1 -->|renewal / return opportunity| SALES
   ED2 -->|ARN status| T1
   ED2 <-->|creds via RPC| FOSCOS
   API -->|fee obligation| FIN
+  VP -->|lab-test deliverable| T8
   RPC -. audited .-> VAULT
 ```
 
-**Boundaries enforced:** the module imports only `@/core/*` + its own folder; credential plaintext exists only inside the SECURITY DEFINER RPC; every state change is RLS-guarded and audited; external systems (FoSCoS, Finance, mail) are reached only through named adapters.
+**Boundaries enforced:** the module imports only `@/core/*` + its own folder; credential plaintext exists only inside the SECURITY DEFINER RPC; every state change is RLS-guarded and audited; external systems (FoSCoS, Finance, Sales, Vendor Portal, mail) are reached only through named adapters.
+
+---
+
+## Validation amendments (v1.1)
+
+Incorporates validated architecture-review findings. Design-only; expand-contract preserved.
+
+1. **Product approval & ingredient NOC service line** — added the distinct FSSAI product-approval / ingredient-NOC / novel-food workflow (§1.6, §2.4), entity `product_approval_applications` (+ `product_approval_status` enum, its own review loop reusing the query engine), screens `/regulatory/approvals[/:id]`, API `listApprovals/…/transitionApproval`, permissions `regulatory.approval.*`, dashboard/report/notification coverage.
+2. **Structured lab-result ingestion** — added `lab_results` + `lab_result_items` fed from the Vendor-Portal lab-test PO (`vendor_po_id`); `run_ingredient_check` now compares **tested** values and stamps `compliance_reviews.value_basis`/`lab_result_id`, so verdicts use NABL-tested numbers not manually keyed ones (§1.7, §2.5, §11 Vendor Portal).
+3. **Inspection visits + recall/adverse-event** — added `inspection_visits` and `recall_events` entities, workflow (§2.6), screens, permissions, dashboard/report/notification coverage.
+4. **Licence rejection → appeal → re-file** — added `rejected`/`appealed` lifecycle states, `rejection_reason`/`appeal_status`/`appeal_due_date` fields, the branch in §2.1 + flowchart, and `reject|appeal|refile` transitions (mirrors `certification.md` appeals).
+5. **Renewal → booked revenue automation (highest-ROI)** — the recurring renewal/return jobs now also auto-raise a **Sales opportunity + draft quotation** for the consulting fee (licence renewals; annual return **D-1 due 31 May**, half-yearly D-2), back-linked via `compliance_obligations.sales_opportunity_id`; cross-ref `sales.md` (§10, §11 Sales).
+6. **Government holiday calendar** — SLA / working-day math (query-response, renewal windows, return due dates) uses a shared gazetted-holiday calendar with next-working-day roll-over, not raw calendar days (§10).
+7. **Money = bigint paise** — government-fee columns (`compliance_obligations.govt_fee_paise`, `product_approval_applications.govt_fee_paise`) are `bigint` paise per the platform standard; they post to Finance in paise (§4.2).

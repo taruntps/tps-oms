@@ -4,6 +4,13 @@
 This document explains how TPS works as **one integrated ERP**, not a collection of modules.
 Read this first; the per-module designs (`modules/*.md`) are the detail behind it.
 
+> **Status: FROZEN v1.0** (after Enterprise Architecture Validation). Its binding amendment layer is
+> **`02_ENTERPRISE_ARCHITECTURE_VALIDATION.md`** — where that report and this document differ, the
+> report's decisions win. Key v1.0 amendments folded in below: **17 modules** (added Expenses & Travel
+> and Management System / QMS); a Core **`approvals`** entity behind the Approvals inbox; **SMS** as a
+> second live channel; money is **bigint paise**; portals are **not** in the staff menu; permission
+> helper is **`has_perm`** with data-scope + delegation.
+
 ---
 
 ## 0. What the TPS Platform is
@@ -190,11 +197,13 @@ INSIGHT
 
 ADMINISTRATION                                                  [Admin/Director]
   • Users & Roles · Permissions · Settings · Integrations · Audit log
-
-PORTALS  (separate external logins)
-  • Customer Portal
-  • Vendor Portal
+  • Portal users (Client & Vendor access is managed here — not a staff destination)
 ```
+
+> **v1.0 amendment:** the **Customer Portal** and **Vendor Portal** are *separate external apps* with
+> their own logins — they are **not** items in the internal staff menu. Staff manage portal users from
+> Administration / CRM / the Vendor registry. Also: **AI Assistant** and **global search** are top-bar
+> affordances (available everywhere), not a menu group.
 
 ---
 

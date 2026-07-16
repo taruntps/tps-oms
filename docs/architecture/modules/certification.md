@@ -34,6 +34,7 @@
 - **External auditor onboarding as platform users / HR records** → **Administration / HRMS** (this module holds the auditor *competence* record; login/identity is Core auth).
 - **Email/WhatsApp sending** → `core/notifications` (this module raises typed events; Core delivers).
 - **Accreditation body (NABCB) assessment of TPS itself** → tracked as documents/tasks outside this transactional module.
+- **The CB's OWN management system (QMS)** → the certification body's *internal* ISO/IEC 17021-1 management system — its own **management review**, **internal audits** of the CB, **CAPA on the CB's own nonconformities** (raised by NABCB or internal audit, as opposed to client NCs which live here), the standing **impartiality committee** as a governance body, and **NABCB self-assessment / accreditation-readiness** — lives in the new **Management System / QMS module** (`management-system.md`). This module owns the *client-facing* certification lifecycle and the *per-audit* impartiality/COI gate; the CB-as-organization's own conformity lives next door. The boundary: client NCs → here; the CB's own NCs → Management System / QMS.
 
 ---
 
@@ -462,7 +463,7 @@ Module `api/*` = thin typed Supabase wrappers; hooks wrap in React Query with ke
 | `acceptApplication(id)` | rpc | `id` | `AuditProgramme` | `certification.application.review`; **requires COI cleared/safeguarded**; spawns 3-yr programme |
 | `listProgramme(clientId?)` | api | `{client?, dueBefore?}` | programme + audits | `certification.programme.view` |
 | `scheduleAudit(input)` | api | `{programme_id, type, planned_date, mandays}` | `Audit` | `certification.programme.edit` |
-| `assignAuditTeam(auditId, members)` | rpc | `[{auditor_id, role}]` | `AuditTeamMember[]` | `certification.audit.assign`; **validates competence covers all scope codes + no unresolved COI** |
+| `assignAuditTeam(auditId, members)` | rpc | `[{auditor_id, role}]` | `AuditTeamMember[]` | `certification.audit.assign`; **validates competence covers all scope codes + no unresolved COI + auditor availability (no overlapping booking) + within mandays-utilisation ceiling** (see §10, §11) |
 | `declareAuditorCoi(memberId, result, note)` | rpc | — | `AuditTeamMember` | assigned auditor (self); `blocked` unassigns |
 | `issueAuditPlan(auditId, plan)` | api | plan fields | `Audit` | `certification.audit.execute` (lead) |
 | `upsertFinding(input)` | api | `{audit_id, clause_ref, type, statement, evidence}` | `Finding` | `certification.finding.create` (team member on audit) |
@@ -597,6 +598,8 @@ WhatsApp routes through the BSP (AiSensy) but stays a **stub/toggle** until the 
 | COI probe on application | Event | inside `runCoiCheck` (called on submit) | Query `certification_coi_probe` → write `coi_checks`; **hard-block** on 2-yr consultancy hit |
 | Manday compute | Event | on application review save | Recompute IAF MD 5 mandays from personnel/shifts/complexity |
 | Assignment competence guard | Event | inside `assignAuditTeam` | Reject assignment unless team competence covers every requested scope code + standard, and no unresolved COI |
+| Auditor availability / double-booking guard | Event | inside `assignAuditTeam` | Reject (or warn+require override) if the auditor is already booked on an overlapping audit date, or if the assignment would push the auditor **past their mandays-utilisation ceiling** for the window — availability + capacity, not just competence + COI |
+| Two-way calendar sync | Scheduled + Event | pg_cron hourly + on audit schedule/reschedule | Push each planned/actual audit as a calendar event to the assigned auditors' **Google/Outlook** calendars; pull back external busy/free so the availability guard sees off-platform commitments. Gated by a settings flag; per-auditor OAuth token in the integration config |
 | Separation-of-duties guard | Event | RLS + inside `makeDecision` | Reject decision if `auth.uid()` was on the audit team |
 | Certificate status → public | Event | DB trigger on `certificate_events` insert | Refresh public verify projection / cache so the QR page reflects status immediately |
 | Programme auto-generation | Event | inside `acceptApplication` | Create Stage 1/2 + S1/S2 + recert placeholders across the 3-yr cycle |
@@ -618,6 +621,8 @@ All scheduled work is **gated by settings flags** (§5) so staging never fires r
 | **Website application form** | Inbound applications | `certification-apply` Edge Function; HMAC-verified, rate-limited, schema-validated → `createApplication`. Never trusts payload as commands. |
 | **Customer Portal (module 13)** | Client sees status, findings, NC actions, certificate | Certification exposes read RPCs (`client_certificates`, `client_audits`, `client_ncs`); portal renders. |
 | **NABCB (accreditation body)** | Certificate register / schedule for accreditation & witness audits | Register export report (PDF/XLSX); no live API — manual submission adapter. |
+| **Calendar (Google / Outlook)** | Two-way audit-programme sync + auditor availability | Per-auditor OAuth (Google Calendar / Microsoft Graph) behind a settings flag. **Push:** each planned/actual audit → auditor's calendar as an event on schedule/reschedule. **Pull:** external busy/free feeds the availability / double-booking guard in `assignAuditTeam` so off-platform commitments are respected. Read/write scoped to a dedicated CB calendar; no other calendar data ingested. |
+| **AI Assistant (module 12)** | Optional NC root-cause suggestion + CAPA adequacy pre-check | Behind a settings flag: when an NC is raised, an AI tool may **suggest candidate root causes**; when a client submits a CAPA, it may **flag likely-inadequate corrective actions** *before* auditor verification. Advisory only — the auditor's `verifyNc` decision remains authoritative and human. Detailed in `ai-assistant.md` (cross-ref). |
 | **e-Sign (future)** | Digitally sign certificates / decisions | Optional adapter behind a settings flag; stores signed PDF `file_id`. |
 | **ZeptoMail** (`core/notifications`) | Transactional email | Core adapter; module only calls `notify()`. |
 | **WhatsApp BSP — AiSensy** (`core/notifications`) | NC / surveillance reminders | Core adapter; **toggle stub** until number live. |
@@ -701,3 +706,12 @@ flowchart LR
   RPC -.export.-> NABCB
   FILES -.future.-> ESIGN
 ```
+
+---
+
+## Validation amendments (v1.1)
+
+- **Auditor availability + capacity in assignment (§5, §10, §11).** `assignAuditTeam` now guards on **availability / double-booking** (no overlapping audit dates) and a **mandays-utilisation ceiling** per auditor window — in addition to competence + COI.
+- **Two-way calendar sync (§10, §11).** Google/Outlook calendar integration for the audit programme: push audits to assigned auditors' calendars on schedule/reschedule and pull external busy/free to feed the availability guard. Settings-flag gated, per-auditor OAuth.
+- **CB's own management system boundary (§1).** Explicit cross-reference: the CB's own management review, internal audits, CAPA on the CB's own NCs, the impartiality committee as a governance body, and NABCB self-assessment live in the new **Management System / QMS module** (`management-system.md`), not here. Client NCs → here; CB's own NCs → Management System / QMS.
+- **NC/CAPA AI assist (§11).** Optional, advisory AI tool (in `ai-assistant.md`) to suggest NC root causes and pre-check client CAPA adequacy before auditor verification; the human `verifyNc` decision stays authoritative.

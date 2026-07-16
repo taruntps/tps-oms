@@ -45,9 +45,17 @@
 3. User marks the article **helpful / not helpful** and optionally leaves a comment → `kb_article_feedback`. Low helpfulness surfaces the article for author review.
 
 ### 2.3 Regulatory update feed
-1. A Manager/Director records a **regulatory update** (e.g. "FSSAI notification dated 2026-05-10 revising vitamin D upper limit"), links affected article(s), sets effective date and severity.
-2. Staff see the update in a "What's changed" feed; linked articles are flagged **"review recommended"**.
-3. The linked article is edited → re-reviewed → re-published, and the update is marked **actioned**.
+Two entry paths converge on the same human-approved feed:
+
+**(a) AI-assisted ingestion (primary going forward).** An **AI monitor** (the AI Assistant module, on a schedule / configured source) watches FSSAI / FoSCoS / gazette amendment sources, and for each candidate change:
+1. **Summarises** the amendment into a structured draft (title, authority, reference no., effective date, proposed severity) written to `kb_regulatory_updates` in status `open` (marked `ai_generated`).
+2. **Drafts a KB article** (or a revision off the affected published article) capturing the change — saved as a **`draft`** article, never auto-published.
+3. **Drafts a targeted client alert** for the affected client segment (which clients/licences the change touches), staged as a proposed notification — never auto-sent.
+4. A Manager/Director **reviews and approves** each artifact: the update is confirmed, the drafted article goes through the normal review→publish loop, and the client alert is dispatched via `core/notifications` only after human sign-off. Nothing publishes or sends without approval.
+
+**(b) Manual entry (still supported).** A Manager/Director records a **regulatory update** directly (e.g. "FSSAI notification dated 2026-05-10 revising vitamin D upper limit"), links affected article(s), sets effective date and severity.
+
+In both paths: staff see the update in a "What's changed" feed; linked articles are flagged **"review recommended"**; the linked article is edited → re-reviewed → re-published, and the update is marked **actioned**.
 
 ### 2.4 Flowchart
 
@@ -69,6 +77,10 @@ flowchart TD
   L -- Yes --> M[New revision -> draft]
   M --> B
   L -- Archive --> N[Status: archived\nremoved from search/AI]
+  AIM[AI monitor: FSSAI/FoSCoS/gazette] -.summarise.-> RU
+  AIM -.draft article.-> M
+  AIM -.draft client alert.-> RV[Manager/Director review]
+  RV -.approve.-> RU
   RU[Regulatory update recorded] -.links.-> H
   RU -.flags review.-> M
 ```
@@ -223,7 +235,8 @@ Index: `ivfflat`/`hnsw` on `embedding vector_cosine_ops`; btree(`article_id`).
 | effective_date | date | |
 | severity | text | `info` \| `action_required` \| `critical` |
 | status | text default `'open'` | `open` \| `actioned` \| `dismissed` |
-| created_by | uuid FK→profiles | |
+| ai_generated | boolean default false | **new** — true when drafted by the AI regulatory monitor (awaits human approval) |
+| created_by | uuid FK→profiles NULL | null/system when `ai_generated` |
 | created_at/updated_at | timestamptz | |
 
 **`kb_regulatory_update_articles`** — junction linking an update to affected articles
@@ -448,6 +461,7 @@ Via `core/notifications` only; `notification_type` enum extended with the `knowl
 | Denormalise feedback counters | DB trigger | on `kb_article_feedback` insert/update | update `helpful_count`/`not_helpful_count`; fire `low_helpfulness` when threshold crossed |
 | Re-embed on publish | event → Edge Function | on `kb_publish` | `kb-embed` chunks + writes `kb_article_embeddings` for new version |
 | Embedding backfill / drift repair | pg_cron → Edge Function | nightly | re-embed articles whose embedded version ≠ current, or missing embeddings |
+| AI regulatory monitor | pg_cron → Edge Function (AI Assistant) | daily/configurable | Watch FSSAI/FoSCoS/gazette sources; **summarise** amendments into `kb_regulatory_updates` (status `open`, `ai_generated`), **draft** a KB article/revision (`draft` status), and **draft** a targeted client alert — all staged for human approval, **never auto-published or auto-sent** |
 | Stale-review sweep | pg_cron | daily | flag articles past `review_due_on`; enqueue `review_due` notifications (digest) |
 | Tag usage recount | pg_cron | weekly | recompute `kb_tags.usage_count`, prune orphan tags |
 
@@ -459,12 +473,12 @@ All Edge Function invocations gated by `app_settings` flags so staging stays san
 
 | System | Purpose | Boundary / adapter |
 |---|---|---|
-| **AI Assistant module (internal)** | KB is a **retrieval source** for regulatory Q&A / RAG | AI Assistant calls `semanticRetrieve()` / `kb_semantic_search` RPC + `kb_search`; KB exposes only published, permission-scoped chunks. No coupling to conversation state. |
+| **AI Assistant module (internal)** | KB is a **retrieval source** for regulatory Q&A / RAG, **and** the AI monitor's publish target | **KB is the single owner of all article embeddings** — `kb_article_embeddings` are built by KB's `kb-embed` pipeline and served via `kb_semantic_search` (SECURITY DEFINER) + `kb_search`. The AI Assistant **retrieves** these chunks (`semanticRetrieve` / `kb_semantic_search`) and **never re-embeds or copies** KB content; its own `ai_embeddings` hold only non-KB corpus. KB exposes only published, permission-scoped chunks; no coupling to conversation state. The AI regulatory monitor writes **drafts** (updates/articles/alerts) back into KB for human approval. |
 | **Embedding provider** (OpenAI-compatible / Supabase AI) | generate `vector(1536)` embeddings | `kb-embed` Edge Function; provider + model + dim configurable in `app_settings`; key in Supabase Vault; gated by flag. |
 | **Google Drive / `core/files`** | attach source docs (SOP PDFs, templates) to articles | via `core/files` `useDrive()`/`uploadFile()`; KB stores references, not binaries; `disableConversionToGoogleType: true`. |
 | **Customer Portal module** | serve `client_visible` articles to external clients | KB exports `listClientVisibleArticles()`; portal never queries `knowledge_base` directly — security-definer view enforces visibility. |
 | **ZeptoMail (email)** | review/publish/regulatory notifications | through `core/notifications` dispatch adapter only. |
-| **FSSAI FoSCoS / NABCB portals** | *(future, out of scope now)* seed regulatory updates | manual curation today; optional future adapter writes drafts to `kb_regulatory_updates` for human review — never auto-publishes. |
+| **FSSAI FoSCoS / NABCB portals** | seed regulatory updates | Watched by the **AI regulatory monitor** (via the AI Assistant module): AI summarises amendments and writes **drafts** to `kb_regulatory_updates` + draft KB article + draft client alert for human review — **never auto-publishes or auto-sends**. Manual entry remains available as a fallback. |
 
 ---
 
@@ -546,3 +560,10 @@ flowchart LR
 ---
 
 **Cross-module dependencies:** **AI Assistant** (Module 12) — consumes KB as a RAG retrieval source via `semanticRetrieve`/`kb_semantic_search` + `kb_search`. **Customer Portal** (Module 13) — consumes `client_visible` published articles via `listClientVisibleArticles`. **Document Management** (Module 9) / `core/files` — source-file attachments. **Administration** (Module 15) — embedding-provider & notification settings/Vault keys. Core services: `access`, `notifications`, `files`, `ui`.
+
+---
+
+## Validation amendments (v1.1)
+
+- **Regulatory-update AI ingestion (MAJOR).** The former "future manual curation" of FSSAI/FoSCoS/gazette amendments is promoted to an **AI monitor → summarise → draft KB article + draft targeted client alert** flow, with a human approving before anything publishes or sends. Added the AI-assisted path to §2.3 + §2.4 flowchart, an **AI regulatory monitor** job in §10, an `ai_generated` marker on `kb_regulatory_updates` (§4), and updated the AI Assistant + FSSAI FoSCoS integration rows (§11). Manual entry remains supported.
+- **KB is the single owner of article embeddings.** Stated explicitly in §11: `kb_article_embeddings` + `kb_semantic_search` (SECURITY DEFINER) are built and served by KB and merely **consumed** by the AI Assistant, which never re-embeds or copies KB content. This resolves the prior duplicate-embeddings overlap with the AI Assistant module.

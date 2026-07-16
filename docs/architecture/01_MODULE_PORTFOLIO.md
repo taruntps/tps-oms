@@ -1,8 +1,13 @@
 # TPS Enterprise Platform — Module Portfolio & Build Sequence
 
-Companion to `00_ENTERPRISE_ARCHITECTURE.md`. Indexes the 15 module designs, maps their
+Companion to `00_ENTERPRISE_ARCHITECTURE.md`. Indexes the module designs, maps their
 cross-module dependencies, and recommends the implementation order. **All module designs are
 complete; none is implemented. Coding of new modules begins only after approval.**
+
+> **v1.1 (post-validation):** Enterprise Architecture Validation added **2 modules** (Expenses & Travel,
+> Management System / QMS → **17 modules**), corrected a money-unit bug, and made cross-cutting
+> unifications. See **`02_ENTERPRISE_ARCHITECTURE_VALIDATION.md`** (the binding amendment layer) and
+> the **Wave-1 minimal-table cut** in §3.
 
 ## 1. Module index
 
@@ -24,9 +29,13 @@ complete; none is implemented. Coding of new modules begins only after approval.
 | 14 | Vendor Portal | [vendor-portal.md](modules/vendor-portal.md) | 9 | vendor, purchase_order, assignment, deliverable |
 | 15 | Administration | [administration.md](modules/administration.md) | 14 new / 2 reuse | role, permission, integration, feature_flag |
 | 16 | Reports & Analytics | [reports-analytics.md](modules/reports-analytics.md) | 6 + views layer | saved_report, kpi, schedule |
+| 17 | Expenses & Travel (T&E) *(v1.1)* | [expenses.md](modules/expenses.md) | 13 | expense_claim, travel_request, reimbursement |
+| 18 | Management System / QMS *(v1.1)* | [management-system.md](modules/management-system.md) | 20 | management_review, internal_audit, capa, impartiality_risk |
 
-≈ **180 tables** across the platform (greenfield + expand-contract on existing). Every design
+≈ **210 tables** across the 17 modules (greenfield + expand-contract on existing). Every design
 delivers all 13 template sections + ER, flow, screen, and architecture diagrams.
+**Note:** the validation flagged this table count as too many for early waves — see the
+**Wave-1 minimal-table cut** in §3 and `02_ENTERPRISE_ARCHITECTURE_VALIDATION.md` §6.
 
 ## 2. Cross-module dependency map
 

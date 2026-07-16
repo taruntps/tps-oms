@@ -29,7 +29,7 @@ TPS staff repeatedly answer regulatory questions, draft the same document types,
 
 **A. Grounded regulatory Q&A (RAG)**
 1. User opens the assistant (global launcher or in a module context) and asks a question.
-2. Backend embeds the query, retrieves top-k passages from `ai_embeddings` (Knowledge Base + regulatory corpus) filtered to what the user may read.
+2. Backend embeds the query and retrieves top-k passages from **two sources, merged**: (a) **Knowledge Base article chunks** via KB's `kb_semantic_search` / `semanticRetrieve` (KB owns these embeddings — the AI Assistant does **not** re-embed KB content), and (b) `ai_embeddings`, which holds **only non-KB corpus** (raw regulatory documents not yet curated into KB). Both retrievals are filtered to what the user may read.
 3. Claude answers **only** from retrieved context, with inline citations to source documents; if context is insufficient it says so rather than inventing.
 4. Answer is streamed back with a **Sources** panel; the exchange is persisted to `ai_messages` with the citation set and token/cost usage.
 
@@ -44,6 +44,12 @@ TPS staff repeatedly answer regulatory questions, draft the same document types,
 1. From the Regulatory or Document module, user runs "AI check" on a label/SOI artifact.
 2. Backend extracts the artifact text (via `core/files`), retrieves the relevant labelling rules, and asks Claude to produce a structured findings list (rule → status → evidence → suggested fix), each finding **cited**.
 3. Findings render as an advisory checklist; the human accepts/rejects each. Nothing is marked compliant by the AI alone.
+
+**D. Structured document data-extraction (highest-ROI AI)**
+1. During CRM onboarding or a Regulatory review, a user (or an owning-module flow) hands the assistant a client upload — KYC documents, existing FSSAI/manufacturing licences, product **label images**, or lab test reports — fetched via `core/files` / Document Management OCR.
+2. Backend runs OCR/text-and-image extraction, then calls Claude with the `ai.extract.document` tool to pull **structured fields** — e.g. GSTIN / PAN / licence number / validity dates / product composition / tested nutrient values — returned as a typed JSON payload with per-field confidence and the source span cited.
+3. Extracted fields are surfaced as a **proposed** structured record the user confirms/corrects; on approval they are pushed into the owning module — pre-filling **CRM onboarding** (client master, licences) and feeding the **Regulatory review engine** (composition vs permitted limits, label claims). The AI never writes the record autonomously; a human approves through the owning module's own API + RLS.
+4. Works alongside Document Management OCR: OCR produces raw text/tokens, the extraction tool produces the structured, validated fields.
 
 ```mermaid
 flowchart TD
@@ -104,7 +110,9 @@ stateDiagram-v2
 
 ## 4. Database design
 
-All tables live in the `public` schema with `ai_` prefix, RLS enabled. Embeddings use **pgvector** (`vector(1536)` for a standard embedding model; dimension pinned per `embedding_model`). Source content is *referenced* (KB article id, regulatory doc id, storage path) rather than duplicated where possible.
+All tables live in the `public` schema with `ai_` prefix, RLS enabled. Embeddings use **pgvector** (`vector(1536)` for a standard embedding model; dimension pinned per `embedding_model`). Source content is *referenced* (regulatory doc id, storage path) rather than duplicated.
+
+> **Embeddings ownership (v1.1).** The **Knowledge Base module owns all KB article embeddings** (`kb_article_embeddings` + `kb_semantic_search`). The AI Assistant does **not** re-embed KB content and does **not** maintain a copy of KB articles. `ai_documents` / `ai_embeddings` retain **only the non-KB corpus** — raw regulatory documents (gazette PDFs, authority circulars, standards text) that are not curated KB articles. At retrieval time `ai-chat` merges KB chunks (from `kb_semantic_search`) with non-KB chunks (from `ai_embeddings`). `ai_message_sources` therefore cites either a KB article (`source_kind='kb_article'`, resolved through KB) or a non-KB `ai_embeddings` row.
 
 ```mermaid
 erDiagram
@@ -160,7 +168,7 @@ erDiagram
   }
   ai_documents {
     uuid id PK
-    text source_kind "kb_article | reg_doc | file"
+    text source_kind "reg_doc | file (non-KB corpus only)"
     uuid source_ref "FK-by-convention to owning table"
     text title
     text visibility "internal | role-scoped | public"
@@ -207,9 +215,9 @@ erDiagram
 ```
 
 **RLS intent (per table).**
-- `ai_conversations`, `ai_messages`, `ai_tool_calls`, `ai_message_sources`, `ai_usage_log` — **owner-scoped**: `user_id = auth.uid()` (via join for child tables). Directors/`super_admin` may `select` all for oversight/usage; admins with `ai.usage.read` may read `ai_usage_log` globally.
-- `ai_prompt_templates` — `select` where `scope='shared' and published` **or** `owner_id = auth.uid()`; `insert/update` personal by owner; shared managed only by `ai.prompt.manage` holders.
-- `ai_documents`, `ai_embeddings` — **read-gated by corpus visibility**: `select` allowed when `visibility='public'`, or `'internal'` for any authenticated staff, or when `auth_role()` is in `allowed_roles`. This is the retrieval RLS that keeps the RAG index from leaking role-restricted regulatory material. Writes are service-only (indexer Edge Function).
+- `ai_conversations`, `ai_messages`, `ai_tool_calls`, `ai_message_sources`, `ai_usage_log` — **owner-scoped**: `user_id = auth.uid()` (via join for child tables). Directors/`super_admin` may `select` all for oversight/usage; admins holding `has_perm('ai.usage.read')` may read `ai_usage_log` globally.
+- `ai_prompt_templates` — `select` where `scope='shared' and published` **or** `owner_id = auth.uid()`; `insert/update` personal by owner; shared managed only by `has_perm('ai.prompt.manage')` holders.
+- `ai_documents`, `ai_embeddings` — **non-KB corpus only**, **read-gated by corpus visibility**: `select` allowed when `visibility='public'`, or `'internal'` for any authenticated staff, or when `auth_role()` is in `allowed_roles`. This is the retrieval RLS that keeps the non-KB regulatory index from leaking role-restricted material. KB article chunks are **not** stored here — they are retrieved through KB's own `kb_semantic_search` (which applies KB's visibility rules). Writes are service-only (indexer Edge Function).
 
 **Expand-contract notes.** New module; all additive. `notification_type` enum extended (expand) with `ai_draft_ready`, `ai_index_failed` before the notify code references them. `vector` dimension is pinned per row via `embedding_model`; a model change adds a new `ai_documents.embedding_model` value and re-indexes into new rows (expand) before retirement of old vectors (contract) — never an in-place ALTER of the column dimension.
 
@@ -227,6 +235,7 @@ Frontend uses thin `modules/ai/api/*` wrappers (React Query hooks in `hooks/*`).
 | `ai-embed-query` | `{ text }` (internal, called by `ai-chat`) | `vector` | Internal (invoked by `ai-chat`) |
 | `ai-index` | `{ sourceKind, sourceRef }` or cron sweep | upserts `ai_documents` + `ai_embeddings` | Service role (indexer); not user-callable |
 | `ai-label-check` | `{ fileRef | text, ruleset }` + caller JWT | structured findings[] with citations | `ai.labelcheck.run`; reads artifact via caller RLS |
+| `ai-extract` | `{ fileRef \| fileRefs, docType }` + caller JWT | structured fields JSON (typed per `docType`) + per-field confidence + source spans | `ai.extract.run`; reads artifact via caller RLS; runs OCR/vision then Claude extraction |
 
 **Client `api/*` functions (thin Supabase/Edge wrappers)**
 
@@ -239,6 +248,7 @@ Frontend uses thin `modules/ai/api/*` wrappers (React Query hooks in `hooks/*`).
 | `listPromptTemplates(params)` | category, scope | template rows | `ai.prompt.read` |
 | `upsertPromptTemplate(input)` | template fields | template row | personal: owner · shared: `ai.prompt.manage` |
 | `runLabelCheck(input)` | fileRef/text, ruleset | findings[] | `ai.labelcheck.run` |
+| `runExtraction(input)` | fileRef(s), docType (kyc/licence/label_image/lab_report) | structured fields + confidence + citations | `ai.extract.run` |
 | `getUsage(params)` | range, groupBy | aggregated usage rows | `ai.usage.read` |
 
 **The permission-respecting tool layer (core of the design).** `ai-chat` defines a **fixed allowlist** of tools, each mapped to a permission `ai.<entity>.<action>` and implemented as a typed function that queries the DB **through a user-scoped Supabase client**:
@@ -274,6 +284,7 @@ Keys namespaced `ai.*`, aggregated into `PERMISSIONS` by the registry. RLS is th
 | `ai.document.read` | Tool: search platform documents | executive, manager, accounts, director |
 | `ai.finance.read` | Tool: invoices/payments summaries | accounts, director |
 | `ai.labelcheck.run` | Run SOI/label auto-check assist | executive, manager, director |
+| `ai.extract.run` | Structured data-extraction from client uploads (KYC/licence/label image/lab report) | executive, manager, director, accounts |
 | `ai.prompt.read` | Use prompt library | all internal roles |
 | `ai.prompt.manage` | Create/publish shared templates | super_admin, director |
 | `ai.usage.read` | View cost/usage dashboard | super_admin, director |
@@ -332,8 +343,8 @@ The assistant **never** sends outbound client email/WhatsApp itself; a drafted e
 
 | Job | Type | Trigger / cadence | Action |
 |---|---|---|---|
-| **Corpus indexer** | Event | DB trigger on KB article / regulatory doc insert/update → enqueue | Mark `ai_documents.status='stale'`, checksum-diff, invoke `ai-index` to (re)embed changed chunks |
-| **Nightly re-embed sweep** | Scheduled | pg_cron nightly → `ai-index` | Pick up `stale`/`error` docs, embed, set `embedded`; alert on persistent failures |
+| **Non-KB corpus indexer** | Event | DB trigger on **regulatory / raw-document** insert/update → enqueue | Mark `ai_documents.status='stale'`, checksum-diff, invoke `ai-index` to (re)embed changed chunks. **Does not touch KB articles** — KB embeddings are owned and maintained by the Knowledge Base module's own `kb-embed` pipeline |
+| **Nightly re-embed sweep** | Scheduled | pg_cron nightly → `ai-index` | Pick up `stale`/`error` **non-KB** docs, embed, set `embedded`; alert on persistent failures |
 | **Usage rollup** | Scheduled | pg_cron hourly | Aggregate `ai_usage_log` into daily/monthly for dashboards (materialized) |
 | **Budget watch** | Scheduled | pg_cron daily | Compare month-to-date spend to budget → `ai_budget_alert` |
 | **Conversation retention** | Scheduled | pg_cron weekly | Archive/trim conversations per retention policy (soft-archive; no hard delete of audit) |
@@ -349,10 +360,11 @@ All scheduled work follows the platform rule: pg_cron → Edge Function, gated b
 | **Anthropic API** (Claude Opus 4.8 / Sonnet 5 / Haiku 4.5) | Chat completion, tool-use orchestration, drafting; **Claude is the default** | Server-side only in `ai-chat`/`ai-label-check`. API key in **Supabase Vault / Edge secret** (`ANTHROPIC_API_KEY`), never shipped to the browser. Model chosen per task: Haiku for cheap/classification, Sonnet default, Opus for complex drafting/reasoning |
 | **Anthropic Embeddings** (or configured embedding model) | Vectorise query + corpus chunks | `ai-embed-query` (online, query) and `ai-index` (offline, corpus). Dimension pinned per `embedding_model` |
 | **Supabase pgvector** | Store + ANN-search embeddings | `ai_embeddings.embedding vector(1536)` with hnsw/ivfflat index; retrieval SQL runs under corpus-visibility RLS |
-| **Knowledge Base module** (#10) | Primary grounding corpus | Read `kb_article` via `ai_documents.source_ref`; indexer subscribes to KB changes |
-| **Regulatory module** (#7) | Regulatory reference + live licence/query/SOI facts | Reference docs → corpus; live entities → tool layer (caller RLS) |
+| **Knowledge Base module** (#10) | Primary grounding corpus | KB **owns all article embeddings** (`kb_article_embeddings` + `kb_semantic_search`); the AI Assistant retrieves published, permission-scoped chunks via `semanticRetrieve` / `kb_semantic_search` (+ `kb_search` keyword). **No re-embedding of KB content here** — the AI never copies or re-indexes KB articles |
+| **Regulatory module** (#7) | Regulatory reference + live licence/query/SOI facts; consumes extraction output | Non-KB reference docs → `ai_embeddings` corpus; live entities → tool layer (caller RLS); extracted composition/tested values feed the Regulatory review engine |
+| **CRM module** (#3) | Onboarding pre-fill from extracted client documents | `ai-extract` structured fields (GSTIN/PAN/licence no./dates) proposed into client master; human confirms via CRM API + RLS |
 | **Operations / Finance modules** | Tool-callable facts ("projects due this week", invoice summaries) | Tool layer via user-scoped client only |
-| **core/files** (Storage + Drive) | Fetch artifact text for label/SOI check & document context | `uploadFile`/read API; text extraction server-side |
+| **Document Management** (#9) / **core/files** (Storage + Drive) | Fetch artifact text/images for label/SOI check, **document extraction**, & context | `uploadFile`/read API; OCR/vision text extraction server-side; `ai-extract` layers structured-field extraction on top of Document Management OCR |
 | **core/notifications** | Deliver AI events | `notify()` contract |
 
 **Secrets & key handling.** `ANTHROPIC_API_KEY` and embedding key live in Edge secrets / Vault, read only inside Edge Functions. No credential is ever hardcoded or exposed to the frontend (per global rule). All Anthropic calls are `try/catch`-wrapped with meaningful errors surfaced via `toast()`.
@@ -391,21 +403,24 @@ flowchart LR
   subgraph EDGE["Supabase Edge Functions (server-side)"]
     CHAT["ai-chat<br/>orchestrator + tool layer"]
     EMBEDQ["ai-embed-query"]
-    INDEX["ai-index (service role, offline)"]
+    INDEX["ai-index (service role, offline)<br/>NON-KB corpus only"]
     LCHK["ai-label-check"]
+    XTRACT["ai-extract<br/>OCR/vision → structured fields"]
   end
 
   subgraph DB["Supabase Postgres + RLS"]
     AITBL["ai_* tables (owner-scoped)"]
-    VEC["ai_embeddings (pgvector)<br/>corpus-visibility RLS"]
-    MODS["Operations · Regulatory · Finance · Docs tables (module RLS)"]
+    VEC["ai_embeddings (pgvector)<br/>NON-KB corpus · visibility RLS"]
+    MODS["Operations · Regulatory · CRM · Finance · Docs tables (module RLS)"]
   end
 
+  KB["Knowledge Base module<br/>kb_semantic_search (owns KB embeddings)"]
   ANTH["Anthropic API<br/>Claude Opus/Sonnet/Haiku"]
   VAULT["Vault / Edge secret<br/>ANTHROPIC_API_KEY"]
 
   HOOKS -->|caller JWT| CHAT
   HOOKS --> LCHK
+  HOOKS --> XTRACT
   UI -.uses.-> AUTH & ACCESS
   HOOKS --> AITBL
 
@@ -413,17 +428,29 @@ flowchart LR
   CHAT --> AITBL
   CHAT --> EMBEDQ
   EMBEDQ --> VEC
-  CHAT -->|top-k, RLS-filtered| VEC
+  CHAT -->|top-k non-KB, RLS-filtered| VEC
+  CHAT -->|top-k KB chunks| KB
   CHAT -->|key from| VAULT
   CHAT --> ANTH
   LCHK --> ANTH
   LCHK -->|read artifact| FILES
+  XTRACT --> ANTH
+  XTRACT -->|read artifact| FILES
+  XTRACT -.proposed fields.-> MODS
 
   INDEX -->|embed + upsert| VEC
   INDEX -->|service role| ANTH
-  MODS -.KB/reg changes.-> INDEX
+  MODS -.reg/raw-doc changes.-> INDEX
 
   CHAT -.async events.-> NOTIF
 ```
 
-**Reading the diagram (permission boundary):** the browser sends the **caller's JWT** to `ai-chat`; every business-data read the tool layer performs uses a **user-scoped client**, so Operations/Regulatory/Finance/Docs RLS (`MODS`) is the authority. The **service role** appears in exactly one place — the offline `ai-index` indexer — never on a user-facing read. The Anthropic key never leaves the Edge boundary. This is what makes "the assistant respects the caller's permissions" a structural property, not a policy promise.
+**Reading the diagram (permission boundary):** the browser sends the **caller's JWT** to `ai-chat`; every business-data read the tool layer performs uses a **user-scoped client**, so Operations/Regulatory/CRM/Finance/Docs RLS (`MODS`) is the authority. The **service role** appears in exactly one place — the offline `ai-index` indexer (non-KB corpus only) — never on a user-facing read. The Anthropic key never leaves the Edge boundary. This is what makes "the assistant respects the caller's permissions" a structural property, not a policy promise.
+
+---
+
+## Validation amendments (v1.1)
+
+- **KB embeddings de-duplicated (MAJOR).** The Knowledge Base module is now the **single owner of all article embeddings** (`kb_article_embeddings` + `kb_semantic_search`). The AI Assistant no longer defines a KB re-embedding pipeline; it retrieves KB chunks through KB's `semanticRetrieve` / `kb_semantic_search` and merges them with non-KB results at query time. `ai_documents` / `ai_embeddings` now hold **only the non-KB corpus** (raw regulatory documents not curated into KB). Updated §2 (flow A), §4 (ownership note, `ai_documents.source_kind`, RLS intent), §10 (indexer scoped to non-KB), §11 (KB integration), §13 (diagram).
+- **Structured document data-extraction added (MAJOR, highest-ROI AI).** New `ai-extract` Edge Function + `ai.extract.run` permission + `runExtraction` wrapper extract STRUCTURED fields (GSTIN/PAN/licence no./validity/composition/tested values) from client uploads (KYC, licences, label **images**, lab reports), working on top of Document Management OCR. Output is a **proposed** record that pre-fills CRM onboarding and feeds the Regulatory review engine after human approval. Added flow D (§2), API rows (§5), permission (§6), integrations (§11, incl. CRM #3 and Document Management #9), and diagram node (§13).
+- **Permission helper naming.** RLS text uses the canonical `has_perm(key[, scope])` helper (per `00_ENTERPRISE_ARCHITECTURE.md` §9); `has_permission(...)` is retired.

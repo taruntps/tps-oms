@@ -180,3 +180,22 @@ Production DB is **never** touched by this refactor (frontend-only). The staging
 ---
 
 **Next:** Phase D designs (parallel, one doc per module, following §6) → then Phase B/C code migration → then approval gate before coding new modules.
+
+---
+
+## 9. Validation-driven amendments (v1.1)
+
+Adopted from the Enterprise Architecture Validation (`02_ENTERPRISE_ARCHITECTURE_VALIDATION.md`, the binding amendment layer). These override any conflicting detail in earlier sections or module docs:
+
+- **Permission helper is `has_perm(key[, scope])`** — one canonical name/signature; `has_permission(uid,key)` is retired. All module RLS must call `has_perm` verbatim.
+- **Role model is grant-based, not enum-based** — `roles(role_key)` + `user_roles(user_id, role_key)` many-to-many; `has_role()` reads grants. The `user_role` enum is kept only for expand-contract compatibility. Functional sub-roles (cert/marketing/L&D/procurement) are role_keys, not enum values.
+- **Permissions carry a data-scope** (`own | team | all`) in `role_permissions`, consumed by `has_perm(key, scope)` and shown in the admin matrix. **Delegation** (time-boxed) and **`*.export`** are first-class.
+- **Schema strategy: single `public` schema + table prefixes** (no per-module Postgres schemas) — avoids cross-schema RLS/GRANT/search_path escalation risks.
+- **One `organizations` master** (Admin/Core) for the two legal entities; **one Core numbering service** (per-series advisory locks) owns all sequences. Finance's `legal_entities` and per-module code generators are retired.
+- **One Core `approvals` entity** (polymorphic ref + assignee + decision + SLA) backs the single Approvals inbox; modules register approvals instead of rolling their own.
+- **One Core external-identity service** parameterized by tenant key (`client_id`/`vendor_id`) shared by both portals.
+- **`notification_type` is a lookup table**, not a platform-wide enum. **SMS** is a second live channel in `core/notifications`.
+- **Money is `bigint` paise** platform-wide (verified against the live DB).
+- **Scalability rules:** wrap RLS permission helpers in `(select …)` InitPlan form; a read-replica/branch target serves analytics + AI retrieval; `pg_cron` jobs are staggered with per-job statement timeouts; `audit_log` is partitioned by month with retention. Cron/Edge jobs use a **scoped automation identity**, not `service_role`.
+- **Mobile-first + offline** is a platform commitment for field-facing surfaces (attendance punch, document capture) with a dedicated mobile nav model.
+- **Module count is 17** (added Expenses & Travel, Management System / QMS).

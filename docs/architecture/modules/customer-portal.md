@@ -129,6 +129,8 @@ stateDiagram-v2
 
 ## 4. Database design
 
+> **Shared external-identity service (validation v1.1).** The tenant-isolated external-identity plumbing — `client_users` (login ↔ tenant mapping), `portal_sessions`, `portal_invitations`, and the tenant-key helper `portal_client_id()` / `is_portal_user()` — is **not bespoke to this portal**. It is one instance of a single **Core external-identity service**, parameterized by tenant key (here `client_id`; the Vendor Portal uses the same service with `vendor_id`). Core owns the identity/session/invitation tables + the `*_client_id()` / `current_vendor_id()` resolver pattern, immutability trigger, activation flow, and suspicious-login flagging; each portal keeps only its **domain tables** (upload requests, approvals, tickets, payment orders, read models). The tables named below are described in full for design completeness, but `client_users`/`portal_sessions`/`portal_invitations` and the tenant helpers are **provided by Core**, not re-implemented per portal — the isolation guarantees in §6 hold identically because both portals share one audited implementation.
+
 Portal tables live in the `public` schema alongside existing tables (single Supabase project — modular monolith). Two categories:
 - **Portal-owned tables** (client can write, strictly scoped): `client_users`, `portal_sessions`, `portal_invitations`, `upload_requests`, `portal_upload_files`, `portal_approvals`, `portal_tickets`, `portal_ticket_messages`, `portal_payment_orders`, `portal_notification_prefs`, `portal_activity_log`, `portal_document_shares`.
 - **Client-safe read models** (`security_invoker` views over internal tables, exposing only client-safe columns): `v_portal_projects`, `v_portal_project_stages`, `v_portal_invoices`, `v_portal_licenses`, `v_portal_deliverables`, `v_portal_authority_actions`.
@@ -435,6 +437,8 @@ Every notification goes through `core/notifications` (`notify()`), respecting `p
 
 New enum values added via expand (`ALTER TYPE notification_type ADD VALUE`). Staging stays sandboxed because dispatch is gated by settings flags (§3 master).
 
+**SMS channel (validation v1.1 — MAJOR).** Email is not always reliable for FBO clients (bounced/ignored inboxes), so **SMS** is a first-class channel in `core/notifications` here: **login OTP** for portal activation/sign-in is delivered by SMS (with email as fallback), and the reminder families above (invite, licence-expiry T-60/30/7, payment-due, approval-SLA nudge) can each fan out to SMS per `portal_notification_prefs`. Add `sms_enabled` to `portal_notification_prefs` alongside `email_enabled`/`whatsapp_enabled`. SMS is settings-gated like every other channel, so staging never sends real messages; the module still only calls `notify({... channels})` and Core routes to the SMS provider.
+
 ---
 
 ## 10. Automations
@@ -445,6 +449,7 @@ New enum values added via expand (`ALTER TYPE notification_type ADD VALUE`). Sta
 | Payment-due reminders | pg_cron → Edge Fn | daily | unpaid `v_portal_invoices` past due |
 | Invitation expiry sweep | pg_cron | hourly | mark stale `portal_invitations` expired |
 | Approval SLA nudge | pg_cron | daily | remind clients of `pending` approvals > N days |
+| Upload-request reminder sweep | pg_cron → Edge Fn | daily | remind clients of **unfulfilled `upload_requests`** (`status = open`), escalating by age / past `due_date` — targets the FSSAI delivery bottleneck where missing client documents stall the licence; fans out per `portal_notification_prefs` (SMS/email/WhatsApp/in-portal) |
 | New upload_request | DB trigger → `notify()` | event | notify client |
 | Payment webhook | Edge Fn (event) | on Razorpay callback | verify, mirror to `payments`, recompute status, notify |
 | Suspicious-login flag | trigger on `portal_sessions` | event | flag + notify staff on new IP/geo |
@@ -462,6 +467,7 @@ Scheduled dispatch is gated by settings so staging never messages real clients.
 | **Razorpay** | Online invoice payment | Edge Functions only (order create + HMAC-verified webhook); secret never in browser; idempotent on `razorpay_payment_id` |
 | **ZeptoMail (email)** | Invites, reminders, receipts | via `core/notifications` adapter |
 | **WhatsApp BSP (AiSensy)** | Reminders/notifications | via `core/notifications`; toggle-gated until number is live (per project memory) |
+| **SMS provider** | Login OTP + reminders (email unreliable for FBOs) | via `core/notifications` SMS adapter; delivers activation/sign-in OTP and reminder fan-out; settings-gated; DLT/sender-ID compliance handled at the Core adapter |
 | **Internal Operations/Finance/Regulatory** | Source of read models + write-back targets | `security_invoker` views (read) + SECURITY DEFINER RPCs / Edge Fns (write-back); never direct client writes |
 | **FSSAI FoSCoS** | (indirect) status originates internally | not called by portal; surfaced via read models only |
 
@@ -552,3 +558,11 @@ flowchart TB
 4. **Multi-user per client at launch:** launch with owner-only, or enable owner-invites-teammates from day one?
 
 _No code, migration, or schema change is produced by this document. Implementation is gated on explicit per-item approval (project change-control rule)._
+
+---
+
+## Validation amendments (v1.1)
+
+- **Shared external-identity Core service (§4).** `client_users` + `portal_sessions` + `portal_invitations` + the `portal_client_id()` / `is_portal_user()` tenant helpers are one instance of a single parameterized Core external-identity service (tenant key = `client_id`; Vendor Portal reuses it with `vendor_id`). This portal keeps only its domain tables; the isolation guarantees in §6 are unchanged because both portals share one audited implementation.
+- **SMS channel — OTP + reminders (§9, §11).** SMS is now a first-class `core/notifications` channel: login/activation OTP via SMS (email fallback) and reminder fan-out, since email is unreliable for FBO clients. Adds `sms_enabled` to `portal_notification_prefs`; settings-gated.
+- **Upload-request reminder sweep (§10).** New daily pg_cron job to chase **unfulfilled `upload_requests`**, escalating by age / `due_date` — directly targets the FSSAI document-collection bottleneck.

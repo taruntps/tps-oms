@@ -156,6 +156,8 @@ stateDiagram-v2
 
 Schema: `vendor` (logical namespace via table prefix `vendor_*` / `po_*`). All tables carry `id uuid pk default gen_random_uuid()`, `created_at`, `updated_at`, and an `audit_log` trigger. **`vendor_id` is the isolation key** and appears on every vendor-scoped table (denormalized deliberately so RLS never needs a join).
 
+> **Shared external-identity service (validation v1.1).** The external-login plumbing — `vendor_users` (login ↔ tenant mapping), external sessions, and invitations, plus the tenant-key resolver `vendor.current_vendor_id()` — is **not bespoke to this portal**. It is one instance of the single **Core external-identity service**, parameterized by tenant key (here `vendor_id`; the Customer Portal uses the same service with `client_id`). Core owns the identity/session/invitation tables, the `current_vendor_id()` / `*_client_id()` resolver pattern, the immutable-tenant-key trigger, activation, and suspicious-login flagging; this module keeps only its **domain tables** (vendors, credentials, POs, assignments, deliverables, invoices, ratings, conflicts). `vendor_users` is described below for completeness but is provided by Core, not re-implemented — the isolation guarantees hold identically because both portals share one audited implementation.
+
 ### 4.1 Tables
 
 **`vendors`** — vendor master.
@@ -372,6 +374,24 @@ Keys namespaced `vendor.<entity>.<action>` (registered by `modules/vendor/permis
 
 **RLS mapping.** External keys are held by the `vendor_user` role, but every external policy *additionally* filters on `vendor_id = vendor.current_vendor_id()` — the permission grants the *verb*, the predicate grants the *rows*. Internal keys map to `has_role()`/permission checks with no vendor predicate. The auditor impartiality gate is enforced in `signImpartiality`/`createPO` RPCs, not left to the UI.
 
+### Intra-vendor roles (validation v1.1)
+
+A single vendor (a lab or printer) may have several staff who should **not** all do everything — e.g. an accounts person raises invoices while a coordinator only views POs and uploads deliverables. `vendor_users` therefore carries an **intra-vendor role** `vendor_member_role` with three values — **`owner` \| `member` \| `viewer`** — refining the earlier `role_in_vendor` (`primary`/`staff`); the primary contact maps to `owner`. These are a **second axis within** the `vendor_id` tenant (they never widen isolation — every check still ANDs `vendor_id = vendor.current_vendor_id()`):
+
+| Vendor permission | owner | member | viewer |
+|---|:---:|:---:|:---:|
+| `vendor.portal.access` | ✅ | ✅ | ✅ |
+| `vendor.assignment.read` (view POs/assignments) | ✅ | ✅ | ✅ |
+| `vendor.assignment.respond` (accept/decline/impartiality/submit) | ✅ | ✅ | — |
+| `vendor.deliverable.submit` | ✅ | ✅ | — |
+| `vendor.invoice.read` | ✅ | ✅ | ✅ |
+| `vendor.invoice.create` (submits invoices) | ✅ | ✅* | — |
+| `vendor.profile.manage` / credential renewal | ✅ | — | — |
+| `vendor.onboarding.submit` | ✅ | — | — |
+| invite/manage other vendor staff | ✅ | — | — |
+
+*`vendor.invoice.create` for `member` is a per-vendor toggle so a lab can keep invoicing to the `owner` only if it prefers — this is the "submits invoices" vs "views POs" separation. These are **UI affordance** (`useCan()`); the DB stays authoritative via the intra-vendor-role check combined with the `vendor_id` predicate. Added as a new enum (expand) — no change to the isolation model.
+
 ---
 
 ## 7. Dashboard
@@ -430,6 +450,8 @@ Via `core/notifications` only (`notify({...})`); channels gated by settings flag
 
 *WhatsApp gated by BSP availability (AiSensy) + settings flag; stubbed until live.
 
+**SMS channel (validation v1.1 — MAJOR).** Email is not always reliable for external vendors either, so **SMS** is a first-class `core/notifications` channel here too: **login OTP** for vendor activation/sign-in is delivered by SMS (email fallback), and time-critical reminders (assignment issued, deliverable revision requested, credential expiry T-60/T-15, invoice status) can fan out to SMS. Settings-gated like every channel; the module still only calls `notify({... channels})` and Core routes to the SMS provider.
+
 ---
 
 ## 10. Automations
@@ -454,7 +476,8 @@ Via `core/notifications` only (`notify({...})`); channels gated by settings flag
 | **Certification (module 8)** | Auditor competence/scope authorization + impartiality source of truth | `checkImpartiality`/`reviewVendor` read Certification; ISO 17021 §5.2 impartiality enforced at gate |
 | **Regulatory (module 7)** | Lab-test requests originate here; reports consumed | `purchase_orders.origin_module='regulatory'`, `origin_ref` → licence/product |
 | **Core files + Document Mgmt (9)** | KYC docs, credentials, deliverables, invoices | `core/files` `uploadFile()`; `vendor-docs` bucket with `vendor_id/` prefix storage RLS |
-| **Core notifications** | All email/WhatsApp/in-app | `notify()`; ZeptoMail + AiSensy adapters, settings-gated |
+| **Core notifications** | All email/WhatsApp/in-app/SMS | `notify()`; ZeptoMail + AiSensy + SMS adapters, settings-gated |
+| **SMS provider** | Login OTP + time-critical reminders (email unreliable for vendors) | via `core/notifications` SMS adapter; activation/sign-in OTP + reminder fan-out; settings-gated; DLT/sender-ID compliance at the Core adapter |
 | **e-sign (future)** | Agreement / NDA / impartiality declaration signing | adapter behind `vendor_credentials`/`signImpartiality`; upload fallback until live |
 | **FSSAI / NABL scope data** | Validate lab accredited-parameter scope | manual credential entry now (`scope_json`); NABL directory API is a future adapter |
 | **Supabase Auth** | External `vendor_user` identities | Core auth; `vendor_users` maps `auth.uid()` → `vendor_id` |
@@ -528,3 +551,11 @@ flowchart LR
 ---
 
 **Isolation summary (the one rule):** every vendor-scoped table stores `vendor_id`; every external RLS policy filters on `vendor_id = vendor.current_vendor_id()` resolved from `vendor_users` via `auth.uid()`; permissions grant the verb, the predicate grants the rows; auditor client identity is masked until an impartiality declaration clears the `vendor_conflicts` gate.
+
+---
+
+## Validation amendments (v1.1)
+
+- **Shared external-identity Core service (§4).** `vendor_users` + external sessions/invitations + the `vendor.current_vendor_id()` tenant resolver are one instance of a single parameterized Core external-identity service (tenant key = `vendor_id`; Customer Portal reuses it with `client_id`). This module keeps only its domain tables; isolation guarantees are unchanged because both portals share one audited implementation.
+- **Intra-vendor roles owner/member/viewer (§6).** New `vendor_member_role` refines `role_in_vendor` so a multi-staff lab/printer can separate "submits invoices" (`vendor.invoice.create`) from "views POs" (`vendor.assignment.read`). A second axis *within* the tenant — every check still ANDs `vendor_id = vendor.current_vendor_id()`; added as an expand enum, no isolation change.
+- **SMS channel — OTP + reminders (§9, §11).** SMS is now a first-class `core/notifications` channel: vendor login/activation OTP via SMS (email fallback) and time-critical reminder fan-out, since email is unreliable for vendors. Settings-gated.
