@@ -1,0 +1,26 @@
+// Core Platform — module registry.
+// The assembly point: each module contributes nav, routes, and permissions.
+// App/Sidebar/Router consume the registry instead of hard-coding module details.
+// Adding a module = write it + append one line to MODULES.
+import type { RouteObject } from 'react-router-dom'
+import type { ModuleDef, NavEntry } from './moduleTypes'
+import { operationsModule } from '@/modules/operations'
+
+export const MODULES: ModuleDef[] = [operationsModule]
+
+/** All module-owned routes, flattened, for mounting into the router tree. */
+export function getAllRoutes(): RouteObject[] {
+  return MODULES.flatMap((m) => m.routes)
+}
+
+/** Nav entries visible to a given role (entries without `roles` are visible to all). */
+export function getNavFor(role: string | undefined): NavEntry[] {
+  return MODULES.flatMap((m) => m.nav).filter(
+    (entry) => !entry.roles || (role != null && entry.roles.includes(role))
+  )
+}
+
+/** All permission keys defined across modules. */
+export function getAllPermissions(): string[] {
+  return MODULES.flatMap((m) => m.permissions)
+}

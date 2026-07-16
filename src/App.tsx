@@ -7,6 +7,7 @@ import { AppShell } from '@/components/layout/AppShell'
 import { RoleBasedRedirect } from '@/components/shared/RoleBasedRedirect'
 import { ToastProvider } from '@/components/shared/Toast'
 import { ErrorBoundary } from '@/components/shared/ErrorBoundary'
+import { operationsModule } from '@/modules/operations'
 
 // V2: route-based code splitting — each page is a lazily-loaded chunk so the
 // initial JS payload is a fraction of the previous single ~1.3 MB bundle.
@@ -15,9 +16,6 @@ const LoginPage = lazy(() => import('@/pages/auth/LoginPage'))
 const DashboardPage = lazy(() => import('@/pages/dashboard/DashboardPage'))
 const ClientsPage = lazy(() => import('@/pages/clients/ClientsPage'))
 const ClientDetailPage = lazy(() => import('@/pages/clients/ClientDetailPage'))
-const ProjectsPage = lazy(() => import('@/pages/projects/ProjectsPage'))
-const ProjectDetailPage = lazy(() => import('@/pages/projects/ProjectDetailPage'))
-const OperationsPage = lazy(() => import('@/pages/operations/OperationsPage'))
 const DirectorPage = lazy(() => import('@/pages/director/DirectorPage'))
 const SettingsPage = lazy(() => import('@/pages/settings/SettingsPage'))
 const PerformancePage = lazy(() => import('@/pages/reports/PerformancePage'))
@@ -89,8 +87,12 @@ export default function App() {
                   </ProtectedRoute>
                 }
               />
-              {/* Operations overview — open to all staff (read-only board) */}
-              <Route path="operations" element={<OperationsPage />} />
+              {/* Operations module — routes contributed via the module registry
+                  (operations, projects, projects/:id). Same paths, same guards,
+                  same lazy page components; ownership now lives in the module. */}
+              {operationsModule.routes.map((r) => (
+                <Route key={r.path} path={r.path} element={r.element} />
+              ))}
 
               {/* General authenticated routes */}
               <Route path="attendance" element={<AttendancePage />} />
@@ -108,8 +110,6 @@ export default function App() {
                   <ReferralsPage />
                 </ProtectedRoute>
               } />
-              <Route path="projects" element={<ProjectsPage />} />
-              <Route path="projects/:id" element={<ProjectDetailPage />} />
               <Route path="employees" element={
                 <ProtectedRoute allowedRoles={['super_admin','director','manager','hr']}>
                   <EmployeesPage />
