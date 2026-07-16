@@ -6,16 +6,18 @@
 **Status:** Design (Phase D). Follows `00_ENTERPRISE_ARCHITECTURE.md` §6 template.
 **Absorbs:** existing `payments` table + `projects.quoted_amount / paid_amount / payment_status` + live Razorpay integration.
 
+> **Scope v2.0: Certification-Body references removed (separate platform).**
+
 ---
 
 ## 1. Purpose & scope
 
-**Business capability.** The financial system of record for TPS Xperts Group (consultancy) and TPS Xperts Global Certification (NABCB certification body). It turns delivered work into GST-compliant tax invoices, records money received against them, tracks government fees paid on behalf of clients as a pass-through (not revenue), keeps a simple double-entry ledger per client, captures vendor bills and expenses, and produces the statutory (GSTR-1, TDS) and management (P&L snapshot, receivables ageing, collections) numbers the Directors run the business on.
+**Business capability.** The financial system of record for TPS Xperts Group (consultancy). It turns delivered work into GST-compliant tax invoices, records money received against them, tracks government fees paid on behalf of clients as a pass-through (not revenue), keeps a simple double-entry ledger per client, captures vendor bills and expenses, and produces the statutory (GSTR-1, TDS) and management (P&L snapshot, receivables ageing, collections) numbers the Directors run the business on.
 
 **Who uses it.**
 - **Accounts** — raise invoices, record receipts, reconcile Razorpay, enter vendor bills/expenses, track govt-fee reimbursements, prepare GST/TDS exports.
 - **Directors** — approve credit notes/write-offs, view P&L snapshot, outstanding, collections; sign off ageing actions.
-- **Other modules (read/write via events)** — Sales (a won deal/quotation seeds a proforma), Operations (a project's `quoted_amount/paid_amount/payment_status` is derived here), Regulatory & Certification (govt fees originate from their workflows), Vendor Portal (vendor bills), Customer Portal (client sees own invoices/receipts).
+- **Other modules (read/write via events)** — Sales (a won deal/quotation seeds a proforma), Operations (a project's `quoted_amount/paid_amount/payment_status` is derived here), Regulatory (govt fees originate from its workflows), Vendor Portal (vendor bills), Customer Portal (client sees own invoices/receipts).
 
 **What it explicitly does NOT do.**
 - **Not a full accrual accounting/ERP suite.** Double-entry here is a *client-ledger + control-account* model for cash position, receivables and pass-through clarity — it is not a GAAP general ledger with trial balance close, depreciation schedules, or inventory. Statutory filing itself happens in the CA's tool (Tally/portal); this module *exports data* (GSTR-1, TDS) and does not file returns.
@@ -27,11 +29,11 @@
 
 ## 2. Business workflow
 
-TPS is a **services firm** (SAC 9983/9985-type professional, technical and regulatory consulting; certification services). Two money flows dominate:
+TPS is a **services firm** (SAC 9983/9985-type professional, technical and regulatory consulting). Two money flows dominate:
 
-**A. Fee revenue (our service fee).** Client engages TPS → work is delivered by Operations/Regulatory/Certification → Accounts raises a GST tax invoice → client pays (NEFT/UPI/cheque/cash/Razorpay) → receipt issued → ledger settled → receivable cleared.
+**A. Fee revenue (our service fee).** Client engages TPS → work is delivered by Operations/Regulatory → Accounts raises a GST tax invoice → client pays (NEFT/UPI/cheque/cash/Razorpay) → receipt issued → ledger settled → receivable cleared.
 
-**B. Government-fee pass-through (NOT revenue).** Many engagements require statutory fees paid to authorities (FSSAI/FoSCoS licence fees, NABCB/accreditation fees, testing-lab charges). Two sub-cases:
+**B. Government-fee pass-through (NOT revenue).** Many engagements require statutory fees paid to authorities (FSSAI/FoSCoS licence fees, testing-lab charges). Two sub-cases:
 - **TPS-paid** pass-through — TPS pays the authority first from its own funds, then **reimburses itself** by recovering the exact amount from the client. This is a *balance-sheet* movement (an advance/recoverable), **never** booked to income, and generally invoiced as a **pure reimbursement / "reimbursement of expenses"** line with **no GST margin** (recovered at actuals as a disbursement).
 - **Client-paid** pass-through — the client pays the authority directly (or hands cash to TPS strictly to remit onward). TPS only records it for tracking/receipt completeness; it never touches TPS income.
 
@@ -39,7 +41,7 @@ TPS is a **services firm** (SAC 9983/9985-type professional, technical and regul
 
 1. **Trigger.** Sales marks a deal *won* / Operations reaches a billable milestone → a **proforma invoice** (draft) is created, pre-filled from the project/quotation (party, place of supply, line items, HSN/SAC).
 2. **Tax determination.** Place of supply vs TPS's state (Punjab/Chandigarh registration) decides **intra-state → CGST+SGST** or **inter-state → IGST**. GST rate per SAC applied. Reverse-charge/exempt flags handled per line.
-3. **Numbering.** On *issue* (not on draft), the invoice is stamped from the correct **series** (e.g. `TPSX/25-26/0007` for consultancy vs `TPSGC/25-26/…` for the cert body) — gap-free, per financial year, per legal entity.
+3. **Numbering.** On *issue* (not on draft), the invoice is stamped from the correct **series** (e.g. `TPSX/25-26/0007`) — gap-free, per financial year, per legal entity.
 4. **Issue & deliver.** On issue, if e-invoicing applies (B2B and turnover threshold met), the invoice is registered with the **IRP (NIC/GSP)** which returns an **IRN, signed QR and ack no/date** (`irp_status` → `registered`); the QR is embedded on the PDF. Invoice PDF generated (Edge Function), stored, emailed via ZeptoMail / surfaced in Customer Portal. Ledger posts: **Dr Client (receivable) / Cr Fee income + Cr GST output**. An **issued invoice is immutable**; an **e-way bill** is generated only where physical goods move (rare for TPS services). If an issued/registered invoice is wrong: **cancel the IRN only within the 24-hour IRP window**; after that, correct via **credit note**.
 5. **Collection.** Client pays. If Razorpay: a collection link/order is created; webhook confirms capture. If offline: Accounts records the receipt with mode (NEFT/UPI/Cash/Cheque) and UTR/instrument ref.
 6. **Receipt & allocation.** A **payment** is recorded and *allocated* to one or more invoices (partial/advance supported). Ledger posts **Dr Bank/Cash / Cr Client**. `projects.paid_amount / payment_status` are recomputed from allocations.
@@ -154,7 +156,7 @@ Schema: `finance` (logical). Every table has `created_at/updated_at`, `created_b
 
 > **Money unit convention.** All money columns across this module (`invoices`, `invoice_lines`, `payments`, `payment_allocations`, `govt_fees`, `ledger_entries`, `vendor_bills`, `tds_entries`, `bank_accounts`) are stored as **`bigint` in paise** (integer, 1 rupee = 100 paise) — matching the live database, where `payments.amount`, `projects.quoted_amount` and `projects.paid_amount` are already `bigint` paise and the app divides by 100 to display rupees. **Never** use `numeric`/float rupees for money — mixing units is a 100× data-corruption bug. `formatRupees()` (Core utils) divides by 100 for display; all arithmetic is integer paise.
 
-> **Entity master (single source).** Finance does **not** define its own `legal_entities` master. The two legal entities (consultancy vs certification body) live in the single **`organizations`** table owned by Administration/Core. Every finance table that needs an entity dimension carries an `org_id` FK → `organizations`. Invoice **numbering** likewise uses the single **Core numbering service** (per-series), not a Finance-local sequence generator — see `invoice_series` note below.
+> **Entity master (single source).** Finance does **not** define its own `legal_entities` master. TPS's legal entity(ies) live in the single **`organizations`** table owned by Administration/Core. Every finance table that needs an entity dimension carries an `org_id` FK → `organizations`. Invoice **numbering** likewise uses the single **Core numbering service** (per-series), not a Finance-local sequence generator — see `invoice_series` note below.
 
 ### Key tables
 
@@ -165,7 +167,7 @@ Schema: `finance` (logical). Every table has `created_at/updated_at`, `created_b
 - **`invoice_series`** — per `org_id` + FY + document class; `prefix`, `fy` (`25-26`), `format`. **Sequence allocation is delegated to the Core numbering service** (single, platform-wide, gap-free, row-locked per series) rather than a Finance-local `next_seq` — Finance passes the series key and receives the next number on issue.
 - **`payments`** — **absorbs the existing table** (see expand-contract). Receipt of money. `org_id`, `bank_account_id` (nullable → `bank_accounts`, which account the money landed in / was disbursed from), `party_id`, `payment_mode` (`NEFT`|`UPI`|`Cash`|`Cheque`|`Razorpay`|`Client-paid`|`TPS-paid`), `direction` (`inflow`|`outflow`), `amount`, `paid_on`, `instrument_ref` (UTR/cheque no), `razorpay_payment_id`, `status`, `receipt_number`, `is_govt_fee_passthrough` (bool). NOTE: `Client-paid`/`TPS-paid` values are retained for pass-through remittances that are **not** TPS revenue.
 - **`payment_allocations`** — many-to-many receipt↔invoice. `payment_id`, `invoice_id`, `allocated_amount`. Enables partial payments, advances, one payment across many invoices. Advances = payment with unallocated remainder.
-- **`govt_fees`** — pass-through register. `project_id`, `party_id`, `authority` (`FSSAI`|`NABCB`|`Lab`|`Other`), `purpose`, `amount`, `payer` (`client_paid`|`tps_paid`), `paid_on`, `paid_via_payment_id` (nullable, when TPS-paid → outflow payment), `recovered` (bool), `recovery_invoice_id` (nullable → reimbursement invoice/line), `recovered_amount`, `status`. **Never touches income accounts.**
+- **`govt_fees`** — pass-through register. `project_id`, `party_id`, `authority` (`FSSAI`|`Lab`|`Other`), `purpose`, `amount`, `payer` (`client_paid`|`tps_paid`), `paid_on`, `paid_via_payment_id` (nullable, when TPS-paid → outflow payment), `recovered` (bool), `recovery_invoice_id` (nullable → reimbursement invoice/line), `recovered_amount`, `status`. **Never touches income accounts.**
 - **`ledger_accounts`** — chart-of-accounts (light): control accounts (Accounts Receivable, Bank, Cash, GST Output, GST Input, Fee Income, TDS Receivable, **Govt-fee Recoverable (asset)**, Vendor Payable, Expense). `account_type` (`asset`|`liability`|`income`|`expense`|`control`).
 - **`ledger_entries`** — double-entry journal lines. `entry_id` (groups a balanced journal), `account_id`, `party_id` (nullable), `debit`, `credit`, `source_type` (`invoice`|`payment`|`govt_fee`|`vendor_bill`|`manual`), `source_id`, `narration`, `posted_on`. Sum(debit)=Sum(credit) per `entry_id` enforced by trigger.
 - **`vendor_bills`** — AP. `vendor_id` (→ Vendor Portal), `bill_number`, `bill_date`, `amount`, `gst_input`, `tds_deducted`, `billable` (bool), `project_id`, `party_id` (if pass-through/billable), `status`.
@@ -355,7 +357,7 @@ erDiagram
 | `invoice_series` | `finance.settings.view` | `finance.settings.manage` only; sequence allocated solely by the Core numbering service inside the issuing RPC (SECURITY DEFINER) |
 | `payments`, `payment_allocations` | `finance.payment.view` **and `auditor` (read-only)**; client sees own receipts | `finance.payment.*` |
 | `refund_disbursements` | `finance.payment.view` **and `auditor` (read-only)** | `finance.refund.*`; disbursement recorded (not initiated) by Accounts, approved by Director |
-| `govt_fees` | `finance.govt_fee.view` **and `auditor` (read-only)**; originating module (Regulatory/Certification) may read its own | `finance.govt_fee.*` |
+| `govt_fees` | `finance.govt_fee.view` **and `auditor` (read-only)**; originating module (Regulatory) may read its own | `finance.govt_fee.*` |
 | `ledger_accounts` | `finance.ledger.view` **and `auditor` (read-only)** | `finance.settings.manage` |
 | `ledger_entries` | `finance.ledger.view` **and `auditor` (read-only)**; client sees own party rows in portal statement | **no direct client write** — posted only by SECURITY DEFINER functions/triggers |
 | `vendor_bills` | `finance.expense.view` **and `auditor` (read-only)**; vendor sees own via Vendor Portal | `finance.expense.*` |
@@ -435,7 +437,7 @@ Keys namespaced `finance.<entity>.<action>`. Aggregated into `PERMISSIONS` via t
 | `finance.payment.create` | ✓ | ✓ | ✓ | – | |
 | `finance.payment.reconcile` | ✓ | ✓ | ✓ | – | Razorpay + bank-statement matching |
 | `finance.refund.approve` | – | ✓ | ✓ | – | Approve refund_disbursement; payout still human-executed |
-| `finance.govt_fee.view` | ✓ | ✓ | ✓ | ✓ | Regulatory/Certification get read on own rows |
+| `finance.govt_fee.view` | ✓ | ✓ | ✓ | ✓ | Regulatory gets read on own rows |
 | `finance.govt_fee.manage` | ✓ | ✓ | ✓ | – | Payer, recovery |
 | `finance.ledger.view` | ✓ | ✓ | ✓ | ✓ | Client statement scoped in portal |
 | `finance.expense.view` | ✓ | ✓ | ✓ | ✓ | |
@@ -493,7 +495,7 @@ Widgets are scoped by `org_id` so each legal entity's receivables/payables read 
 | Engagement profitability | project, fee billed, staff-time cost, govt-fee cost, vendor/lab cost, billable expenses, net margin | entity, project, period | CSV, PDF |
 | Refund register | credit note, party, amount, status, approved by, disbursed on | entity, status | CSV |
 
-All money-carrying reports are filterable and sub-totalled **per `org_id`** so the consultancy and certification-body financials (P&L, receivables, cash-flow) stay separated, with an optional consolidated view for Directors.
+All money-carrying reports are filterable and sub-totalled **per `org_id`** so each legal entity's financials (P&L, receivables, cash-flow) stay separated, with an optional consolidated view for Directors.
 
 All exports route through `finance.report.export`; every export writes an `audit_log` line (who/when/scope) — no PII in URLs.
 
@@ -555,7 +557,7 @@ Scheduled = pg_cron → Edge Function (gated by settings); event = DB trigger �
 | **GST portal (GSTR-1)** | Statutory return | **Export only** — JSON/CSV in portal-compatible shape; no direct API filing |
 | **CA tool (Tally / Zoho Books)** | Statutory filing, book keeping handoff | **Export** in richer shapes than CSV: **Tally-compatible XML** (`<ENVELOPE>` vouchers + masters — ledgers, parties, tax classes) and/or **Zoho Books API** payloads (invoices, credit notes, payments, contacts). This module is source data, not the filer. |
 | **Bank** | Receipts, refunds, vendor payouts, reconciliation | Per `bank_accounts` row; **statement import (CSV/statement)** matched against receipts/payments. No bank API and **no transfers initiated** — all payouts/refunds executed by humans. |
-| **Sales / Operations / Regulatory / Certification** | Proforma seed, govt-fee origin, project rollup | internal via each module's `index.ts` public API + shared events, never internals |
+| **Sales / Operations / Regulatory** | Proforma seed, govt-fee origin, project rollup | internal via each module's `index.ts` public API + shared events, never internals |
 | **Vendor Portal / Customer Portal** | Vendor bills in; client invoice/receipt views out | scoped RLS by `vendor_id` / `party_id` |
 
 ```mermaid
@@ -617,7 +619,7 @@ flowchart LR
 ## 12. Future scalability
 
 - **10× volume.** Invoices/ledger_entries partition candidates by `org_id` + FY; ageing served from a materialized view refreshed by cron. Query keys already scoped per entity/period. Ledger append-only → cheap to index on `(account_id, posted_on)` and `(party_id, posted_on)`.
-- **Multi-entity → multi-tenant.** The single Core `organizations` table already separates the two TPS legal entities, and every finance table carries `org_id` + per-entity numbering series; the model generalizes to N entities without schema change. A future true multi-tenant split would add a `tenant_id` and expand RLS — the `org_id` boundary is the seam.
+- **Multi-entity → multi-tenant.** The single Core `organizations` table already separates TPS's legal entity(ies), and every finance table carries `org_id` + per-entity numbering series; the model generalizes to N entities without schema change. A future true multi-tenant split would add a `tenant_id` and expand RLS — the `org_id` boundary is the seam.
 - **Full accrual/close.** Period lock (`accounting_periods`) ships in v1; the light double-entry can grow into a fuller GL (trial balance, opening balances, a per-entry lock flag) without disturbing invoicing/payments.
 - **Statutory API filing.** GSTR-1/TDS is export-only today (IRN e-invoicing is already live via the IRP adapter); a GSTR-1 filer adapter (GSP API) can be added behind the same export functions when compliance/appetite allows.
 - **Performance.** PDF/IRN registration and exports are Edge-Function/async so heavy months don't block UI; Razorpay reconciliation is batched. Integer `bigint` paise avoids float rounding and gives headroom well beyond ~92,00,00,00,00,00,00,000 (no practical ceiling per line).
@@ -653,7 +655,7 @@ flowchart TB
   subgraph OTHERS[Other modules - via index.ts]
     SALES[Sales]
     OPS[Operations]
-    REG[Regulatory/Certification]
+    REG[Regulatory]
     VP[Vendor Portal]
     CP[Customer Portal]
   end
@@ -690,7 +692,7 @@ flowchart TB
 
 ---
 
-**Cross-module dependencies:** Administration/Core (single `organizations` legal-entity master via `org_id` FK + the Core invoice-numbering service), Sales (proforma seed from won deal/quotation), Operations (project `quoted_amount/paid_amount/payment_status` rollup — expand-contract), Regulatory & Certification (origin of govt-fee pass-throughs), Vendor Portal (vendor bills/AP), Customer Portal (scoped invoice/receipt/ledger reads + `payment_orders.refunded` on refund), Core (access, notifications, files, ui). External: Razorpay (live), IRP NIC/GSP (e-invoicing), ZeptoMail, WhatsApp BSP, Drive/Storage.
+**Cross-module dependencies:** Administration/Core (single `organizations` legal-entity master via `org_id` FK + the Core invoice-numbering service), Sales (proforma seed from won deal/quotation), Operations (project `quoted_amount/paid_amount/payment_status` rollup — expand-contract), Regulatory (origin of govt-fee pass-throughs), Vendor Portal (vendor bills/AP), Customer Portal (scoped invoice/receipt/ledger reads + `payment_orders.refunded` on refund), Core (access, notifications, files, ui). External: Razorpay (live), IRP NIC/GSP (e-invoicing), ZeptoMail, WhatsApp BSP, Drive/Storage.
 
 ---
 

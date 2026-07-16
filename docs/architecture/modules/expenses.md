@@ -2,24 +2,26 @@
 
 **Module key:** `expenses`
 **Anchor entities:** Expense claim, Travel request, Advance, Reimbursement
-**Primary users:** Executives (field), Auditors (CB travel), Managers/HODs, Accounts, Directors
+**Primary users:** Executives (field), Managers/HODs, Accounts, Directors
 **Status:** Design (Phase D). Follows `00_ENTERPRISE_ARCHITECTURE.md` §6 template verbatim.
 **Money:** All amounts stored as **`bigint` paise** (₹1 = 100 paise), matching existing `payments`/`projects`. `formatRupees` renders. Timezone `Asia/Kolkata` (IST).
 
-> Grounding: TPS runs two operating realities that generate travel and out-of-pocket spend. (1) **Consultancy field executives** do geofenced FSSAI/nutraceutical site visits around Punjab/tri-city and beyond. (2) **Certification-body (CB) auditors** travel across India for Stage 1 / Stage 2 / surveillance audits — much of that travel is **client-billable pass-through** contracted into the audit engagement. This module closes a **validated major gap**: today reimbursements and auditor travel are tracked on WhatsApp/Excel. HRMS explicitly excludes reimbursements; Finance books only vendor bills. T&E owns the employee-facing claim/advance/approval surface and hands **money movement to Finance** (human-executed) and **billable cost to the engagement** (Operations/Certification profitability).
+> **Scope v2.0:** Expenses & Travel is a **shared sub-domain of HRMS + Finance**, not a standalone top-level module. Employee-facing claims/travel = HRMS; reimbursement/GL/on-billing = Finance.
+
+> Grounding: **Consultancy field executives** do geofenced FSSAI/nutraceutical site visits around Punjab/tri-city and beyond, generating travel and out-of-pocket spend — some of it **client-billable pass-through** attributable to a specific project engagement. This module closes a **validated major gap**: today reimbursements are tracked on WhatsApp/Excel. HRMS explicitly excludes reimbursements; Finance books only vendor bills. T&E owns the employee-facing claim/advance/approval surface and hands **money movement to Finance** (human-executed) and **billable cost to the engagement** (Operations profitability).
 
 ---
 
 ## 1. Purpose & scope
 
-**Business capability.** The system of record for what employees spend and what it costs to send them somewhere: expense claims (categorised, receipt-backed, per-diem, mileage for field visits), travel requests and cash advances (especially CB-auditor travel tied to a specific audit), a manager/HOD → accounts approval chain, reimbursement handoff to Finance for disbursement, **billable-to-client pass-through** so recoverable spend flows into engagement cost and can be on-billed, and the policy/GST layer (category limits, GST input-tax-credit capture where the receipt is a valid tax invoice).
+**Business capability.** The system of record for what employees spend and what it costs to send them somewhere: expense claims (categorised, receipt-backed, per-diem, mileage for field visits), travel requests and cash advances (tied to a specific project trip), a manager/HOD → accounts approval chain, reimbursement handoff to Finance for disbursement, **billable-to-client pass-through** so recoverable spend flows into engagement cost and can be on-billed, and the policy/GST layer (category limits, GST input-tax-credit capture where the receipt is a valid tax invoice).
 
 **Who uses it.**
 - **Executive / Auditor (claimant)** — self-service: raise travel requests, request advances, file expense claims with receipts, log mileage for field visits, track reimbursement status.
 - **Manager / HOD** — first-level approval of their team's travel requests, advances, and claims; policy-limit visibility; marks/confirms billable attribution.
 - **Accounts** — second-level review, policy/GST validation, advance settlement, prepares the reimbursement batch for **human** disbursement in Finance; reconciles advances against claims.
 - **Directors / super_admin** — policy configuration, high-value approval gate, org-wide T&E spend and billable-recovery reporting.
-- **Other modules** — Operations (project = cost object), Certification (audit engagement = cost object + auditor travel origin), Finance (reimbursement disbursement + billable on-bill), HRMS (employee master, HOD graph — read-only).
+- **Other modules** — Operations (project = cost object), Finance (reimbursement disbursement + billable on-bill), HRMS (employee master, HOD graph — read-only).
 
 **What it explicitly does NOT do.**
 - **Does not move money.** No auto-payout, bank transfer, or UPI initiated here. A reimbursement is *prepared and approved*, then **executed by a human** in the Finance/bank surface (per platform safety rules). T&E emits the payable; Finance disburses and books it.
@@ -36,7 +38,7 @@
 Three interlocking flows: **travel (plan → advance → trip)**, **claim (spend → approve → reimburse)**, and **billable pass-through (mark → attribute → on-bill via Finance)**.
 
 ### 2.1 Travel request & advance (pre-trip)
-1. Claimant raises a **travel request** (`travel_requests`): purpose, from/to, dates, mode (road/rail/air), estimated cost, and — for CB auditors — the **linked audit** (`certification_audit_id`) so the trip is provably tied to a billable engagement; for executives, the linked **project** (optional).
+1. Claimant raises a **travel request** (`travel_requests`): purpose, from/to, dates, mode (road/rail/air), estimated cost, and the linked **project** (optional) so a billable trip is provably tied to an engagement.
 2. Request routes to **HOD** (level 1). High estimate or air travel escalates to **Director** (level 2) per policy threshold.
 3. On approval, claimant may request a **cash/UPI advance** (`advances`) against the trip. Advance is approved by HOD/Accounts, then **disbursed by a human via Finance** (T&E records the advance as `disbursed` once Finance confirms — it never pays).
 4. Trip happens. Field visits captured against the request (mileage, per-diem days).
@@ -54,7 +56,7 @@ Three interlocking flows: **travel (plan → advance → trip)**, **claim (spend
 1. **HOD approves/rejects** (level 1) — sees policy flags, confirms billable attribution.
 2. **Accounts reviews** (level 2) — validates receipts, GST/ITC eligibility, **settles the advance** (claim total − advance = net reimbursable; if advance > claim, claimant **owes a recovery**), then marks the claim `approved`.
 3. Approved net reimbursable is packaged into a **reimbursement** (`reimbursements`) — a payable handed to **Finance**. Finance disburses (NEFT/UPI) **by a human** and confirms; T&E flips reimbursement → `paid`. **T&E itself never transfers funds.**
-4. **Billable lines** (independently of who is reimbursed) post to **engagement cost**: each billable line becomes an `engagement_cost` row keyed to its project/audit so Operations/Certification profitability sees it, and Finance can raise a reimbursement/on-bill line to the client (at actuals or agreed mark-up).
+4. **Billable lines** (independently of who is reimbursed) post to **engagement cost**: each billable line becomes an `engagement_cost` row keyed to its project so Operations profitability sees it, and Finance can raise a reimbursement/on-bill line to the client (at actuals or agreed mark-up).
 
 ```mermaid
 flowchart TD
@@ -88,9 +90,9 @@ flowchart TD
     S --> T[Human disburses in Finance -> mark paid]
   end
   subgraph Billable[Pass-through]
-    N -.billable lines.-> U[engagement_cost keyed to project/audit]
+    N -.billable lines.-> U[engagement_cost keyed to project]
     U --> V[Finance on-bill: reimbursement line at actuals / mark-up]
-    U --> W[Operations/Certification profitability]
+    U --> W[Operations profitability]
   end
 ```
 
@@ -141,7 +143,7 @@ stateDiagram-v2
 | `/expenses/claims/:id/mileage` | Mileage logger | claimant | Log km per field visit → mileage line |
 | `/expenses/claims/:id/per-diem` | Per-diem picker | claimant | Select eligible days/city-tier → per-diem line |
 | `/expenses/travel` | Travel requests | claimant, approvers | List trips + approval status |
-| `/expenses/travel/new` | Travel request editor | claimant | Purpose, route, dates, mode, link project/audit |
+| `/expenses/travel/new` | Travel request editor | claimant | Purpose, route, dates, mode, link project |
 | `/expenses/travel/:id` | Travel request detail | claimant, approvers | Estimate, approve/reject, request advance |
 | `/expenses/advances` | Advances register | claimant, accounts | Outstanding/settled advances |
 | `/expenses/advances/:id` | Advance detail | claimant, accounts | Disbursement + settlement against claim |
@@ -154,7 +156,7 @@ stateDiagram-v2
 
 ## 4. Database design
 
-Schema: `expenses` (logical). Every table: `bigint` money in **paise**, `created_at/updated_at`, `created_by`, **RLS on** using the existing `has_role()` / `auth_role()` pattern. Cost objects reference **Operations** (`project_id`) and **Certification** (`certification_audit_id`) by id (loose FK; the anchor tables own them). Reimbursement payables and billable cost are read by **Finance**.
+Schema: `expenses` (logical). Every table: `bigint` money in **paise**, `created_at/updated_at`, `created_by`, **RLS on** using the existing `has_role()` / `auth_role()` pattern. The cost object references **Operations** (`project_id`) by id (loose FK; the anchor table owns it). Reimbursement payables and billable cost are read by **Finance**.
 
 **New enums**
 - `expense_claim_status`: `draft, submitted, hod_approved, accounts_approved, approved, rejected, reimbursed, cancelled`.
@@ -170,8 +172,8 @@ Schema: `expenses` (logical). Every table: `bigint` money in **paise**, `created
 - New schema only — **no destructive change** to `payments`/`projects`. Money is `bigint` paise from day one (matches existing `payments.amount` convention), so no rupee↔paise migration is needed here.
 - New `notification_type` enum values are **appended** (never reordered/removed).
 - **Finance seam:** a reimbursement is exposed to Finance as an **outflow payable**; Finance may later add a nullable `source_type='reimbursement'` / `source_id` on its `ledger_entries` (its own expand-contract) — T&E does not write Finance tables.
-- **Billable seam:** `engagement_cost` is the single additive contract Operations/Certification/Finance read for profitability; adding it does not touch their existing columns.
-- Cost-object columns (`project_id`, `certification_audit_id`) are **nullable** — an internal (non-billable, non-project) expense is valid.
+- **Billable seam:** `engagement_cost` is the single additive contract Operations/Finance read for profitability; adding it does not touch their existing columns.
+- Cost-object column (`project_id`) is **nullable** — an internal (non-billable, non-project) expense is valid.
 
 ```mermaid
 erDiagram
@@ -235,7 +237,6 @@ erDiagram
     travel_mode mode
     bigint estimated_cost_paise
     uuid project_id "nullable -> Operations"
-    uuid certification_audit_id "nullable -> Certification"
     travel_request_status status
     uuid hod_approver FK
     uuid director_approver FK
@@ -279,7 +280,6 @@ erDiagram
     text receipt_drive_file_id "nullable"
     boolean billable
     uuid project_id "nullable cost object"
-    uuid certification_audit_id "nullable cost object"
     text policy_flag "nullable warn note"
   }
   mileage_logs {
@@ -321,7 +321,6 @@ erDiagram
     uuid source_type "expense_line"
     uuid source_id FK "expense_lines.id"
     uuid project_id "nullable"
-    uuid certification_audit_id "nullable"
     uuid party_id "client for on-bill"
     bigint amount_paise
     boolean recovered "on-billed via Finance"
@@ -340,7 +339,7 @@ erDiagram
 | `expense_lines`, `mileage_logs` | follows parent claim | self while claim `draft/rejected`; locked once `submitted` (edits via new revision) |
 | `claim_approvals` | own subject OR approver OR `accounts/director` | inserted only by decision RPC (SECURITY DEFINER) |
 | `reimbursements` | own OR `accounts/director/super_admin` | created/updated by `accounts` RPC; `paid` set only on Finance confirmation |
-| `engagement_cost` | `accounts/director` + originating Operations/Certification read own project/audit rows | written only by SECURITY DEFINER on billable approval; `recovered`/`recovery_invoice_id` set by Finance |
+| `engagement_cost` | `accounts/director` + originating Operations read own project rows | written only by SECURITY DEFINER on billable approval; `recovered`/`recovery_invoice_id` set by Finance |
 
 ---
 
@@ -361,7 +360,7 @@ Module `api/*` are thin typed Supabase wrappers; hooks wrap them in React Query 
 | `listApprovalQueue(scope)` | claim/travel/advance | mixed queue | `expenses.*.approve` |
 | `getRateTables(asOf)` | date | per-diem + mileage rates | any authenticated |
 | `listReimbursements(filter)` | status, period | `Reimbursement[]` | `expenses.reimbursement.view` |
-| `getEngagementSpend(costObject)` | project/audit id | billable spend rollup | `expenses.report.view` + owning module |
+| `getEngagementSpend(costObject)` | project id | billable spend rollup | `expenses.report.view` + owning module |
 
 **RPCs / Edge Functions (authoritative)**
 
@@ -432,7 +431,7 @@ T&E dashboard (`/expenses`) widgets and sources:
 | Travel in progress | Approved trips with dates spanning today | `travel_requests` |
 | Reimbursements to disburse | Count/amount `pending`/`queued` for Finance | `reimbursements` |
 
-Directors/accounts additionally see **T&E spend vs budget** and **billable recovery rate** (recovered ÷ billable). Self-service view (executive/auditor) is scoped to own claims, advances, and reimbursement status.
+Directors/accounts additionally see **T&E spend vs budget** and **billable recovery rate** (recovered ÷ billable). Self-service view (field executive) is scoped to own claims, advances, and reimbursement status.
 
 ---
 
@@ -444,11 +443,10 @@ Directors/accounts additionally see **T&E spend vs budget** and **billable recov
 | Category spend analysis | category, count, total, avg, over-limit count | period, department, category | XLSX |
 | Advances outstanding | employee, advance, disbursed, settled, balance, age | status, employee | CSV, PDF |
 | Reimbursement batch | claimant, claim, net, pay mode, paid_on, Finance ref | period, status | CSV |
-| Billable recovery (T&E) | project/audit, party, billable spend, recovered, outstanding | cost object, recovered | CSV, PDF |
+| Billable recovery (T&E) | project, party, billable spend, recovered, outstanding | cost object, recovered | CSV, PDF |
 | Per-diem & mileage | employee, days/km, rate, computed, trip | period, employee | CSV |
 | GST / ITC on expenses | line, GSTIN, gross, GST, ITC-eligible | period, eligibility | CSV |
 | Travel requests log | request, route, mode, estimate, actual (claim), variance | period, mode, status | XLSX |
-| Auditor travel by engagement | audit, auditor, travel cost, billable, recovered | audit, period | PDF |
 | Policy exceptions | claim, line, category, limit, breach, action | period, action | CSV |
 
 Exports go through `core/files` / `expenses.report.export`; heavy exports run as Edge Functions; every export writes an `audit_log` line (who/when/scope) — no PII in URLs.
@@ -505,7 +503,6 @@ Scheduled = `pg_cron` → Edge Function (gated by settings); event = DB trigger 
 |---|---|---|
 | **Finance & Accounts module** | internal public API (`financeModule` index) | Reimbursement = **outflow payable** Finance disburses (human) + books; billable `engagement_cost` → reimbursement/on-bill line at actuals or mark-up; GST ITC on expenses feeds Finance input-credit. **T&E never pays.** |
 | **Operations module** | `operationsModule` index | `project_id` cost object; billable spend feeds project profitability |
-| **Certification module** | `certificationModule` index | `certification_audit_id` cost object; auditor travel tied to Stage 1/2/surveillance audit for on-billing |
 | **HRMS module** | `hrmsModule` index (read-only) | Employee master, grade (per-diem/mileage tier), department/`hod_email` (approval graph). **No payroll coupling** — reimbursements never enter payslips |
 | **Attendance (existing)** | reference id `visit_ref` | Field-visit location/mileage origin; geofence engine reused, not re-implemented |
 | **ZeptoMail** | `core/notifications` email dispatch | Claim/travel/advance/reimbursement emails |
@@ -521,8 +518,8 @@ Boundary rule: T&E calls Core services or another module's `index.ts` only — n
 
 ## 12. Future scalability
 
-- **10× claims/travel (500+ staff, many auditors):** partition `expense_lines`/`mileage_logs` by month; index `expense_claims(claimant_id, status)`, `engagement_cost(project_id)`, `engagement_cost(certification_audit_id)`, `advances(status, claimant_id)`. Claim-PDF and export generation are Edge-Function/async so heavy months never block UI.
-- **Multi-entity:** TPS Xperts Group (consultancy) and TPS Global Certification are separate legal employers/billers. Add nullable `legal_entity_id` (expand) to `expense_claims`, `advances`, `reimbursements`, `engagement_cost` so reimbursements are disbursed per entity and billable recovery is on-billed by the correct Finance `legal_entities` seller — matches HRMS/Finance multi-entity seam.
+- **10× claims/travel (500+ staff):** partition `expense_lines`/`mileage_logs` by month; index `expense_claims(claimant_id, status)`, `engagement_cost(project_id)`, `advances(status, claimant_id)`. Claim-PDF and export generation are Edge-Function/async so heavy months never block UI.
+- **Multi-entity:** should a second legal employer/biller be added later, add nullable `legal_entity_id` (expand) to `expense_claims`, `advances`, `reimbursements`, `engagement_cost` so reimbursements are disbursed per entity and billable recovery is on-billed by the correct Finance `legal_entities` seller — matches HRMS/Finance multi-entity seam.
 - **Configurable policy engine:** per-diem/mileage/limit rates already live in versioned effective-dated tables (`per_diem_rates`, `mileage_rates`, `policy_limits`) — rate/policy changes are **data, not code**. A future rules DSL (e.g. "air only ≥ 500 km") slots behind the same `expenses_submit_claim` validation hook.
 - **Receipt OCR / auto-categorise:** an Edge Function can pre-fill `expense_lines` (amount, GSTIN, category) from a receipt image via `core/files`; the module surface is unchanged.
 - **Corporate cards / travel-desk feed:** a future adapter can ingest card statements or a TMV booking feed as draft lines/advances behind the same claim model.
@@ -570,7 +567,6 @@ flowchart LR
   subgraph Others[Other modules - via index.ts]
     FIN[[Finance - disburse + on-bill]]
     OPS[Operations - project cost]
-    CERT[Certification - audit travel]
     HR[HRMS - master/grade/HOD - read]
   end
 
@@ -592,11 +588,17 @@ flowchart LR
   EF1 --> FILES --> GD
   NOTF --> ZM & WA
   T4 -->|reimbursement payable| FIN
-  T5 -->|billable cost| FIN & OPS & CERT
+  T5 -->|billable cost| FIN & OPS
   API --> HR
   UI --> UIK
 ```
 
 ---
 
-**Cross-module dependencies:** **Finance & Accounts** (disburses reimbursements — human-executed — and on-bills billable `engagement_cost`; receives GST/ITC on expenses; T&E never moves money), **Operations** (`project_id` cost object for field-executive spend + profitability), **Certification** (`certification_audit_id` cost object tying CB-auditor travel to a billable engagement), **HRMS** (read-only: employee master, grade for per-diem/mileage tier, `hod_email`/department for the approval graph — no payroll coupling; reimbursements never enter payslips), and **Core** (access, notifications, files, ui). Attendance is referenced loosely (`visit_ref`) for field-visit mileage origin.
+**Cross-module dependencies:** **Finance & Accounts** (disburses reimbursements — human-executed — and on-bills billable `engagement_cost`; receives GST/ITC on expenses; T&E never moves money), **Operations** (`project_id` cost object for field-executive spend + profitability), **HRMS** (read-only: employee master, grade for per-diem/mileage tier, `hod_email`/department for the approval graph — no payroll coupling; reimbursements never enter payslips), and **Core** (access, notifications, files, ui). Attendance is referenced loosely (`visit_ref`) for field-visit mileage origin.
+
+---
+
+## Changelog
+
+- **Scope v2.0** — reframed Expenses & Travel as a **shared HRMS + Finance sub-domain** (not a standalone top-level module) via a prominent top note. Removed the `certification_audit_id` travel/cost-object linkage and all certification-body / CB-auditor references (grounding, users, schema columns in `travel_requests`/`expense_lines`/`engagement_cost`, RLS row, "Auditor travel by engagement" report, Certification integration, diagram node). Retained the Operations `project_id` cost object and the billable pass-through.

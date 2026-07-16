@@ -9,7 +9,7 @@
 
 ## 1. Purpose & scope
 
-**Business capability.** Reports & Analytics is the single cross-module reporting and business-intelligence surface for the TPS Enterprise Platform. It reads from every other module (Operations, Sales, CRM, Finance, HRMS, Regulatory, Certification, …) through a governed layer of **RLS-aware analytics views**, and turns that data into: operational reports, an executive KPI cockpit, a self-service report builder, scheduled deliveries, and exports (Excel/PDF/CSV).
+**Business capability.** Reports & Analytics is the single cross-module reporting and business-intelligence surface for the TPS Enterprise Platform. It reads from every other module (Operations, Sales, CRM, Finance, HRMS, Regulatory, …) through a governed layer of **RLS-aware analytics views**, and turns that data into: operational reports, an executive KPI cockpit, a self-service report builder, scheduled deliveries, and exports (Excel/PDF/CSV).
 
 **Who uses it.**
 - **Directors** — executive cockpit, cross-module KPIs, trends, board-style summaries.
@@ -143,7 +143,6 @@ These are the governed reporting surface. Existing objects are **reused**; new o
 | `v_report_finance_receivables` | invoices, payments, govt-fees | Outstanding, ageing buckets, collections |
 | `v_report_hrms_attendance` | attendance, leaves | Present/absent/leave, hours, per employee/period |
 | `v_report_regulatory_renewals` | licences, compliance | Renewals due, days-to-expiry buckets |
-| `v_report_certification_cycle` | applications, audits, NCs | Audit-cycle stage, NC ageing (open days) |
 | `mv_kpi_daily` | the `v_report_*` views | Materialized daily rollups powering cockpit tiles/trends |
 | `mv_finance_receivables_ageing` | `v_report_finance_receivables` | Pre-aggregated ageing for fast dashboards |
 
@@ -282,7 +281,6 @@ Namespace: `reports.<entity>.<action>`. Registered via `modules/reports/permissi
 | `reports.crm.view` | Referrals, client/lead reports | super_admin, director, manager |
 | `reports.hrms.view` | Attendance/leave analytics | super_admin, director, hr |
 | `reports.regulatory.view` | Renewals/compliance | super_admin, director, manager |
-| `reports.certification.view` | Audit cycle / NC ageing | super_admin, director, auditor |
 | `reports.builder.use` | Create/save personal reports | super_admin, director, manager |
 | `reports.builder.manage_all` | Edit/delete any saved report | super_admin, director |
 | `reports.schedule.manage` | Create/manage schedules & deliveries | super_admin, director, manager |
@@ -307,7 +305,6 @@ The module both **provides** the platform's cross-module dashboards and **has** 
 | Sales pipeline value & conversion | open value, win-rate | `v_report_sales_pipeline` |
 | Attendance rate | present/expected | `v_report_hrms_attendance` |
 | Renewals due (30/60/90) | licences expiring | `v_report_regulatory_renewals` |
-| Open NCs & ageing | certification NCs by age | `v_report_certification_cycle` |
 | KPI trend sparklines | any KPI over time | `kpi_snapshots` via `rpc_kpi_series` |
 
 **Module self-dashboard** (on Reports Home): scheduled-report health (last-run status, failures), most-used reports, delivery success rate — from `report_deliveries` + `report_access_log`.
@@ -332,7 +329,6 @@ Built-in report pack (the V1 tabs, now formalized) plus builder-defined reports.
 | Receivables Ageing | client, 0-30/31-60/61-90/90+ buckets | as-of date, client | xlsx, pdf |
 | Attendance & Leave | employee, present/absent/leave, hours | month, employee | xlsx, csv |
 | Renewals & Compliance | licence, client, expiry, days-left bucket | horizon (30/60/90) | xlsx, csv |
-| Certification Cycle / NC Ageing | application, audit stage, open NCs, age | date range, auditor | xlsx, csv |
 | *Saved (builder) reports* | user-defined | user-defined | xlsx, csv, pdf |
 
 **Export formats.** Excel/CSV via the existing `xlsx` (^0.18.5) dependency, client-side for on-demand runs. PDF via a print-to-PDF/HTML-render path in `reports-run` for scheduled deliveries (server-side) and a lightweight client PDF for on-screen export. All exports carry a header (report name, filters, generated-by, timestamp) for auditability.
@@ -389,7 +385,7 @@ Cross-module code dependency stays within Enterprise rules: the module reads dat
 - **10× data volume.** On-demand reports move from raw views to reading `mv_*` rollups; add time-partitioning on high-volume source tables (attendance, stage events) and BRIN indexes on date columns. `kpi_snapshots` is naturally append-only and partitions by month.
 - **Refresh cost.** `REFRESH … CONCURRENTLY` keeps the cockpit online during refresh; if refresh windows grow, move to incremental rollups (per-day upserts into `mv_kpi_daily`) instead of full refresh.
 - **Report builder scale.** Whitelisted reporting entities keep query cost bounded; add per-entity statement timeouts and a max-rows guard; long exports run through `reports-run` (async) rather than the request path.
-- **Multi-entity / tenant.** TPS Xperts (consultancy) and TPS Global Certification (CB) are distinct legal entities; a future `org_id` column on source tables flows automatically into `v_report_*` views and RLS, so reports become org-scoped with no report-layer rewrite. Cockpit gains an org switcher.
+- **Multi-entity / tenant.** If a second legal entity or business unit is later added, a future `org_id` column on source tables flows automatically into `v_report_*` views and RLS, so reports become org-scoped with no report-layer rewrite. Cockpit gains an org switcher.
 - **Delivery volume.** Schedule sweeper + queue pattern scales horizontally; delivery history partitioned by month; dedupe identical renders across recipients.
 - **Advanced analytics.** Basic trend/forecast (moving average, linear projection) lives in `rpc_kpi_series`; a heavier forecasting/anomaly layer can later run as a separate Edge Function writing back into `kpi_snapshots` without touching the read path.
 
@@ -419,7 +415,7 @@ flowchart LR
     Views[["v_report_* (security_invoker) + v_stage_timeline"]]
     Matviews[["mv_kpi_daily / mv_finance_receivables_ageing"]]
     RPCs[["rpc_ontime_report / rpc_stage_performance / rpc_employee_* / rpc_project_timeline / rpc_kpi_series / rpc_run_saved_report"]]
-    Src[(Source module tables: operations, sales, crm, finance, hrms, regulatory, certification)]
+    Src[(Source module tables: operations, sales, crm, finance, hrms, regulatory)]
   end
 
   subgraph Edge["Edge Functions (pg_cron)"]
@@ -456,3 +452,9 @@ flowchart LR
 ```
 
 **Summary of the read-only pattern:** module tables hold only metadata; all business data is read through `security_invoker` views (`v_report_*`, `v_stage_timeline`) and existing `rpc_*` functions, so every report is automatically RLS-scoped to the caller; materialized views are reached only via permission-checked `security definer` RPCs; delivery and export go through `core/notifications` and `core/files`. No source-of-truth data is ever duplicated.
+
+---
+
+## Changelog
+
+- **Scope v2.0** — removed certification reporting (the `v_report_certification_cycle` view, `reports.certification.view` permission, the "Open NCs & ageing" cockpit widget, the "Certification Cycle / NC Ageing" report, and Certification from the source-module list). Multi-entity note de-named the Certification Body.

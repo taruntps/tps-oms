@@ -26,7 +26,7 @@ The Regulatory module is the system of record for a client's **FSSAI regulatory 
 **Explicitly NOT in scope (owned elsewhere)**
 - Project workflow, stages, three-clock timing, block requests → **Operations**.
 - Invoices, government-fee accounting, payments → **Finance & Accounts** (Regulatory *emits* a fee obligation; Finance records the transaction).
-- ISO/NABCB certification audits, NCs, scopes → **Certification**.
+- ISO/NABCB certification audits are out of scope (a separate platform).
 - Document storage mechanics and Drive sync → **core/files** + **Document Management** (Regulatory references documents, does not own the bucket).
 - Client master, contacts, referrals → **CRM** (Regulatory reads `clients`).
 - Legal/authoritative interpretation — the module encodes rule *checks*, not legal advice; a human regulatory reviewer signs off.
@@ -41,7 +41,7 @@ The Regulatory module is the system of record for a client's **FSSAI regulatory 
 2. **Preparation.** Assemble Form A (Registration) or Form B (State/Central) supporting set: constitution proof, KYC, layout plan, list of directors, water test report, FSMS plan (State/Central), NOCs. SOI and product list are drafted/attached (§2.3).
 3. **Submission on FoSCoS.** Executive logs into FoSCoS using vault credentials (`reveal_fssai_credential`), submits, records the **Application Reference Number (ARN)**. Licence → `submitted`; a fee obligation is emitted to Finance.
 4. **Authority processing.** Department may raise a **query/deficiency** (§2.2). On clearance and (for State/Central) inspection, the licence is **granted**: capture `license_number`, `issue_date`, `expiry_date` (1–5 years as chosen). Licence → `active`.
-   - **Rejection → appeal → re-file.** If the authority **rejects** the application (unmet query, ineligibility, adverse inspection), the licence goes `rejected` with a captured reason. Two branches follow: (a) **appeal** to the Designated/Appellate Officer within the statutory window — licence → `appealed`, tracked with its own due clock and outcome (upheld → back to `active`/grant, dismissed → closes); or (b) **re-application** — a fresh application is filed, chained via `parent_license_id` to the rejected record for history. Mirrors the appeals model in `certification.md`.
+   - **Rejection → appeal → re-file.** If the authority **rejects** the application (unmet query, ineligibility, adverse inspection), the licence goes `rejected` with a captured reason. Two branches follow: (a) **appeal** to the Designated/Appellate Officer within the statutory window — licence → `appealed`, tracked with its own due clock and outcome (upheld → back to `active`/grant, dismissed → closes); or (b) **re-application** — a fresh application is filed, chained via `parent_license_id` to the rejected record for history.
 5. **Maintenance.** Recurring obligations materialize on the compliance calendar (annual return, renewal window). Modifications (address, product, KOB, capacity) run the **modify** sub-flow; loss/closure runs **surrender**.
 6. **Renewal.** 180 days before expiry a renewal obligation opens; ≤ expiry = on-time, > expiry incurs ₹100/day late fee (allowed up to a grace window, else re-apply as fresh). On grant, a new expiry is set; the old licence version is archived.
 
@@ -637,7 +637,7 @@ Via `core/notifications` only; `notification_type` extended. Delivery gated by `
 
 All scheduled work gated by settings flags so staging stays sandboxed.
 
-**Government holiday calendar (working-day math).** SLA and window calculations (query `response_due`, renewal window, return/obligation due dates) must be computed on **working days** using a **shared gazetted-holiday calendar** (Core/Admin reference data — national + applicable state holidays + weekends), not raw calendar days. A due date that lands on a holiday/weekend rolls to the next working day, and amber/red SLA thresholds skip non-working days. The calendar is shared reference data so Certification and Operations SLA math stay consistent; it is not owned by Regulatory.
+**Government holiday calendar (working-day math).** SLA and window calculations (query `response_due`, renewal window, return/obligation due dates) must be computed on **working days** using a **shared gazetted-holiday calendar** (Core/Admin reference data — national + applicable state holidays + weekends), not raw calendar days. A due date that lands on a holiday/weekend rolls to the next working day, and amber/red SLA thresholds skip non-working days. The calendar is shared reference data so Operations SLA math stays consistent; it is not owned by Regulatory.
 
 ---
 
@@ -745,7 +745,9 @@ Incorporates validated architecture-review findings. Design-only; expand-contrac
 1. **Product approval & ingredient NOC service line** — added the distinct FSSAI product-approval / ingredient-NOC / novel-food workflow (§1.6, §2.4), entity `product_approval_applications` (+ `product_approval_status` enum, its own review loop reusing the query engine), screens `/regulatory/approvals[/:id]`, API `listApprovals/…/transitionApproval`, permissions `regulatory.approval.*`, dashboard/report/notification coverage.
 2. **Structured lab-result ingestion** — added `lab_results` + `lab_result_items` fed from the Vendor-Portal lab-test PO (`vendor_po_id`); `run_ingredient_check` now compares **tested** values and stamps `compliance_reviews.value_basis`/`lab_result_id`, so verdicts use NABL-tested numbers not manually keyed ones (§1.7, §2.5, §11 Vendor Portal).
 3. **Inspection visits + recall/adverse-event** — added `inspection_visits` and `recall_events` entities, workflow (§2.6), screens, permissions, dashboard/report/notification coverage.
-4. **Licence rejection → appeal → re-file** — added `rejected`/`appealed` lifecycle states, `rejection_reason`/`appeal_status`/`appeal_due_date` fields, the branch in §2.1 + flowchart, and `reject|appeal|refile` transitions (mirrors `certification.md` appeals).
+4. **Licence rejection → appeal → re-file** — added `rejected`/`appealed` lifecycle states, `rejection_reason`/`appeal_status`/`appeal_due_date` fields, the branch in §2.1 + flowchart, and `reject|appeal|refile` transitions.
 5. **Renewal → booked revenue automation (highest-ROI)** — the recurring renewal/return jobs now also auto-raise a **Sales opportunity + draft quotation** for the consulting fee (licence renewals; annual return **D-1 due 31 May**, half-yearly D-2), back-linked via `compliance_obligations.sales_opportunity_id`; cross-ref `sales.md` (§10, §11 Sales).
 6. **Government holiday calendar** — SLA / working-day math (query-response, renewal windows, return due dates) uses a shared gazetted-holiday calendar with next-working-day roll-over, not raw calendar days (§10).
 7. **Money = bigint paise** — government-fee columns (`compliance_obligations.govt_fee_paise`, `product_approval_applications.govt_fee_paise`) are `bigint` paise per the platform standard; they post to Finance in paise (§4.2).
+
+**Scope v2.0: residual Certification-Body references removed** — ISO/NABCB certification audits are out of scope (a separate platform); removed the `→ Certification` anti-scope pointer and the `certification.md` appeals cross-references (the appeals model stands on its own), and dropped "Certification and" from the shared SLA-calendar note. Appeal/re-file design itself unchanged.

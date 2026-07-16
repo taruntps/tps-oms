@@ -10,14 +10,14 @@
 
 ## 1. Purpose & scope
 
-**Business capability.** A conversational assistant embedded across the TPS Enterprise Platform that helps staff with (a) **regulatory Q&A** grounded in the Knowledge Base and regulatory reference corpus via RAG (FSSAI / FSSR 2011 / FSS Labelling & Display 2020 / ISO 17021 / NABCB), (b) **document drafting** (label-review notes, SOI notes, audit-report drafts, authority-query replies, client emails), (c) **tool-calling over platform modules** ("list projects due this week", "draft a renewal reminder for licence X") through a permission-gated tool layer, and (d) **SOI / label auto-check assist** that flags likely non-compliances for a human to confirm.
+**Business capability.** A conversational assistant embedded across the TPS Enterprise Platform that helps staff with (a) **regulatory Q&A** grounded in the Knowledge Base and regulatory reference corpus via RAG (FSSAI / FSSR 2011 / FSS Labelling & Display 2020), (b) **document drafting** (label-review notes, SOI notes, authority-query replies, client emails, FSSAI/consultancy documents), (c) **tool-calling over platform modules** ("list projects due this week", "draft a renewal reminder for licence X") through a permission-gated tool layer, and (d) **SOI / label auto-check assist** that flags likely non-compliances for a human to confirm.
 
 **Who uses it.** All internal roles (`super_admin`, `director`, `manager`, `executive`, `accounts`, `hr`, `auditor`). Each user's reach into platform data is bounded by their existing RLS/permissions — the assistant grants **no** new data access. Not exposed to external Customer/Vendor Portal users in this phase.
 
 **What it explicitly does NOT do.**
 - It does **not** give authoritative legal advice or a final regulatory determination. It drafts and cites; a qualified human signs off.
 - It does **not** bypass RLS, elevate privileges, or act as a service account when reading/writing business data. Tool reads/writes run as the caller.
-- It does **not** perform irreversible or money-moving actions autonomously (submit filings to FoSCoS, send emails/WhatsApp, delete records, issue certificates). It **drafts**; a human approves and executes through the owning module.
+- It does **not** perform irreversible or money-moving actions autonomously (submit filings to FoSCoS, send emails/WhatsApp, delete records). It **drafts**; a human approves and executes through the owning module.
 - It does **not** train or fine-tune models on TPS data; retrieval is at inference time only.
 - It is **not** the notifications engine, the document store, or the KB CMS — it consumes `core/notifications`, `core/files`, and the Knowledge Base module.
 
@@ -192,7 +192,7 @@ erDiagram
     text title
     text scope "shared | personal"
     uuid owner_id FK "null for shared"
-    text category "label_review | soi | audit | email | qa"
+    text category "label_review | soi | email | qa"
     text body "with {{variables}}"
     text default_model
     boolean published
@@ -376,7 +376,7 @@ All scheduled work follows the platform rule: pg_cron → Edge Function, gated b
 - **10× conversation/message volume.** `ai_messages`/`ai_tool_calls` are append-heavy → partition by month; keep hot index on `conversation_id`. Usage aggregates already materialized, so dashboards don't scan raw logs.
 - **Corpus growth (regulatory + KB at scale).** Switch `ivfflat` → `hnsw` for recall/latency; add metadata pre-filters (reg family, clause) before ANN; consider per-tenant/per-domain embedding namespaces. Re-embedding is checksum-gated so only changed chunks recompute.
 - **Cost control.** Per-user/role budgets, model routing (Haiku-first with Sonnet/Opus escalation), prompt caching for the large regulatory system prompt, and truncated tool-output storage. Budget-watch automation already in place.
-- **Multi-entity / multi-tenant.** The platform is single-tenant today; if TPS Xperts Group and TPS Global Certification later separate, add `entity_id` to `ai_*` tables + corpus visibility, and scope RLS by entity — expand-contract, no rewrite. Tool layer already inherits whatever entity-scoping the owning modules adopt because it queries through the caller's RLS.
+- **Multi-entity / multi-tenant.** The platform is single-tenant today; if a second legal entity or business unit is later added, add `entity_id` to `ai_*` tables + corpus visibility, and scope RLS by entity — expand-contract, no rewrite. Tool layer already inherits whatever entity-scoping the owning modules adopt because it queries through the caller's RLS.
 - **New tools.** Adding a module tool = register one `ai.<entity>.<action>` permission + a typed handler using the user-scoped client; the allowlist + double-gate pattern means no change to the security model.
 - **Streaming/latency.** SSE from `ai-chat`; retrieval and tool round-trips parallelised where independent. Long drafts fall back to async + `ai_draft_ready` notification.
 - **Model upgrades.** Model ids are data (`default_model`, `ai_usage_log.model`); adopting a newer Claude is a config change, not a schema migration.
@@ -454,3 +454,4 @@ flowchart LR
 - **KB embeddings de-duplicated (MAJOR).** The Knowledge Base module is now the **single owner of all article embeddings** (`kb_article_embeddings` + `kb_semantic_search`). The AI Assistant no longer defines a KB re-embedding pipeline; it retrieves KB chunks through KB's `semanticRetrieve` / `kb_semantic_search` and merges them with non-KB results at query time. `ai_documents` / `ai_embeddings` now hold **only the non-KB corpus** (raw regulatory documents not curated into KB). Updated §2 (flow A), §4 (ownership note, `ai_documents.source_kind`, RLS intent), §10 (indexer scoped to non-KB), §11 (KB integration), §13 (diagram).
 - **Structured document data-extraction added (MAJOR, highest-ROI AI).** New `ai-extract` Edge Function + `ai.extract.run` permission + `runExtraction` wrapper extract STRUCTURED fields (GSTIN/PAN/licence no./validity/composition/tested values) from client uploads (KYC, licences, label **images**, lab reports), working on top of Document Management OCR. Output is a **proposed** record that pre-fills CRM onboarding and feeds the Regulatory review engine after human approval. Added flow D (§2), API rows (§5), permission (§6), integrations (§11, incl. CRM #3 and Document Management #9), and diagram node (§13).
 - **Permission helper naming.** RLS text uses the canonical `has_perm(key[, scope])` helper (per `00_ENTERPRISE_ARCHITECTURE.md` §9); `has_permission(...)` is retired.
+- **Scope v2.0 — certification content removed.** Dropped certification-specific assists: NC root-cause / CAPA-adequacy and audit-report drafting for certification. Removed ISO 17021 / NABCB from the RAG corpus list, `audit-report drafts` from document drafting, and the `audit` prompt-template category. Retained regulatory Q&A, label/SOI check, FSSAI/consultancy document drafting, structured data-extraction, and KB-owned embeddings retrieval. Multi-entity note de-named the Certification Body (now a separate entity/platform).

@@ -27,6 +27,8 @@
 - Performance appraisals / OKRs → future HRMS phase 2 (schema leaves room; not designed here).
 - The raw geofence + face-match punch engine already lives in Core-adjacent attendance tables; HRMS **owns the HR-facing surface** (regularization, monthly muster, leave interplay) but reuses the existing `punch_attendance()` RPC unchanged.
 
+> **Expenses & Travel (T&E) sub-domain (Scope v2.0).** Employee **expense claims** and **travel requests** are part of the People domain and live **under HRMS**, with **reimbursement disbursement / GL posting / on-billing in Finance**. T&E is a **shared HRMS + Finance sub-domain — not a standalone top-level module**; see `expenses.md` for its design. HRMS owns the employee-facing claim/advance/approval surface (employee master, grade, HOD graph); Finance executes the money movement and books it. Per-diem and mileage reimbursements are **not** salary and never enter the payroll run.
+
 ---
 
 ## 2. Business workflow
@@ -540,7 +542,7 @@ Boundary rule: HRMS calls Core services or a module's `index.ts` only — it nev
 ## 12. Future scalability
 
 - **10× staff (500+):** partition `attendance_punches` by month; materialize `attendance_days` into a table refreshed nightly; index `payslips(run_id)`, `leave_requests(status, user_id)`. Payslip generation moves to batched/queued Edge Function invocation.
-- **Multi-entity:** TPS Xperts Group + TPS Global Certification are separate legal employers. Add nullable `legal_entity_id` (expand) to `salary_structures`, `payroll_runs`, `payslips`, `holidays`; PT/PF registers filed per entity. Single Supabase project, entity as a column (matches "modular monolith" principle) — full multi-tenant only if needed.
+- **Multi-entity:** should a second legal employer be added later, add nullable `legal_entity_id` (expand) to `salary_structures`, `payroll_runs`, `payslips`, `holidays`; PT/PF registers filed per entity. Single Supabase project, entity as a column (matches "modular monolith" principle) — full multi-tenant only if needed.
 - **State-wise PT / multi-office:** `holidays.office_id` and a `pt_slabs(state, from_amount, to_amount, amount)` reference table let payroll scale across states as field offices open.
 - **Configurable payroll engine:** move statutory rates (PF %, ESI ceiling, PT slabs, TDS regime) into a versioned `payroll_config` table so rule changes are data, not code.
 - **Performance module (phase 2):** appraisal cycles, goals — designed later; schema seams (`profiles`, `employee_details`) already isolate PII.
@@ -611,3 +613,9 @@ flowchart LR
 ---
 
 **Cross-module dependencies assumed:** **Finance & Accounts** (consumes the approved payroll register for salary disbursement + GL/statutory-liability posting — HRMS never pays), **Administration** (login/role provisioning + `app_settings`/`reminder_settings` gates), and **Core notifications** (ZeptoMail/WhatsApp dispatch). LMS is referenced only for training-record documents (loose coupling, not required for HRMS to function).
+
+---
+
+## Changelog
+
+- **Scope v2.0** — folded in **Expenses & Travel (T&E)** as a shared HRMS + Finance sub-domain (employee expense claims + travel requests under HRMS/People; reimbursement/GL/on-billing in Finance; references `expenses.md`), and confirmed T&E is not a standalone module. Multi-entity note de-named the Certification Body (separate legal entity / future platform). General staff competence and the FoSTaC/LMS training-record link are retained.

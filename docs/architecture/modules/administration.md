@@ -11,7 +11,7 @@
 
 ## 1. Purpose & scope
 
-**Business capability.** Administration is the platform's control plane. It owns *who can use the system, what they can do, how the two legal entities are configured, which external services are wired in, and the forensic record of security-relevant actions.* It is the only module allowed to mutate the identity, permission, settings, and integration surfaces that every other module depends on.
+**Business capability.** Administration is the platform's control plane. It owns *who can use the system, what they can do, how the organization (and any future branches) is configured, which external services are wired in, and the forensic record of security-relevant actions.* It is the only module allowed to mutate the identity, permission, settings, and integration surfaces that every other module depends on.
 
 **Who uses it.**
 - **Super Admin** — full control: user lifecycle, role/permission matrix, integration secrets, feature flags, retention policy, security event review.
@@ -21,7 +21,7 @@
 **In scope.**
 1. **User lifecycle** — invite (email magic-link), create-with-password (code-only staff), deactivate/reactivate, admin password reset, role assignment, employee-code management.
 2. **Roles & granular permissions** — the permission *registry* (all 15 modules' keys), a role → permission matrix, and per-user overrides (allow/deny on top of role).
-3. **Organization / entity settings** — the two legal entities (TPS Xperts Group — consultancy; TPS Xperts Global Certification — CB): legal name, GSTIN/PAN, addresses, invoice series, logo, signatories. `organizations` is **the single legal-entity master** for the whole platform (Finance's proposed `legal_entities` is retired and references this), and Administration hosts **the single Core numbering service** that owns every document series (invoice / receipt / deal / order / project / certificate).
+3. **Organization / entity settings** — the organization — TPS Xperts Group (consultancy) — and any future entities/branches: legal name, GSTIN/PAN, addresses, invoice series, logo, signatories. `organizations` is **the single legal-entity master** for the whole platform (Finance's proposed `legal_entities` is retired and references this), and Administration hosts **the single Core numbering service** that owns every document series (invoice / receipt / deal / order / project).
 4. **Integration configuration** — Razorpay, ZeptoMail, **SMS gateway (MSG91/Gupshup/Twilio)**, WhatsApp BSP (AiSensy), Google (Drive/Sheets), Anthropic. Secrets in **Vault**; non-secret config + enable toggles in `app_settings`/`integrations`.
 5. **Feature flags** — formalize the `*_enabled` toggles (e.g. `whatsapp_enabled`, `face_match_enabled`) into a typed, audited registry.
 6. **Audit log & security events** — a viewer over the append-only `audit_log`, plus `login_attempts` and `credential_access_log` (credential reveal / FSSAI portal access).
@@ -140,7 +140,7 @@ stateDiagram-v2
 | `/admin/users/:id/permissions` | Per-user overrides | Allow/deny specific keys on top of role | `admin.permission.assign` |
 | `/admin/roles` | Roles list | The 7 roles + descriptions | `admin.role.view` |
 | `/admin/roles/matrix` | **Permission matrix** | All 15 modules' keys × roles, togglable | `admin.permission.assign` |
-| `/admin/entities` | Entities list | Consultancy + CB | `admin.entity.view` |
+| `/admin/entities` | Entities list | Organization + future branches | `admin.entity.view` |
 | `/admin/entities/:id` | Entity detail | Legal/tax/invoice/signatory config | `admin.entity.edit` |
 | `/admin/integrations` | Integrations | Razorpay/ZeptoMail/WhatsApp/Google/Anthropic | `admin.integration.view` |
 | `/admin/integrations/:key` | Integration detail | Secret (Vault), config, test, toggle | `admin.integration.manage` |
@@ -183,7 +183,7 @@ erDiagram
 
   organizations {
     uuid id PK
-    text code "consultancy | cb"
+    text code "org | branch"
     text legal_name
     text trade_name
     text gstin
@@ -196,7 +196,7 @@ erDiagram
   org_number_series {
     uuid id PK
     uuid org_id FK
-    text doc_type "invoice|receipt|deal|order|project|certificate"
+    text doc_type "invoice|receipt|deal|order|project"
     text prefix
     int next_number
     int fiscal_year
@@ -379,7 +379,7 @@ erDiagram
 - **Data scope is a first-class dimension.** A boolean role×permission grant can't express *whose* rows a holder may touch, so **`role_permissions.scope`** and **`user_permission_overrides.scope`** carry `own | team | all`. `has_perm(key, scope)` consumes it; the admin matrix renders the **effective scope** per cell (not just a checkbox).
 - **`role_permissions`** is the base grant matrix (role × permission × scope). **`user_permission_overrides`** layers per-user `allow`/`deny` (also scoped) on top. Effective permission = role grant, then override wins (`deny` beats `allow` beats role); the tightest applicable scope wins.
 - **`delegations`** models a **time-boxed acting-manager** grant (`from_user → to_user`, optional `permission_key`, `scope`, `valid_from/valid_to`). Resolved inside `has_perm` so approvals don't stall when a HOD/director travels; every grant and every delegated authorization is audited.
-- **`org_number_series`** (generalized from the old invoice-only series) is the **single numbering owner** for all document series across the platform — invoice / receipt / deal / order / project / certificate — so no module mints its own sequence. `organizations` is the **single legal-entity master**; Finance's `legal_entities` is retired and FKs here.
+- **`org_number_series`** (generalized from the old invoice-only series) is the **single numbering owner** for all document series across the platform — invoice / receipt / deal / order / project — so no module mints its own sequence. `organizations` is the **single legal-entity master**; Finance's `legal_entities` is retired and FKs here.
 - **`notification_types` lookup replaces the platform-wide enum.** Rather than every module `ALTER`-ing a shared `notification_type` enum, types are rows in `notification_types` (key, label, default channels, owning module) — additive by insert, no migration churn.
 - **`consent_records` + `data_subject_requests`** back the DPDP sub-domain: consent register (purpose, lawful basis, granted/revoked timestamps) and the access/erasure/rectification request workflow, covering client PII and biometric face data.
 - **`profiles.org_id`** (new, nullable, additive) ties a user to one of the two entities. Existing granular flag columns (`can_be_assigned`, `can_assign`, `can_view_all_projects`, `report_permissions`) are retained; the permission registry *supersedes* them over time but they remain during coexistence (expand-contract; contract only after all RLS reads move to `has_perm()`).
@@ -501,13 +501,13 @@ Keys namespaced `admin.<entity>.<action>` (per the enterprise convention). Defau
 
 ✓ = granted by default · ▲ = grantable via per-user override (delegated HR account creation / consent handling), off by default.
 
-**Grants come from the grant model, not the enum.** A user's effective role set is the union of their `user_roles` rows (base + functional). Functional roles (e.g. `certification.lead_auditor`, `marketing.exec`, `lnd.instructor`, `procurement.officer`) inherit their `maps_to_base` floor and then carry finer permission grants. The columns above are the **base** roles; functional roles appear as additional matrix columns rendered from `roles` where `role_type = 'functional'`.
+**Grants come from the grant model, not the enum.** A user's effective role set is the union of their `user_roles` rows (base + functional). Functional roles (e.g. `regulatory.reviewer`, `marketing.exec`, `lnd.instructor`, `procurement.officer`) inherit their `maps_to_base` floor and then carry finer permission grants. The columns above are the **base** roles; functional roles appear as additional matrix columns rendered from `roles` where `role_type = 'functional'`.
 
 **Scope is shown, not just the checkbox.** Each granted cell also carries an effective **scope** (`own | team | all`) from `role_permissions.scope`; the matrix UI renders the scope chip beside the tick so an admin sees *whose* rows a role may act on, and `has_perm(key, scope)` enforces it in RLS.
 
 **Delegation (acting-manager).** `admin.delegation.manage` lets a HOD/director create a time-boxed `delegations` grant so approvals don't stall during travel. Delegated authority is resolved inside `has_perm` (bounded by `valid_from/valid_to` and `scope`), never widens beyond the delegator's own grants, and every delegated authorization is written to `audit_log`.
 
-**Two-entity scoping (optional `org_id` predicate).** Where impartiality requires separating the consultancy from the certification body, a policy may add an optional `org_id` predicate — `has_perm(key, scope) AND (org_id = auth_org_id() OR scope = 'all')` — so a holder's reach is confined to their own legal entity unless explicitly granted cross-entity `all`. This path is additive and off by default; it does not change `has_perm`'s core resolution.
+**Multi-entity scoping (optional `org_id` predicate).** Where an organization runs multiple entities/branches and needs to keep their data separated, a policy may add an optional `org_id` predicate — `has_perm(key, scope) AND (org_id = auth_org_id() OR scope = 'all')` — so a holder's reach is confined to their own entity/branch unless explicitly granted cross-entity `all`. This path is additive and off by default; it does not change `has_perm`'s core resolution.
 
 **RLS mapping.** Every admin mutation is guarded twice: `useCan('admin.x.y')` in the UI (affordance only) and `has_perm('admin.x.y')` / `has_role(...)` in the DB policy or RPC body (authoritative). The most dangerous actions (`admin.role.manage`, `admin.permission.assign`, `admin.integration.manage`, `admin.retention.manage`) are **super_admin-only regardless of override** — a hard floor in the RPC body, not just a matrix cell — to prevent privilege self-escalation.
 
@@ -521,7 +521,7 @@ flowchart LR
     P1[operations.project.*]
     P2[hrms.leave.*]
     P3[finance.invoice.*]
-    P4[certification.audit.*]
+    P4[regulatory.licence.*]
     Pn[...+ admin.*]
   end
   P1 & P2 & P3 & P4 & Pn --> REG[core/registry.ts\nMODULES.permissions]
@@ -736,4 +736,6 @@ Incorporates validated architecture-review findings (design-only; expand-contrac
 9. **DPDP Act 2023 sub-domain** — `consent_records` + `data_subject_requests`; `admin.privacy.manage` key + RPCs. (§1, §4, §6)
 10. **Audit volume** — `audit_log` partitioned by month + retention window; central-vs-module-local logging boundary. (§12)
 11. **SMS channel** — SMS gateway (MSG91/Gupshup/Twilio) added as a second live external channel for OTP + reminders. (§1, §9, §11)
-12. **Two-entity scoping** — optional `org_id` predicate path in `has_perm` for impartiality separation (consultancy vs CB). (§6, §12)
+12. **Two-entity scoping** — optional `org_id` predicate path in `has_perm` for multi-entity/branch scoping. (§6, §12)
+
+**Scope v2.0: residual Certification-Body references removed** — the Certification Body is out of the TPS Platform (separate entity/future platform); remaining CB references (two-entity naming, `certificate` numbering series, `certification.*` role/permission examples) generalized to the single organization + future branches. Internal read-only `auditor` role preserved.

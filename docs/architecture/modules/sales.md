@@ -11,10 +11,10 @@
 ## 1. Purpose & scope
 
 ### Business capability
-Sales owns the **money-getting pipeline** for TPS Xperts Group's regulatory-consulting and NABCB-certification services: turning a qualified CRM lead into a priced, approved, signed commercial commitment, then handing that commitment to Operations (to deliver the work) and Finance (to bill for it).
+Sales owns the **money-getting pipeline** for TPS Xperts Group's regulatory-consulting services: turning a qualified CRM lead into a priced, approved, signed commercial commitment, then handing that commitment to Operations (to deliver the work) and Finance (to bill for it).
 
 The commercial reality this module must model is **B2B regulatory-services quoting**, where every deal is a mix of:
-- **Consulting / professional fee** — TPS's own revenue (e.g. drafting an FSSAI licence application, running a certification audit). This is what Sales targets and incentives are measured on.
+- **Consulting / professional fee** — TPS's own revenue (e.g. drafting an FSSAI licence application, running an ISO 22000 gap assessment). This is what Sales targets and incentives are measured on.
 - **Government / pass-through fee** — statutory fees paid to FSSAI/FoSCoS or an accreditation body on the client's behalf. This is *not* TPS revenue; it must be quoted transparently, billed separately, and never counted toward margin, targets, or incentives.
 
 ### Who uses it
@@ -25,13 +25,12 @@ The commercial reality this module must model is **B2B regulatory-services quoti
 | `director` | Full oversight, pricing/catalogue governance, incentive sign-off. |
 | `accounts` | Read deal/order financials for invoicing reconciliation (no editing of deals). |
 | `super_admin` | Configuration and break-glass. |
-| `auditor` | Read-only (external ISO/NABCB audit trail). |
+| `auditor` | Read-only (internal compliance auditor). |
 
 ### Explicitly NOT in scope
 - **Lead capture / nurturing / contact management** → CRM module. Sales consumes a CRM `lead` + `client`; it does not create leads.
 - **Project execution, stages, tasks, deliverables** → Operations. Sales *creates* the project via a handoff contract, then lets go.
 - **Invoicing, payment collection, receipts, government-fee ledger** → Finance. Sales *creates* the invoice request via a handoff contract; it does not track payments.
-- **Certification audit execution, NC handling, certificate issuance** → Certification module. Sales only sells the audit (the commercial order); Certification runs it.
 - **Payroll disbursement of incentives** → HRMS/Payroll. Sales *computes* incentive amounts and marks them approved; Payroll pays them.
 
 ---
@@ -126,7 +125,7 @@ All tables live in the `public` schema, prefixed `sales_`, snake_case. Money sto
 ### Enums
 | Enum | Values |
 |---|---|
-| `sales_service_type` | `fssai_new`, `fssai_renewal`, `fssai_modification`, `annual_return`, `form_ii`, `artwork`, `claim_check`, `certification_audit`, `other` |
+| `sales_service_type` | `fssai_new`, `fssai_renewal`, `fssai_modification`, `annual_return`, `form_ii`, `artwork`, `claim_check`, `iso_consulting`, `other` |
 | `sales_fee_type` | `consulting`, `govt_pass_through` |
 | `sales_deal_stage` | `prospecting`, `qualification`, `quotation`, `negotiation`, `verbal_commit`, `won`, `lost`, `abandoned` |
 | `sales_quotation_status` | `draft`, `pending_approval`, `approved`, `sent`, `accepted`, `rejected`, `expired`, `superseded` |
@@ -382,7 +381,7 @@ Sales never calls email/WhatsApp/Drive directly — always through Core. Cross-m
 ## 12. Future scalability
 
 - **10× deal volume:** pipeline/forecast queries are the hot path — covered by indexes on `sales_deal(owner_id, stage, expected_close_date)` and materialized `sales_forecast_daily` refreshed by pg_cron if aggregation cost grows. Kanban paginates per column.
-- **Multi-entity (TPS Xperts Group + TPS Global Certification):** add nullable `business_unit`/`legal_entity_id` to `sales_deal`/`sales_order` (additive) so consulting deals and certification-audit deals report separately while sharing one pipeline. RLS extends with an entity-scope predicate.
+- **Multi-entity (single entity today, future branches):** add nullable `business_unit`/`legal_entity_id` to `sales_deal`/`sales_order` (additive) so deals from different business units or future branches report separately while sharing one pipeline. RLS extends with an entity-scope predicate.
 - **Multi-tenant (if productized):** the module is already schema- and RLS-isolated; a `tenant_id` column + tenant predicate on every RLS policy is the only structural change — no query rewrites.
 - **Catalogue/pricing growth:** versioned `sales_service_price` already supports unlimited history; add region/client-tier price lists as an additional dimension without touching existing rows.
 - **Approval complexity:** current threshold model can graduate to a rules table (`sales_approval_rule`) driving multi-step chains without changing quotation schema.

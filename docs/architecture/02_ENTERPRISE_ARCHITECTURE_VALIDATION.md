@@ -1,5 +1,14 @@
 # TPS Platform — Enterprise Architecture Validation Report
 
+> ## ⚠️ Scope amendment (v2.0) — read first
+> After this validation, the **TPS Platform V2 Constitution removed the Certification Body from scope**
+> (separate legal entity / separate future platform). The **"Management System / QMS"** module added in
+> §4 is therefore **OUT of scope**; the **"Expenses & Travel"** module is **folded into HRMS + Finance**
+> (not a standalone module). **Certification-related findings and the Wave-4 (Certification) row are
+> superseded.** Final scope = **Core + 15 feature modules**. Scores and all other findings below stand
+> as recorded; treat certification/QMS items as historical context only. Reserved Certification/QMS
+> docs live in `_reserved-certification-platform/`.
+
 **Reviewers:** 4 independent CTO/Enterprise-Architect passes (business completeness · technical/architecture · integrations-automation-AI · permissions-UX), each reading the Master Blueprint, Master Architecture, Portfolio, and all 15 module designs.
 **Method:** adversarial — each pass was tasked to *find gaps*, not to approve.
 **Outcome:** the architecture is sound; real gaps were found and are being remediated in the design docs (no code). Blueprint is **frozen v1.0 after remediation** (see §7).
@@ -56,10 +65,14 @@ These are errors or contradictions that must not survive into code:
 ## 4. Missing capability (design additions)
 
 ### New modules (full designs added)
-| Module | Why (validated gap) |
-|---|---|
-| **Expenses & Travel (T&E)** | Field visits + CB auditor travel are billable pass-through; HRMS excludes reimbursements, Finance books only vendor bills → no employee expense→approve→reimburse→bill-to-client chain. → `modules/expenses.md` |
-| **Management System (Internal QMS)** | ISO/IEC 17021-1 requires the CB to run its **own** management system (management review, internal audits, CAPA, impartiality/risk, NABCB self-assessment) — explicitly excluded from Certification. NABCB assesses exactly this. → `modules/management-system.md` |
+> **Scope v2.0:** the two entries below are amended — **Expenses & Travel is folded into HRMS + Finance**
+> (not a standalone module), and **Management System / QMS is out of scope** (Certification Body is a
+> separate future platform).
+
+| Module | Why (validated gap) | Scope v2.0 status |
+|---|---|---|
+| **Expenses & Travel (T&E)** | Field visits + auditor travel are billable pass-through; HRMS excludes reimbursements, Finance books only vendor bills → no employee expense→approve→reimburse→bill-to-client chain. | **Folded into HRMS + Finance** as a sub-domain (claim/travel in HRMS; payout/bill-to-client in Finance). Not standalone. |
+| ~~**Management System (Internal QMS)**~~ | ISO/IEC 17021-1 requires the CB to run its own management system (management review, internal audits, CAPA, impartiality/risk, NABCB self-assessment). | **REMOVED / out of scope** — belongs to the separate future Certification platform. |
 
 ### Extensions to existing modules (registered; applied at each module's wave)
 | Area | Addition | Target |
@@ -121,11 +134,11 @@ Unchanged in spirit; refined for the findings. **Each wave ships to staging firs
 
 - **Wave 1 — Governance & content (minimal cut):** Administration (roles/permissions **with data-scope + delegation + export**, settings, **SMS** channel, audit) · Document Management (core doc model; defer e-sign/OCR-AI) · Knowledge Base (articles/categories; defer semantic/embeddings to the AI wave) · **Core additions: unified `approvals` entity, one numbering service, one `organizations` master, one external-identity service.**
 - **Wave 2 — Revenue spine:** CRM (+ inbound WhatsApp) → Sales (+ contracts/renewal engine) → Finance (**bigint paise**, invoices+payments+allocations, **GST IRP e-invoice**, bank account, period lock, refund chain; defer full ledger).
-- **Wave 3 — Regulated delivery & people:** Regulatory (+ product-approval, lab-result ingestion, appeals, renewal→quotation automation) · HRMS (+ anomaly flags, exit-reassignment) · **Expenses & Travel (T&E).**
-- **Wave 4 — Certification body:** Certification (+ calendar/availability) · **Management System (Internal QMS).**
-- **Wave 5 — Growth & enablement:** Marketing · LMS · AI Assistant (RAG on KB's embeddings, **structured OCR extraction**, regulatory-update summarize) — needs `pgvector`+`pg_trgm` (DB change) + Anthropic key (approvals).
-- **Wave 6 — External surfaces:** Customer Portal · Vendor Portal (shared external-identity service; SMS OTP; upload-request nudges; intra-vendor roles).
-- **Wave 7 — Insight:** Reports & Analytics (fixed report pack + profitability + cash-flow + per-entity first; defer self-service builder).
+- **Wave 3 — Regulated delivery & people:** Regulatory (+ product-approval, lab-result ingestion, appeals, renewal→quotation automation) · HRMS (+ anomaly flags, exit-reassignment, **T&E claim/travel-request sub-domain**; approval→payout→bill-to-client lands in Finance).
+- **~~Wave 4 — Certification body~~ (REMOVED, Scope v2.0):** Certification and Management System / QMS are out of scope — the Certification Body is a separate future platform. Following waves are renumbered accordingly.
+- **Wave 4 — Growth & enablement:** Marketing · LMS · AI Assistant (RAG on KB's embeddings, **structured OCR extraction**, regulatory-update summarize) — needs `pgvector`+`pg_trgm` (DB change) + Anthropic key (approvals).
+- **Wave 5 — External surfaces:** Customer Portal · Vendor Portal (shared external-identity service; SMS OTP; upload-request nudges; intra-vendor roles).
+- **Wave 6 — Insight:** Reports & Analytics (fixed report pack + profitability + cash-flow + per-entity first; defer self-service builder).
 
 **Precondition before Wave 2 contract steps:** complete R1 (reconcile prod baseline).
 

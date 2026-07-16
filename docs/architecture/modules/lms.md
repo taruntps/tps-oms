@@ -2,8 +2,10 @@
 
 **Module key:** `lms`
 **Anchor entities:** Course, Lesson, Enrolment, Quiz, Attempt, Certificate
-**Primary users:** HR (internal training & onboarding), Regulatory/Certification leads (competence owners), Instructors, all internal staff (learners), external client learners (via Customer Portal)
+**Primary users:** HR (internal training & onboarding), Regulatory leads (competence owners), Instructors, all internal staff (learners), external client learners (via Customer Portal)
 **Status:** Design (Phase D) — follows `00_ENTERPRISE_ARCHITECTURE.md` §6 template. No code until approved.
+
+> **Scope v2.0: Certification-Body references removed (separate platform).**
 
 ---
 
@@ -11,7 +13,7 @@
 
 The LMS is TPS's single system for **delivering, tracking, assessing, and certifying training** — for two distinct audiences whose needs happen to share the same engine:
 
-- **Internal staff learning** — new-hire onboarding paths, ISO auditor competence development (ISO/IEC 17021-1 §7 competence criteria for the Certification body), FSSAI/FSSR regulatory upskilling, and recurring compliance/refresher training. Completion and competence records **feed HRMS** (staff competence matrix) and **Certification** (auditor competence evidence for NABCB accreditation).
+- **Internal staff learning** — new-hire onboarding paths, FSSAI/FSSR regulatory upskilling, and recurring compliance/refresher training. Completion and competence records **feed HRMS** (staff competence matrix).
 - **External learner training** — FoSTaC-style food-safety supervisor courses delivered to client organisations (food business operators). External learners access courses through the **Customer Portal**; the LMS issues **verifiable certificates of completion**.
 
 **Capabilities in scope**
@@ -20,13 +22,12 @@ The LMS is TPS's single system for **delivering, tracking, assessing, and certif
 3. Progress tracking — per-lesson state, resumable position, percent complete, time-on-content.
 4. Assessments — question bank, quiz assembly, timed/limited attempts, pass mark, auto-grading, item randomisation.
 5. Certificates — auto-generated on pass/completion, PDF, publicly **verifiable by certificate number/QR**.
-6. Learning paths — ordered, role-based required-training bundles (e.g. "New ISO 22000 Auditor" path) with prerequisites and target due dates.
+6. Learning paths — ordered, role-based required-training bundles (e.g. "New Regulatory Associate" path) with prerequisites and target due dates.
 7. Compliance training tracking — who is **due / overdue / expiring**, recurrence (e.g. annual refresher), exported to HRMS competence status.
 8. Instructor-led (ILT) session scheduling — classroom/virtual sessions, roster, attendance capture, feeding the same completion record.
 
 **Explicitly NOT in scope (handled by other modules / deferred)**
 - **Not** the competence matrix system of record — LMS *emits* completion/competence events; **HRMS** owns the employee competence matrix and appraisal linkage.
-- **Not** the auditor qualification decision — **Certification** module decides auditor approval; LMS supplies training evidence only.
 - **Not** payment/invoicing for paid external courses — **Finance & Accounts** owns invoicing; LMS exposes an enrolment reference.
 - **Not** a full SCORM/xAPI LRS, live video conferencing, or a proctoring service (ILT virtual sessions link out to the meeting tool; proctoring is future scope).
 - **Not** the FoSTaC/FoSCoS government system of record — official FoSTaC issuance stays on FSSAI's portal; LMS runs TPS's internal preparation/mock training and TPS-branded completion certificates (see §11).
@@ -35,13 +36,13 @@ The LMS is TPS's single system for **delivering, tracking, assessing, and certif
 
 ## 2. Business workflow
 
-### 2A. Internal competence path (new ISO auditor — grounded example)
-1. HR/Certification lead assigns the **"New ISO 22000 Lead Auditor" learning path** to a new employee (or the path auto-assigns on HRMS role = "Trainee Auditor").
+### 2A. Internal competence path (new Regulatory Associate — grounded example)
+1. HR lead assigns the **"New Regulatory Associate" learning path** to a new employee (or the path auto-assigns on HRMS role = "Trainee Associate").
 2. System creates enrolments for each course in the path, in prerequisite order, with a target due date.
-3. Learner works through lessons (ISO 22000:2018 clauses, audit techniques, ISO 19011, report writing); progress is tracked per lesson.
+3. Learner works through lessons (FSSAI/FSSR regulations, nutraceutical labelling, documentation, report writing); progress is tracked per lesson.
 4. Each course ends with a **quiz** (pass mark, e.g. 70%); attempts are auto-graded.
 5. On passing all path courses, LMS issues a **certificate** per course and marks the path complete.
-6. LMS emits a **competence event** → HRMS updates the staff competence matrix; Certification sees the auditor's training evidence.
+6. LMS emits a **competence event** → HRMS updates the staff competence matrix.
 7. Recurrence: refresher training (e.g. annual code updates) re-opens an enrolment when due; overdue learners surface on the compliance dashboard.
 
 ### 2B. External FoSTaC-style course (food-safety supervisor)
@@ -79,7 +80,7 @@ flowchart TD
   N --> O{Path complete?}
   O -->|No| E
   O -->|Yes| P[Emit competence event]
-  P --> Q[HRMS competence matrix + Certification auditor evidence]
+  P --> Q[HRMS competence matrix]
   M --> R[Compliance dashboard: overdue/failed]
   N --> R
 ```
@@ -176,7 +177,7 @@ erDiagram
     text slug
     text description
     text audience "internal|external|both"
-    text category "onboarding|iso_auditor|fssai|compliance|fostac|other"
+    text category "onboarding|fssai|compliance|fostac|other"
     int pass_mark_default
     int validity_months "null=no expiry; drives recurrence"
     text status "draft|published|archived"
@@ -339,8 +340,8 @@ erDiagram
   competence_links {
     uuid id PK
     uuid course_id FK
-    text competence_code "HRMS/Certification competence key"
-    text link_type "hrms_competence|auditor_competence"
+    text competence_code "HRMS competence key"
+    text link_type "hrms_competence"
   }
   competence_events {
     uuid id PK
@@ -349,7 +350,7 @@ erDiagram
     text competence_code
     text event "attained|expired|revoked"
     date effective_on
-    bool consumed "picked up by HRMS/Certification"
+    bool consumed "picked up by HRMS"
     timestamptz created_at
   }
 ```
@@ -375,13 +376,13 @@ erDiagram
 | `learning_paths`, `path_courses` | published visible; drafts by `lms.path.manage` | `lms.path.manage` |
 | `path_enrolments` | own + `lms.enrolment.view` | `lms.enrolment.manage` |
 | `ilt_sessions`, `session_attendance` | roster + `lms.session.manage` | `lms.session.manage` |
-| `competence_links`, `competence_events` | `lms.compliance.view` + consuming modules (HRMS/Certification service role) | server-emitted; consumers flip `consumed` |
+| `competence_links`, `competence_events` | `lms.compliance.view` + consuming modules (HRMS service role) | server-emitted; consumers flip `consumed` |
 
 **Expand-contract notes**
 - All additive first. New content types (e.g. `interactive`) added to a check constraint / enum by expand, never repurposing existing values.
 - `learners` decouples LMS from `auth.users` so external (non-auth) learners and future SSO both fit without schema breakage.
 - Certificate verification uses `verify_hash` so the public verify RPC never needs to widen table RLS.
-- `competence_events` is an **outbox**: LMS writes, HRMS/Certification consume and set `consumed=true` — no cross-schema FK coupling, safe to evolve each side independently.
+- `competence_events` is an **outbox**: LMS writes, HRMS consumes and sets `consumed=true` — no cross-schema FK coupling, safe to evolve each side independently.
 
 ---
 
@@ -433,7 +434,7 @@ Permission keys namespaced `lms.<entity>.<action>` (Enterprise §5). Roles from 
 | `lms.session.manage` | Schedule ILT, mark attendance | Instructors, L&D Admin |
 | `lms.certificate.view` | View others' certificates | HR, Managers, Directors |
 | `lms.certificate.manage` | Revoke/re-issue certificates | L&D Admin, Directors |
-| `lms.compliance.view` | Compliance/overdue board | HR, Managers, Directors, Certification lead |
+| `lms.compliance.view` | Compliance/overdue board | HR, Managers, Directors |
 | `lms.report.view` | LMS reports & exports | HR, Directors |
 | `lms.learn` | Take enrolled courses, attempt quizzes | all learners (incl. external, portal-scoped) |
 
@@ -459,7 +460,6 @@ Permission keys namespaced `lms.<entity>.<action>` (Enterprise §5). Roles from 
 |---|---|
 | % staff compliant (by dept/role) | `enrolments` × HRMS role/dept, category=compliance |
 | Overdue count + list | `compliance-sweep` output |
-| Auditor competence readiness | `competence_events` linked to auditor paths (feeds Certification) |
 | Certificates issued (period) | `certificates` issued_on |
 | Assessment pass rate / avg score | `attempts` aggregate |
 | Expiring in 30/60/90 days | `enrolments.expires_on` |
@@ -475,7 +475,6 @@ Permission keys namespaced `lms.<entity>.<action>` (Enterprise §5). Roles from 
 | Compliance / overdue | Learner, required course, due, days overdue, dept | role, dept, category, overdue-only | CSV, PDF |
 | Assessment analytics | Quiz, attempts, avg score, pass rate, per-question difficulty | course, date range | CSV |
 | Certificate register | Cert no, learner, course, issued, valid until, status | course, audience, valid/revoked | CSV, PDF |
-| Auditor competence evidence | Auditor, path, courses passed, dates, competence codes | auditor, path | PDF (NABCB/ISO 17021 evidence pack) |
 | External training (per client) | Client, learner, course, completion, cert no | client/batch, date range | CSV, PDF |
 | ILT session log | Session, date, instructor, roster size, attendance % | course, instructor, date | CSV |
 
@@ -496,7 +495,7 @@ All via `core/notifications` `notify({ userId, type, title, body, ref, channels 
 | Certificate issued | `lms.cert_issued` | learner | in-app, email (PDF link) |
 | Certificate expiring (recurrence) | `lms.cert_expiring` | learner, HR | in-app, email |
 | ILT session scheduled / reminder | `lms.session_reminder` | roster, instructor | in-app, email |
-| Competence attained | `lms.competence_attained` | HRMS/Certification owner | in-app |
+| Competence attained | `lms.competence_attained` | HRMS owner | in-app |
 
 ---
 
@@ -522,7 +521,6 @@ All scheduled work gated by settings flags per Enterprise §5.
 | System | Purpose | Boundary / adapter |
 |---|---|---|
 | **HRMS** (module) | Competence matrix update; role-driven auto-assign; employee identity | `competence_events` outbox (read by HRMS); `learners.employee_id` FK; HRMS role feeds `learning_paths.target_role`. No direct table writes across schemas. |
-| **Certification** (module) | Auditor competence evidence for ISO 17021 / NABCB | Consumes `competence_events` with auditor competence codes; "Auditor competence evidence" report as evidence pack |
 | **Customer Portal** (module) | External learner delivery surface | `learners.portal_contact_id` FK; external learners routed through portal with `lms.learn` scope only |
 | **Finance & Accounts** (module) | Invoicing paid external courses | LMS exposes enrolment/batch ref; Finance owns invoice. No payment logic in LMS |
 | **Core Files** (Supabase Storage + Google Drive) | Lesson content, SCORM-lite packages, certificate PDFs | `core/files`; buckets `lms-content`, `certificates`; Drive with `disableConversionToGoogleType: true` |
@@ -536,7 +534,7 @@ All scheduled work gated by settings flags per Enterprise §5.
 
 - **10× learners / external batches:** partition high-volume `lesson_progress` and `attempt_answers` by created_at; move attempt serving/grading fully to Edge Functions; CDN-cache published course content; keep certificate verify RPC read-only and index `certificate_no`.
 - **SCORM-lite → full xAPI/LRS:** `content_type` enum expands; a future `xapi_statements` table can attach without touching existing progress model.
-- **Multi-entity / tenant:** add nullable `org_id` (expand) to courses/paths/enrolments for the two legal entities (TPS Xperts Group + TPS Global Certification), then RLS-scope; external client orgs already isolate via `portal_contact_id`.
+- **Multi-entity / tenant:** add nullable `org_id` (expand) to courses/paths/enrolments for future legal entities, then RLS-scope; external client orgs already isolate via `portal_contact_id`.
 - **Proctoring & live ILT:** add a proctoring adapter and video-conf integration behind the ILT session boundary without schema break.
 - **Content volume:** video/SCORM served from Storage/CDN, not DB; DB holds refs only. Question bank scales with `topic_tag` indexing and pool-draw quizzes.
 - **Performance:** stable React Query keys `[lms, entity, ...params]`, 60s staleTime; compliance board reads from a nightly materialized snapshot rather than live scans.
@@ -581,7 +579,6 @@ flowchart TB
 
   subgraph EXT["Other modules / external"]
     HRMS[HRMS competence matrix]
-    CERTIF[Certification auditor competence]
     PORTAL[Customer Portal external learners]
     FIN[Finance invoicing]
     ZM[ZeptoMail]
@@ -609,7 +606,6 @@ flowchart TB
   NOTIF --> ZM
   NOTIF --> WA
   OBX --> HRMS
-  OBX --> CERTIF
   T3 --> PORTAL
   T3 --> FIN
   AUTH --> ACC
@@ -617,4 +613,4 @@ flowchart TB
 
 ---
 
-**Cross-module dependencies (summary):** HRMS (competence matrix via `competence_events` outbox + role-driven path auto-assign), Certification (auditor competence evidence), Customer Portal (external learner delivery), Finance & Accounts (external course invoicing ref), plus Core services (auth, access, notifications, files).
+**Cross-module dependencies (summary):** HRMS (competence matrix via `competence_events` outbox + role-driven path auto-assign), Customer Portal (external learner delivery), Finance & Accounts (external course invoicing ref), plus Core services (auth, access, notifications, files).

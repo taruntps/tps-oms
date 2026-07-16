@@ -6,6 +6,8 @@
 **Depends on:** `core/auth`, `core/access`, `core/files`, `core/notifications`, `core/ui`; reads (never writes directly) Operations, Finance, Regulatory data through curated, RLS-guarded read models.
 **Security posture:** This is the platform's **only externally-authenticated surface**. Tenant isolation (one client_user → exactly one `client_id`) is the load-bearing security property and is specified explicitly in §4 and §6.
 
+> **Scope v2.0: Certification-Body references removed (separate platform).**
+
 ---
 
 ## 1. Purpose & scope
@@ -13,11 +15,11 @@
 ### What business capability
 A self-service web portal where a consultancy **client** logs in to:
 - Track the live status of their FSSAI/regulatory **projects and stages** (a client-safe projection of Operations — no internal notes, no cost/margin, no staff clock mechanics).
-- **Exchange documents**: upload documents the TPS team has requested (KYC, product details, label artwork inputs) and download **deliverables** (issued licences, prepared forms, certificates).
+- **Exchange documents**: upload documents the TPS team has requested (KYC, product details, label artwork inputs) and download **deliverables** (issued licences, prepared forms).
 - View **invoices** and pay online via **Razorpay**.
 - **Approve** items that TPS pushes for client sign-off — draft applications, label/artwork proofs, quotations — feeding the approval back into the internal workflow.
 - Raise and track **support tickets / queries**.
-- See a **licence & certificate register** with **expiry reminders**.
+- See a **licence register** with **expiry reminders**.
 - Receive **notifications** (email / WhatsApp / in-portal).
 
 ### Who uses it
@@ -60,7 +62,7 @@ flowchart TD
   E -->|Approve| H[Act on portal_approval: approve / request changes]
   E -->|Pay| I[Create Razorpay order -> pay -> webhook verify]
   E -->|Support| J[Open ticket -> threaded messages]
-  E -->|Register| K[Licence & certificate register + expiry reminders]
+  E -->|Register| K[Licence register + expiry reminders]
   G --> L[Staff accepts -> linked into internal documents]
   H --> M[Decision writes back -> unblocks internal stage]
   I --> N[Payment mirrored into internal payments -> payment_status updated]
@@ -122,7 +124,7 @@ stateDiagram-v2
 | `/portal/invoices/:id` | Invoice detail | Line items + **Pay now** | `portal.payment.create` |
 | `/portal/tickets` | Tickets | Support/query list | `portal.ticket.read` |
 | `/portal/tickets/:id` | Ticket detail | Threaded conversation | `portal.ticket.read` |
-| `/portal/register` | Licence register | Licences/certificates + expiry | `portal.license.read` |
+| `/portal/register` | Licence register | Licences + expiry | `portal.license.read` |
 | `/portal/profile` | Profile & users | Manage own profile; owner invites teammates | `portal.profile.manage` / `portal.user.invite` |
 
 ---
@@ -412,7 +414,7 @@ Client-facing (lightweight — clients don't get internal analytics):
 | Project status report | code, name, service, status, target date, waiting-on | status, date range | PDF |
 | Payment history | invoice no, project, amount, mode, date, status | date range, status | PDF / CSV |
 | Document register | file, category, project, uploaded/shared date | category, project | CSV |
-| Licence & certificate register | number, type, category, issue, expiry, status | active/expiring | PDF / CSV |
+| Licence register | number, type, category, issue, expiry, status | active/expiring | PDF / CSV |
 | Approval history | item, kind, decision, date, remark | kind, decision | CSV |
 
 Generation via the shared reporting utility; all queries flow through the `client_id`-scoped views, so a report can never span tenants.
@@ -478,7 +480,7 @@ Scheduled dispatch is gated by settings so staging never messages real clients.
 ## 12. Future scalability
 
 - **10× clients/users:** the isolation model is index-friendly — every hot query filters on `client_id`; add composite indexes `(client_id, status)` / `(client_id, created_at desc)` on portal tables (mirrors the internal indexing already in migrations 052/053). `portal_client_id()` is `stable` and can be wrapped in `(select portal_client_id())` in policies so Postgres evaluates it once per query (InitPlan) rather than per row.
-- **Multi-entity (TPS Xperts Group + TPS Global Certification):** add a nullable `business_unit` to `client_users`/read models; isolation predicate becomes `client_id = portal_client_id()` unchanged (business unit is an attribute of the client, not a second tenant axis) — so the security model doesn't change shape.
+- **Multi-entity (future TPS legal entities):** add a nullable `business_unit` to `client_users`/read models; isolation predicate becomes `client_id = portal_client_id()` unchanged (business unit is an attribute of the client, not a second tenant axis) — so the security model doesn't change shape.
 - **True multi-tenant SaaS (many consultancies):** promote `client_id` isolation to a two-level `(org_id, client_id)` key; `portal_client_id()` gains an `org_id` sibling; all policies extend to `AND org_id = portal_org_id()`. The single-predicate design makes this a mechanical, auditable change.
 - **Data volume:** payment/audit/session tables are append-only — partition `portal_activity_log`/`portal_sessions` by month at scale; archive closed tickets.
 - **Performance:** read models are lazy-loaded routes (code-split, §1.6 master); TanStack Query keys `['portal', entity, params]`, staleTime 60s; heavy PDF export offloaded to an Edge Function.

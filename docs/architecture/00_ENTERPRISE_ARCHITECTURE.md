@@ -1,7 +1,7 @@
 # TPS Enterprise Platform — Master Architecture (V2)
 
 **Status:** Finalized (Phase A). Governs Operations migration, Core Platform, and all 15 module designs.
-**Scope:** Single-tenant enterprise platform for TPS Xperts Group (FSSAI/nutraceutical regulatory consultancy) and TPS Xperts Global Certification (NABCB certification body).
+**Scope:** Single-tenant enterprise platform for TPS Xperts Group (FSSAI/nutraceutical regulatory consultancy). **Scope v2.0:** TPS Xperts Global Certification (NABCB certification body) is a separate legal entity and a **separate future platform** — the Certification module and the Management System / QMS module are **out of scope** here (see §9).
 **Stack:** React 18 + Vite 5 + TypeScript · React Router v6 · TanStack Query · Radix + Tailwind ("Arctic Precision") · Supabase (Postgres + RLS + Auth + Storage + Edge Functions) · Cloudflare Pages (staging) / GitHub Pages (prod).
 
 ---
@@ -141,18 +141,22 @@ Diagrams use **mermaid** (renders in GitHub + our artifacts). ER diagrams use `e
 
 ---
 
-## 7. The 15 modules (portfolio map)
+## 7. The 15 feature modules + Core (portfolio map)
+
+> **Scope v2.0:** Certification (row 8) is **removed** — the Certification Body is a separate legal
+> entity and a separate future platform. **Expenses & Travel** is a **sub-domain of HRMS + Finance**,
+> not a standalone module. Result = **Core + 15 feature modules** (number 8 retired; gap kept so
+> cross-references stay valid). See `02_ENTERPRISE_ARCHITECTURE_VALIDATION.md` (top note) and §9.
 
 | # | Module | Anchor entity | Primary users | Note |
 |---|---|---|---|---|
 | 1 | **Operations** (migrate first) | Project, Stage | Executives, Managers, Directors | Existing V1 feature → module |
-| 2 | HRMS | Employee, Leave, Payroll, Attendance | HR, Directors | Attendance already partly built |
+| 2 | HRMS | Employee, Leave, Payroll, Attendance | HR, Directors | Attendance already partly built; hosts T&E claim/travel sub-domain |
 | 3 | CRM | Lead, Client, Referral, Contact | Sales, Managers | Clients/referrals exist → absorb |
 | 4 | Marketing | Campaign, Content, Audience | Marketing | New |
 | 5 | Sales | Deal, Quotation, Order | Sales, Directors | New; feeds Operations & Finance |
-| 6 | Finance & Accounts | Invoice, Payment, Govt-fee, Ledger | Accounts, Directors | Payments exist → absorb |
+| 6 | Finance & Accounts | Invoice, Payment, Govt-fee, Ledger | Accounts, Directors | Payments exist → absorb; hosts T&E payout/bill-to-client sub-domain |
 | 7 | Regulatory | Licence, Authority query, SOI, Compliance | Executives, Regulatory | FSSAI/FSSR domain |
-| 8 | Certification | Application, Audit, Scope, Certificate, NC | Certification body (NABCB) | ISO 17021 world |
 | 9 | Document Management | Document, Folder, Version | All | Drive + storage → formalize |
 | 10 | Knowledge Base | Article, Category | All | Exists → absorb |
 | 11 | Learning Management (LMS) | Course, Lesson, Quiz, Enrolment | HR, All | New; FoSTaC-style training |
@@ -198,4 +202,9 @@ Adopted from the Enterprise Architecture Validation (`02_ENTERPRISE_ARCHITECTURE
 - **Money is `bigint` paise** platform-wide (verified against the live DB).
 - **Scalability rules:** wrap RLS permission helpers in `(select …)` InitPlan form; a read-replica/branch target serves analytics + AI retrieval; `pg_cron` jobs are staggered with per-job statement timeouts; `audit_log` is partitioned by month with retention. Cron/Edge jobs use a **scoped automation identity**, not `service_role`.
 - **Mobile-first + offline** is a platform commitment for field-facing surfaces (attendance punch, document capture) with a dedicated mobile nav model.
-- **Module count is 17** (added Expenses & Travel, Management System / QMS).
+- **Scope v2.0 (TPS Platform V2 Constitution) — supersedes the v1.1 module count.** Final scope is
+  **16 = Core + 15 feature modules.** The **Certification Body is removed** from this platform
+  (separate legal entity → separate future platform), so the **Certification** module and the
+  **Management System / QMS** module are **out of scope**. **Expenses & Travel** is **folded into
+  HRMS + Finance** as a sub-domain, not a standalone module. (This replaces the earlier "module count
+  is 17" figure.) Reserved Certification/QMS docs live in `_reserved-certification-platform/`.

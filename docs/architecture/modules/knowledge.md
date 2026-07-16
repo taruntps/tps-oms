@@ -486,7 +486,7 @@ All Edge Function invocations gated by `app_settings` flags so staging stays san
 
 - **10× articles / search volume:** FTS scales on GIN; semantic search moves ivfflat→HNSW and, if needed, a dedicated `vector`-tuned index or external vector store behind the same `semanticRetrieve` contract (callers unaffected).
 - **Chunking & cost:** embedding is incremental (only changed/new versions); backfill is throttled via cron batches. Model/dim are config-driven so a provider swap is a settings change + one reindex.
-- **Multi-entity / tenant:** if TPS Xperts (consultancy) and TPS Global Certification later need separate KBs, add an `org_scope`/`entity_id` column + RLS predicate; taxonomy and visibility already support internal-vs-client separation, extendable to entity separation.
+- **Multi-entity / tenant:** if TPS Xperts later runs multiple branches/entities needing separate KBs, add an `org_scope`/`entity_id` column + RLS predicate; taxonomy and visibility already support internal-vs-client separation, extendable to entity separation.
 - **Client-facing scale:** client-visible articles are served through a cached, read-only security-definer view; heavy read traffic from the Customer Portal is isolated from authoring load.
 - **Localisation (future):** article translations modelled as sibling rows linked by a `translation_group_id` (additive) if regional-language SOPs are needed.
 - **Rich authoring:** move from Markdown to a structured block/JSON body (`body_format='blocks'`) without schema change — `body_format` already discriminates.

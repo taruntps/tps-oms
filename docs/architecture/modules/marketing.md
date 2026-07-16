@@ -486,7 +486,7 @@ All scheduled sends respect the settings flag so **staging never dispatches to r
 
 - **10× volume.** `campaign_recipients` + `recipient_events` are the hot tables; partition `recipient_events` by month, index `(campaign_id, status)`. Dispatch batches (e.g. 500/iteration) with cursor state to stay within Edge Function limits; move to a queue table if send volume outgrows cron cadence.
 - **Deliverability.** As volume grows, dedicated sending domains/subdomains per brand, warmup, and per-BSP throughput throttling in the adapter (Core concern, Marketing just enqueues).
-- **Multi-entity / multi-tenant.** Group vs. Certification body are distinct brands; add `org_id` to campaigns/segments/landing pages (additive) and scope RLS by org — landing-page slugs namespaced per brand. Fits the platform's single-tenant-now, multi-entity-later posture.
+- **Multi-entity / multi-tenant.** Distinct sub-brands/entities may exist later; add `org_id` to campaigns/segments/landing pages (additive) and scope RLS by org — landing-page slugs namespaced per brand. Fits the platform's single-tenant-now, multi-entity-later posture.
 - **Attribution depth.** Current first/last/linear; extendable to time-decay or multi-touch model without schema change (new `attribution_model` enum value + recompute job).
 - **Personalisation & A/B.** `campaign_channels.config` + `content_items` variants support A/B split; add `variant` column + assignment on `campaign_recipients` (additive).
 - **Data retention.** Suppression/consent evidence retained per compliance; old `recipient_events` archivable to cold storage after N months.

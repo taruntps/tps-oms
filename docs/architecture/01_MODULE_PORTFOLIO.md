@@ -4,10 +4,16 @@ Companion to `00_ENTERPRISE_ARCHITECTURE.md`. Indexes the module designs, maps t
 cross-module dependencies, and recommends the implementation order. **All module designs are
 complete; none is implemented. Coding of new modules begins only after approval.**
 
-> **v1.1 (post-validation):** Enterprise Architecture Validation added **2 modules** (Expenses & Travel,
-> Management System / QMS → **17 modules**), corrected a money-unit bug, and made cross-cutting
-> unifications. See **`02_ENTERPRISE_ARCHITECTURE_VALIDATION.md`** (the binding amendment layer) and
-> the **Wave-1 minimal-table cut** in §3.
+> **v1.1 (post-validation):** Enterprise Architecture Validation added 2 modules (Expenses & Travel,
+> Management System / QMS), corrected a money-unit bug, and made cross-cutting unifications.
+> See **`02_ENTERPRISE_ARCHITECTURE_VALIDATION.md`** (the binding amendment layer) and the
+> **Wave-1 minimal-table cut** in §3.
+>
+> **Scope v2.0 (TPS Platform V2 Constitution):** The **Certification Body business is removed** from
+> this platform (separate legal entity → separate future platform). The **Certification** module and
+> the **Management System / QMS** module are **out of scope**. **Expenses & Travel** is folded into
+> **HRMS + Finance** as a sub-domain (no longer a standalone module). Final scope = **Core + 15 feature
+> modules**. Reserved docs for the removed capability now live in `_reserved-certification-platform/`.
 
 ## 1. Module index
 
@@ -20,7 +26,6 @@ complete; none is implemented. Coding of new modules begins only after approval.
 | 5 | Sales | [sales.md](modules/sales.md) | 16 | deal, quotation, order, price |
 | 6 | Finance & Accounts | [finance.md](modules/finance.md) | 11 (absorbs payments) | invoice, payment, govt_fee, ledger |
 | 7 | Regulatory | [regulatory.md](modules/regulatory.md) | 9 new / 3 ext | licence, authority_query, soi, compliance |
-| 8 | Certification (NABCB) | [certification.md](modules/certification.md) | 18 | application, audit, nonconformity, certificate |
 | 9 | Document Management | [documents.md](modules/documents.md) | 10 (unifies doc tables) | document, version, folder, signature |
 | 10 | Knowledge Base | [knowledge.md](modules/knowledge.md) | 8 (evolves knowledge_base) | article, category, embedding |
 | 11 | Learning Management | [lms.md](modules/lms.md) | 20 | course, lesson, enrolment, certificate |
@@ -29,13 +34,20 @@ complete; none is implemented. Coding of new modules begins only after approval.
 | 14 | Vendor Portal | [vendor-portal.md](modules/vendor-portal.md) | 9 | vendor, purchase_order, assignment, deliverable |
 | 15 | Administration | [administration.md](modules/administration.md) | 14 new / 2 reuse | role, permission, integration, feature_flag |
 | 16 | Reports & Analytics | [reports-analytics.md](modules/reports-analytics.md) | 6 + views layer | saved_report, kpi, schedule |
-| 17 | Expenses & Travel (T&E) *(v1.1)* | [expenses.md](modules/expenses.md) | 13 | expense_claim, travel_request, reimbursement |
-| 18 | Management System / QMS *(v1.1)* | [management-system.md](modules/management-system.md) | 20 | management_review, internal_audit, capa, impartiality_risk |
 
-≈ **210 tables** across the 17 modules (greenfield + expand-contract on existing). Every design
-delivers all 13 template sections + ER, flow, screen, and architecture diagrams.
-**Note:** the validation flagged this table count as too many for early waves — see the
-**Wave-1 minimal-table cut** in §3 and `02_ENTERPRISE_ARCHITECTURE_VALIDATION.md` §6.
+*(Module numbers 8 and 17–18 are retired: **8 Certification** and **18 Management System / QMS** are
+out of scope, and **Expenses & Travel** is no longer a numbered module — the number gap is kept so
+existing cross-references stay valid.)*
+
+> **Scope v2.0 note — Expenses & Travel (T&E):** folded into **HRMS + Finance** as a sub-domain
+> (employee claim/travel-request/reimbursement in HRMS; approval → payout → bill-to-client in Finance).
+> It is **not** a standalone module. The reserved **Certification** and **Management System / QMS**
+> docs move to `_reserved-certification-platform/` and are excluded from this scope.
+
+**Core + 15 feature modules** (greenfield + expand-contract on existing). Every design delivers all
+13 template sections + ER, flow, screen, and architecture diagrams. The reduced scope keeps early
+waves lean — see the **Wave-1 minimal-table cut** in §3 and
+`02_ENTERPRISE_ARCHITECTURE_VALIDATION.md` §6.
 
 ## 2. Cross-module dependency map
 
@@ -51,14 +63,10 @@ flowchart TD
   SALES -->|order → invoice| FIN[6 Finance]
   OPS -->|payment rollup| FIN
   REG[7 Regulatory] -->|govt-fee obligations| FIN
-  CERT[8 Certification] -->|cert fees / pass-through| FIN
-  CERT -->|COI probe read-only| CRM
   VP[14 Vendor Portal] -->|AP bills| FIN
-  VP -->|sub-audit competence| CERT
   VP -->|lab tests| REG
   HR[2 HRMS] -->|payroll register| FIN
   LMS[11 LMS] -->|competence events| HR
-  LMS -->|auditor competence| CERT
   DOCS[9 Documents] --- D
   KB[10 Knowledge] -->|RAG corpus| AI[12 AI Assistant]
   REG -->|rules/facts| AI
@@ -66,7 +74,7 @@ flowchart TD
   CP[13 Customer Portal] -->|scoped reads| OPS
   CP --> FIN
   CP --> REG
-  RPT[16 Reports & Analytics] -->|read-only views| OPS & SALES & FIN & HR & REG & CERT & CRM
+  RPT[16 Reports & Analytics] -->|read-only views| OPS & SALES & FIN & HR & REG & CRM
   classDef ext fill:#eef,stroke:#88a
 ```
 
@@ -83,12 +91,11 @@ V2→prod plan once ready.
 |---|---|---|
 | **0 — done** | Core Platform, Operations (registry) | Foundation + proof of pattern (already committed) |
 | **1 — Governance & content spine** | Administration, Document Management, Knowledge Base | Permissions registry + DMS + KB underpin every other module |
-| **2 — Revenue spine** | CRM → Sales → Finance | The lead→deal→order→invoice→collection flow; wires into existing Operations |
-| **3 — Regulated delivery** | Regulatory, HRMS | Extend existing licences/queries/SOI + attendance; core consultancy + people ops |
-| **4 — Certification body** | Certification | Greenfield NABCB business; depends on Documents + Finance |
-| **5 — Growth & enablement** | Marketing, LMS, AI Assistant | Marketing feeds CRM; LMS feeds HR/Cert competence; AI rides on KB + tools |
-| **6 — External surfaces** | Customer Portal, Vendor Portal | Tenant-isolated; depend on the internal modules they expose |
-| **7 — Insight** | Reports & Analytics | Reads across all modules; built last so its views are stable |
+| **2 — Revenue spine** | CRM → Sales → Finance | The lead→deal→order→invoice→collection flow; wires into existing Operations. Finance also hosts the Expenses **payout/bill-to-client** sub-domain |
+| **3 — Regulated delivery & people** | Regulatory, HRMS | Extend existing licences/queries/SOI + attendance; core consultancy + people ops. HRMS hosts the Expenses **claim/travel-request** sub-domain (T&E folded into HRMS + Finance, not a standalone wave) |
+| **4 — Growth & enablement** | Marketing, LMS, AI Assistant | Marketing feeds CRM; LMS feeds HR competence; AI rides on KB + tools |
+| **5 — External surfaces** | Customer Portal, Vendor Portal | Tenant-isolated; depend on the internal modules they expose |
+| **6 — Insight** | Reports & Analytics | Reads across all modules; built last so its views are stable |
 
 ## 4. Platform-wide invariants (verified across all 15 designs)
 

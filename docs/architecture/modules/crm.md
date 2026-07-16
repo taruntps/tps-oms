@@ -451,7 +451,7 @@ Cross-module reads always go through **owning-module public RPCs / Core**, never
 
 - **10× lead volume.** Indexes on `crm_leads(phone_e164)`, `(email_normalized)`, `(gstin)`, `(owner_user_id, stage)`, `(next_follow_up_at)`. Dedup uses `pg_trgm` GIN index on `company_name` for fuzzy match; move heavy fuzzy scoring to the intake Edge Function if p95 grows. Partition `crm_activities` by month once it passes a few million rows.
 - **Client 360 performance.** Aggregator is the hot path; add per-section caching (nightly warm + on-write invalidation) and pagination on activities/projects. Each module RPC must stay `STABLE` and index client_id.
-- **Multi-entity / multi-tenant.** Platform is single-tenant today (TPS group). To support the two legal entities (consultancy + certification body) or future franchises: add `org_id`/`business_unit_id` to `crm_leads`/`clients`/`referrals` and extend RLS with an org predicate — additive (expand-contract), no rewrite.
+- **Multi-entity / multi-tenant.** Platform is single-tenant today (TPS group). To support a future second business unit or franchises: add `org_id`/`business_unit_id` to `crm_leads`/`clients`/`referrals` and extend RLS with an org predicate — additive (expand-contract), no rewrite.
 - **Assignment sophistication.** Round-robin now; territory/skill-based routing and lead scoring (ML on `raw_payload` + source) slot behind the existing auto-assign trigger without schema change.
 - **Data volume / archival.** Cold leads (`lost` > N years) archived to a partition; activities summarized. Commission ledger is financial record — retain per statutory period.
 - **Dedup at scale.** Graduate from trigger-time exact + trgm to a background match queue with reviewer UI; `crm_duplicate_links` already models candidates and resolution.
@@ -518,3 +518,9 @@ flowchart LR
   NOTIF -.toggle.-> WA
   FILES --> DRIVE
 ```
+
+---
+
+## Changelog
+
+- **Scope v2.0** — removed the certification-body cross-reference from the multi-entity note (Certification Body is a separate legal entity / future platform, out of scope here).
