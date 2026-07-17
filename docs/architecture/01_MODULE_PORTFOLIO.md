@@ -2,7 +2,9 @@
 
 Companion to `00_ENTERPRISE_ARCHITECTURE.md`. Indexes the module designs, maps their
 cross-module dependencies, and recommends the implementation order. **All module designs are
-complete; none is implemented. Coding of new modules begins only after approval.**
+complete. Wave 1 (Administration + Document Management + Knowledge Base) is now implemented and
+frozen (tag `wave-1`, staging-only) — see [`03_WAVE1_AS_BUILT.md`](03_WAVE1_AS_BUILT.md); the
+remaining modules are design-only. Coding of new modules begins only after approval.**
 
 > **v1.1 (post-validation):** Enterprise Architecture Validation added 2 modules (Expenses & Travel,
 > Management System / QMS), corrected a money-unit bug, and made cross-cutting unifications.
@@ -90,7 +92,7 @@ V2→prod plan once ready.
 | Wave | Modules | Why this order |
 |---|---|---|
 | **0 — done** | Core Platform, Operations (registry) | Foundation + proof of pattern (already committed) |
-| **1 — Governance & content spine** | Administration, Document Management, Knowledge Base | Permissions registry + DMS + KB underpin every other module |
+| **1 — ✅ DONE / FROZEN** | Administration, Document Management, Knowledge Base | Permissions registry + DMS + KB underpin every other module. **Shipped** (tag `wave-1`, commit `2546143`, staging-only, additive/EXPAND). As-built record: [`03_WAVE1_AS_BUILT.md`](03_WAVE1_AS_BUILT.md) is the single source of truth for what exists |
 | **2 — Revenue spine** | CRM → Sales → Finance | The lead→deal→order→invoice→collection flow; wires into existing Operations. Finance also hosts the Expenses **payout/bill-to-client** sub-domain |
 | **3 — Regulated delivery & people** | Regulatory, HRMS | Extend existing licences/queries/SOI + attendance; core consultancy + people ops. HRMS hosts the Expenses **claim/travel-request** sub-domain (T&E folded into HRMS + Finance, not a standalone wave) |
 | **4 — Growth & enablement** | Marketing, LMS, AI Assistant | Marketing feeds CRM; LMS feeds HR competence; AI rides on KB + tools |

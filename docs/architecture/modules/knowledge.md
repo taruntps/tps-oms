@@ -6,6 +6,22 @@
 **Status:** Design (Phase D). Absorbs & extends the existing `knowledge_base` table.
 **Depends on Core:** `core/auth`, `core/access`, `core/notifications`, `core/files`, `core/ui`, `core/hooks`, `core/utils`. Consumed by the **AI Assistant** module (as a retrieval source) and the **Customer Portal** module (client-visible articles).
 
+## Wave 1 — as-built (shipped)
+
+**A subset of this design shipped in Wave 1** (tag `wave-1`, commit `2546143`, staging only). The
+authoritative as-built record is [`../03_WAVE1_AS_BUILT.md`](../03_WAVE1_AS_BUILT.md); the rest of this
+document is the fuller target design that later waves extend.
+
+- **Tables shipped (migration 080):** `kb_categories`, `kb_article_versions`, `kb_article_feedback`;
+  added columns on `knowledge_base` — `category_id`, `reviewed_by`, `published_at`, `client_visible`.
+- **Pages shipped:** Browse hub (`/knowledge/browse`), Article view (`/knowledge/article/:id`),
+  Categories admin (`/knowledge/categories`). The existing `/knowledge` page is untouched.
+- **Permission keys:** `knowledge.article.view/author/publish`, `knowledge.category.manage`.
+- **Not yet built here:** embeddings / pgvector RAG corpus, regulatory-update ingestion, and AI-Assistant
+  retrieval wiring — design-only for now.
+- **Additive:** the existing `knowledge_base` table (`category`, `tags[]`, `is_published`) keeps working
+  unchanged; the new columns are additive.
+
 ---
 
 ## 1. Purpose & scope

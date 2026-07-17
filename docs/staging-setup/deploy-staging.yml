@@ -1,0 +1,75 @@
+name: Deploy Staging to GitHub Pages
+
+# This workflow lives in the SEPARATE staging repo (taruntps/tps-oms-staging),
+# NOT in the production repo. It mirrors production's deploy.yml but:
+#   - points VITE_APP_URL at the staging domain
+#   - reads the STAGING Supabase URL/anon key from this repo's Actions secrets
+#   - stamps dist/CNAME with the staging domain at build time so it can never
+#     collide with production's portal.tpsxpert.com claim (the mirrored
+#     public/CNAME from the code is overwritten here on purpose)
+
+on:
+  push:
+    branches: [main]        # the staging repo's own main = mirror of prod repo's `staging`
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages-staging
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Test
+        run: npm test -- --run
+        env:
+          VITE_SUPABASE_URL: https://placeholder.supabase.co
+          VITE_SUPABASE_ANON_KEY: placeholder
+
+      - name: Build (STAGING env)
+        env:
+          VITE_SUPABASE_URL:      ${{ secrets.VITE_SUPABASE_URL }}      # STAGING project URL
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }} # STAGING anon key
+          VITE_APP_NAME:          TPS Operations (STAGING)
+          VITE_APP_URL:           https://staging.tpsxpert.com
+        run: npm run build
+
+      - name: Pin staging custom domain (override any mirrored CNAME)
+        run: echo "staging.tpsxpert.com" > dist/CNAME
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

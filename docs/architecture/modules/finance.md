@@ -2,6 +2,14 @@
 
 **Module key:** `finance`
 **Anchor entities:** Invoice, Payment, Govt-fee, Ledger
+
+> **Billing engine (Wave-2 decision):** GST invoicing/billing is issued through **GetSwipe** via a
+> swappable **Billing Provider Adapter** — the ERP never talks to GetSwipe directly. Finance business
+> logic depends only on the internal **Invoice Service**; GetSwipe (and any future Zoho/Tally/Busy) is
+> one replaceable adapter behind it. The ERP remains the system of record; GetSwipe is the billing
+> engine (serial no., IRN/e-invoice, QR, PDF). Full design + GetSwipe API research + sync strategy +
+> limitations: **[`finance-billing-adapter.md`](finance-billing-adapter.md)**. (Razorpay remains the
+> payment-collection gateway — a separate concern from invoice issuance.)
 **Primary users:** Accounts, Directors
 **Status:** Design (Phase D). Follows `00_ENTERPRISE_ARCHITECTURE.md` §6 template.
 **Absorbs:** existing `payments` table + `projects.quoted_amount / paid_amount / payment_status` + live Razorpay integration.

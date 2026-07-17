@@ -7,6 +7,27 @@
 
 > Follows the §6 template of `00_ENTERPRISE_ARCHITECTURE.md` verbatim. Permission keys for this module are namespaced `admin.<entity>.<action>`.
 
+## Wave 1 — as-built (shipped)
+
+**A subset of this design shipped in Wave 1** (tag `wave-1`, commit `2546143`, staging only). The
+authoritative as-built record is [`../03_WAVE1_AS_BUILT.md`](../03_WAVE1_AS_BUILT.md); the rest of this
+document is the fuller target design that later waves extend.
+
+- **Tables shipped (migration 078):** `organizations`, `roles`, `user_roles`, `permissions`,
+  `role_permissions` (scope `own|team|all`), `user_permission_overrides`, `delegations`,
+  `notification_types`, `org_number_series`, `consent_records`, `data_subject_requests`.
+- **RPCs shipped:** `has_perm(key[, scope])` (078) + `my_permissions()` (081). super_admin hard floor;
+  delegation-aware.
+- **Permission keys seeded:** `admin.user.view/manage`, `admin.role.manage`, `admin.setting.manage`,
+  `admin.audit.view`, `admin.privacy.manage`, `admin.entity.view` (+ documents.* / knowledge.*).
+- **Pages shipped:** Roles & Permissions matrix (`/admin/roles`), Audit Log (`/admin/audit`), Privacy /
+  DPDP (`/admin/privacy`). Existing User Management (`/admin/users`) and Settings are referenced, not
+  re-implemented.
+- **Not yet built here:** integrations/feature-flags UI, settings module surfaces, and the fuller audit
+  pipeline described below — design-only for now.
+- **Additive:** the `user_role` enum + `has_role()` are untouched; the grant layer was seeded from
+  `profiles.role` and runs alongside them.
+
 ---
 
 ## 1. Purpose & scope

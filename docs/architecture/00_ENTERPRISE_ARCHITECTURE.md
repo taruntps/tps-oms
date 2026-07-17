@@ -191,6 +191,14 @@ Production DB is **never** touched by this refactor (frontend-only). The staging
 
 Adopted from the Enterprise Architecture Validation (`02_ENTERPRISE_ARCHITECTURE_VALIDATION.md`, the binding amendment layer). These override any conflicting detail in earlier sections or module docs:
 
+> **As-built (Wave 1):** the grant-based permission model and its RPCs are now **IMPLEMENTED** —
+> `roles` / `user_roles` / `permissions` / `role_permissions(scope)` / `user_permission_overrides` /
+> `delegations` plus **`has_perm(key[, scope])`** (migration 078) and **`my_permissions()`**
+> (migration 081), shipped in tag `wave-1` (commit `2546143`, staging only). It runs **alongside** the
+> existing `user_role` enum + `has_role()` (nothing switched or removed — EXPAND step). Authoritative
+> detail: [`03_WAVE1_AS_BUILT.md`](03_WAVE1_AS_BUILT.md).
+
+
 - **Permission helper is `has_perm(key[, scope])`** — one canonical name/signature; `has_permission(uid,key)` is retired. All module RLS must call `has_perm` verbatim.
 - **Role model is grant-based, not enum-based** — `roles(role_key)` + `user_roles(user_id, role_key)` many-to-many; `has_role()` reads grants. The `user_role` enum is kept only for expand-contract compatibility. Functional sub-roles (cert/marketing/L&D/procurement) are role_keys, not enum values.
 - **Permissions carry a data-scope** (`own | team | all`) in `role_permissions`, consumed by `has_perm(key, scope)` and shown in the admin matrix. **Delegation** (time-boxed) and **`*.export`** are first-class.

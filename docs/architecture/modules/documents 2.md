@@ -3,34 +3,18 @@
 **Module key:** `documents`
 **Status:** Design (Phase D). Design-only; no code until approved.
 **Anchor entities:** Document, Document Version, Folder, Template, Signature Request.
-**Classification:** Core-adjacent capability. Owns the unified document domain; exposes it through `core/files`. Every other module (Operations, Regulatory, HRMS, Finance, CRM, Portals) is a consumer, never an owner.
+**Classification:** Core-adjacent capability. Owns the unified document domain; exposes it through `core/files`. Every other module (Operations, Regulatory, Certification, HRMS, Finance, CRM, Portals) is a consumer, never an owner.
 **Depends on:** `core/files`, `core/auth`, `core/access`, `core/notifications`, `core/ui`, `core/utils`; Supabase Storage; Google Drive (via `drive-ops` edge function); ZeptoMail (share-link + e-sign mail).
-
-## Wave 1 — as-built (shipped)
-
-**A subset of this design shipped in Wave 1** (tag `wave-1`, commit `2546143`, staging only). The
-authoritative as-built record is [`../03_WAVE1_AS_BUILT.md`](../03_WAVE1_AS_BUILT.md); the rest of this
-document is the fuller target design that later waves extend.
-
-- **Tables shipped (migration 079):** `folders`, `document_versions`, `document_templates`; added
-  `documents.folder_id`; plus the unified read view **`v_all_documents`** (`union all` over
-  `documents` + `client_documents` + `stage_documents`).
-- **Pages shipped:** Documents hub (`/documents`, list over `v_all_documents`) and Templates
-  (`/documents/templates`).
-- **Permission keys:** `documents.doc.view/upload/delete/export`, `documents.template.manage`.
-- **Not yet built here:** signature-request / e-sign, folder→Drive mirroring, OCR + full-text search,
-  expiring share links, retention/archival — design-only for now.
-- **Additive:** existing `documents` / `client_documents` / `stage_documents` tables keep working
-  unchanged; only `documents.folder_id` was added.
 
 ---
 
 ## 1. Purpose & scope
 
-**Business capability.** A single, entity-linked document model for the whole platform: one place to store, version, organize (folders mirrored to Google Drive), template-generate (FSSAI forms, compliance/SOI reports, licence documents, offer letters), search (OCR + full-text), approve/e-sign, share (RLS + expiring links), and retain/archive every file TPS produces or receives.
+**Business capability.** A single, entity-linked document model for the whole platform: one place to store, version, organize (folders mirrored to Google Drive), template-generate (FSSAI forms, audit reports, certificates, offer letters), search (OCR + full-text), approve/e-sign, share (RLS + expiring links), and retain/archive every file TPS produces or receives.
 
 **Who uses it.**
-- **Executives / Regulatory** — client & project files, FSSAI form generation, compliance/SOI reports, licence & authority-letter storage.
+- **Executives / Regulatory** — client & project files, FSSAI form generation, authority-letter storage.
+- **Certification body staff (auditors, scheme managers)** — application docs, audit reports, certificates, NC evidence (ISO 17021 records).
 - **HR** — offer letters, employee documents, policy files.
 - **Accounts** — invoices, government-fee receipts, ledgers.
 - **Directors / Super admin** — approvals, e-sign, retention governance, audit trail.
@@ -56,10 +40,10 @@ TPS's real document lifecycle spans capture → organize → generate → review
 5. Optional OCR/metadata extraction runs async; text lands in the search index.
 
 **B. Template generation (outbound).**
-1. User picks a **Template** (e.g. FSSAI Form B, compliance/SOI report, licence document, offer letter).
-2. Fills/confirms the merge context (auto-pulled from the linked entity: client, project, employee).
+1. User picks a **Template** (e.g. FSSAI Form B, ISO 22000 audit report, certificate, offer letter).
+2. Fills/confirms the merge context (auto-pulled from the linked entity: client, project, employee, audit).
 3. Engine renders `docx`/PDF, stores it as a new `documents` row linked to the entity, version 1.
-4. Document enters an **approval/sign** flow if the template requires it (offer letters, licence documents).
+4. Document enters an **approval/sign** flow if the template requires it (certificates, offer letters, audit reports).
 
 **C. Approval & e-sign.**
 1. Document owner requests approval/signature → creates a `signature_requests` row with ordered `signature_parties`.
@@ -128,7 +112,7 @@ stateDiagram-v2
 | `/documents/templates` (TemplateGallery) | Pick + generate from templates | Workspace, entity actions |
 | `/documents/templates/:id/merge` (MergePreview) | Confirm merge fields, render | TemplateGallery |
 | `/documents/:id/sign` (SignFlow) | Approval/signature orchestration | DocDetail |
-| Embedded `<DocumentsPanel>` | Entity-scoped list/upload/generate | Client/Project/Employee/Invoice detail pages |
+| Embedded `<DocumentsPanel>` | Entity-scoped list/upload/generate | Client/Project/Employee/Audit/Invoice detail pages |
 | Public `/share/:token` | External scoped view/download | Share link (unauthenticated) |
 
 ---
@@ -172,7 +156,7 @@ erDiagram
   }
   documents {
     uuid id PK
-    text entity_type "client|project|stage|employee|invoice|vendor|org"
+    text entity_type "client|project|stage|employee|audit|invoice|vendor|org"
     uuid entity_id
     uuid folder_id FK
     text title
@@ -271,7 +255,7 @@ erDiagram
 ```
 
 **Enums (new / extended).**
-- `document_category` — supersedes `document_type` + `client_document_category`: `client_upload, tps_prepared, authority_issued, soi, invoice, licence_document, fssai_form, offer_letter, employee_doc, gst, pan, fssai, policy, other`.
+- `document_category` — supersedes `document_type` + `client_document_category`: `client_upload, tps_prepared, authority_issued, soi, invoice, certificate, audit_report, fssai_form, offer_letter, employee_doc, gst, pan, fssai, policy, other`.
 - `document_status` — `draft, active, pending_sign, signed, archived`.
 - `sign_status` / `party_status` as above.
 
@@ -318,7 +302,7 @@ erDiagram
 
 ## 6. Permissions
 
-Namespaced `documents.<entity>.<action>` plus cross-cutting keys. `<entity>` ∈ `client, project, stage, employee, invoice, vendor, org`.
+Namespaced `documents.<entity>.<action>` plus cross-cutting keys. `<entity>` ∈ `client, project, stage, employee, audit, invoice, vendor, org`.
 
 | Permission key | super_admin | director | manager | executive | accounts | hr | auditor |
 |---|:--:|:--:|:--:|:--:|:--:|:--:|:--:|
@@ -327,6 +311,7 @@ Namespaced `documents.<entity>.<action>` plus cross-cutting keys. `<entity>` ∈
 | `documents.stage.upload` / `.edit` | ✓ | ✓ | ✓ | ✓ | – | – | – |
 | `documents.employee.upload` / `.edit` | ✓ | ✓ | – | – | – | ✓ | – |
 | `documents.invoice.upload` / `.edit` | ✓ | ✓ | – | – | ✓ | – | – |
+| `documents.audit.upload` / `.edit` | ✓ | ✓ | ✓ (scheme mgr) | – | – | – | ✓ (own audit) |
 | `documents.<entity>.delete` | ✓ | ✓ | – | – | – | – | – |
 | `documents.<entity>.share` | ✓ | ✓ | ✓ | ✓ | ✓ | – | – |
 | `documents.template.generate` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | – |
@@ -409,7 +394,7 @@ All scheduled jobs gated by `app_settings` flags so staging stays sandboxed.
 |---|---|---|
 | **Supabase Storage** | Primary blob store (private `documents` bucket) | `core/files` storage adapter; path `<entity_type>/<entity_id>/<doc_id>/<v>` |
 | **Google Drive** | Client-facing folder mirror, large files, Docs/Sheets generation | existing `drive-ops` edge fn (SA via `get_google_sa_json` vault); `set_entity_drive_folder` RPC; `drive_folder_id` on entities |
-| **docx / PDF engine** | Template render (FSSAI forms, compliance/SOI reports, licence documents, offer letters) | `template-render` edge fn; templates in `templates.storage_path` |
+| **docx / PDF engine** | Template render (FSSAI forms, audit reports, certificates, offer letters) | `template-render` edge fn; templates in `templates.storage_path` |
 | **ZeptoMail** | Share-link + signature-request email | `core/notifications` email adapter |
 | **WhatsApp BSP (AiSensy)** | Optional signature/share nudges | `core/notifications`; stub until number live |
 | **Qualified e-sign (Aadhaar eSign / DSC / DocuSign)** | Legally-binding signatures (future) | adapter seam behind `actOnSignature`; v1 internal ack only |
@@ -426,7 +411,7 @@ All scheduled jobs gated by `app_settings` flags so staging stays sandboxed.
 - **Multi-entity / multi-tenant.** Polymorphic `entity_type/entity_id` already supports new consumer modules with zero schema change. A future `org_id` column + RLS predicate makes the model tenant-ready without restructuring.
 - **Storage cost.** Routing policy shifts large/cold blobs to Drive; retention/auto-archive caps Supabase Storage growth. Checksums enable dedupe.
 - **Performance.** Signed-URL previews (no proxying bytes through app), lazy version loading, list virtualization in `<DocumentsPanel>`. Template render and OCR are async edge jobs — never block the request path.
-- **Governance at scale.** Retention classes + legal hold + immutable signed versions + full `document_audit` give a statutory-grade records trail across all modules.
+- **Governance at scale.** Retention classes + legal hold + immutable signed versions + full `document_audit` give an ISO 17021 / NABCB-grade records trail across all modules.
 
 ---
 
@@ -501,9 +486,3 @@ flowchart TB
 ---
 
 **Reconciliation summary:** `documents` (expanded, polymorphic) + new `document_versions` become the single source of truth; `client_documents` and `stage_documents` migrate in and are dropped in the contract phase (compatibility views bridge existing hooks). Storage stays on the private `documents` bucket; Drive stays behind `drive-ops`. All access is entity-derived RLS with `documents.<entity>.<action>` permission keys.
-
----
-
-## Changelog
-
-- **Scope v2.0** — removed certification-body document flows (CB-staff consumer, `audit` entity type + `documents.audit.upload/.edit` permission, `certificate`/`audit_report` categories, ISO 17021/NABCB references); reworded audit-report/certificate templates to consultancy outputs (FSSAI forms, compliance/SOI reports, licence documents, offer letters). The `document_audit` trail and read-only `auditor` role are retained.
