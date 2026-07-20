@@ -85,7 +85,7 @@ Build after fixes: `tsc -b` + `vite build` green.
 
 ## 7. Known limitations
 
-1. **Issued-invoice edit** — issued invoices are read-only (GST practice; corrections via **credit note**). GetSwipe's edit schema (`BaseDocumentEditV2`) rejects issued docs (`400`); the path is dormant in the real flow. Draft editing (pre-sync) works fully.
+1. **Issued-invoice immutability (business rule)** — Once a GST invoice has been issued and synchronized with GetSwipe, it becomes **immutable**. Corrections must be performed through the **Cancel/Void** or **Credit Note** workflow. (Draft invoices remain fully editable before issue.)
 2. **SPA deep-link status** — hard-refresh on a sub-route returns HTTP 404 (app recovers via `404.html`); the Cloudflare `_redirects` clean-200 isn't honored. Cosmetic; deferred to production hardening.
 3. **Webhooks off** — payment-status updates rely on polling (`GET /v2/doc/{hash}`), not yet wired to a schedule; `billing-webhook` authored but not deployed.
 4. **Structured addresses** — billing/shipping address stored on the ERP invoice + shown on the GetSwipe-generated PDF, but not sent to GetSwipe as structured objects (its address-object schema unconfirmed).
@@ -96,7 +96,21 @@ Build after fixes: `tsc -b` + `vite build` green.
 
 **The core Finance flow is production-ready on staging:** draft → issue → GetSwipe sync (serial + GST + PDF) → payment recording → cancel/void → credit note (ERP), with immutable audit and provider-agnostic resilience. Remaining before production go-live: authenticated UI UAT sign-off, resolution of any Critical review findings (§6), the cutover imports (§9), and the minor limitations (§7).
 
-## 9. Remaining production cutover activities (NOT Wave 2)
+## 9. Production Readiness Checklist
+
+To be completed during the Production-Readiness phase (after Wave 3), before go-live:
+
+- [ ] **Production infrastructure** — provision the production Supabase project (separate from staging `gytscakgtsbxgdkbqhbx`); configure the production frontend target + domain/DNS + build settings (NODE_VERSION); confirm the `invoice-pdfs` storage bucket + `pg_cron`/`pg_net` extensions exist in production.
+- [ ] **Secrets** — set `GETSWIPE_API_KEY`, `GETSWIPE_BASE_URL`, `BILLING_PROVIDER=getswipe` (and webhook secret if webhooks are enabled) as **production** Edge Function secrets; env-only, never committed or logged; rotate the staging key so staging/prod don't share credentials.
+- [ ] **Customer import** — one-time Swipe→ERP import of the customer master (name, GSTIN, address) into `clients`; reconcile duplicates; verify GST auto-fill on a sample invoice.
+- [ ] **Historical invoice import** — one-time Swipe→ERP import of past invoices as read-only historical records; verify totals/serials against Swipe.
+- [ ] **Payment / Credit Note import (if supported)** — one-time import of historical payments and credit notes; verify amount_paid/balances reconcile.
+- [ ] **Backup** — verify automated DB backups + storage-bucket backup; perform a restore drill to a scratch project.
+- [ ] **Rollback** — document + test rollback (revert to the tagged commit; all Wave-2 migrations are additive so objects can be dropped without touching V1 data); confirm no destructive step.
+- [ ] **Monitoring** — dashboard/alert on failed `billing_sync_queue` ops, `billing_sync_log` errors (incl. `pdf_store_failed`), and `tps-billing-drain` cron health; periodic `audit_log` review.
+- [ ] **Production smoke testing** — post-cutover: authenticate; issue ONE real invoice end-to-end (serial + GST + PDF); record a payment; cancel/void a test doc; confirm audit + GetSwipe sync; verify deep links + responsive/mobile.
+
+## 10. Remaining production cutover activities (NOT Wave 2)
 
 Recorded as **Production-Readiness cutover tasks only** (after Wave 3; do not implement now):
 - One-time **import of Customers** from Swipe (name, GSTIN, address) → ERP `clients`.
