@@ -172,8 +172,10 @@ export class GetSwipeAdapter implements BillingProvider {
       email: c.email ?? undefined,
       phone_number: c.phone ?? undefined,
       gstin: c.gstin ?? undefined,
-      billing_address: c.billingAddress ?? undefined,
-      shipping_address: c.shippingAddress ?? undefined,
+      // NOTE: GetSwipe expects billing/shipping address as structured OBJECTS, not
+      // free-text strings; sending strings caused HTTP 400. Addresses are kept on the
+      // ERP invoice/customer for our records + PDF. Sending structured addresses to
+      // GetSwipe is a future enhancement once the address-object schema is confirmed.
     }
     const res = await this.call<any>('POST', '/customer', payload)
     const id = res?.data?.id ?? res?.data?.hash_id
@@ -197,8 +199,8 @@ export class GetSwipeAdapter implements BillingProvider {
         phone_number: inv.customerPhone ?? undefined,
         email: inv.customerEmail ?? undefined,
         gstin: inv.clientGstin ?? undefined,
-        billing_address: inv.billingAddress ?? undefined,
-        shipping_address: inv.shippingAddress ?? undefined,
+        // billing/shipping address intentionally omitted — GetSwipe wants address
+        // objects, not strings (HTTP 400). Kept on the ERP invoice for records/PDF.
       },
       items: inv.lines.map(mapLine),
     }
