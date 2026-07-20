@@ -195,7 +195,10 @@ export class GetSwipeAdapter implements BillingProvider {
         type: 'customer',
         name: inv.customerName ?? 'Customer',
         phone_number: inv.customerPhone ?? undefined,
+        email: inv.customerEmail ?? undefined,
         gstin: inv.clientGstin ?? undefined,
+        billing_address: inv.billingAddress ?? undefined,
+        shipping_address: inv.shippingAddress ?? undefined,
       },
       items: inv.lines.map(mapLine),
     }

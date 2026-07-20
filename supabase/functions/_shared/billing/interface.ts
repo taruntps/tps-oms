@@ -54,6 +54,12 @@ export interface ErpInvoice {
   customerName?: string | null
   /** Customer phone for the provider party block. */
   customerPhone?: string | null
+  /** Customer email for the provider party block. */
+  customerEmail?: string | null
+  /** Billing address for the provider party block. */
+  billingAddress?: string | null
+  /** Shipping address for the provider party block. */
+  shippingAddress?: string | null
   lines: ErpInvoiceLine[]
 }
 

@@ -112,6 +112,9 @@ async function loadInvoice(db: Db, erpId: string): Promise<ErpInvoice> {
     notes: data.notes ?? null,
     customerName: client?.name ?? client?.company_name ?? 'Customer',
     customerPhone: client?.phone ?? client?.contact_phone ?? null,
+    customerEmail: data.contact_email ?? client?.contact_email ?? null,
+    billingAddress: data.billing_address ?? null,
+    shippingAddress: data.shipping_address ?? null,
     lines: (lines ?? []).map((l: any) => ({
       description: l.description,
       quantity: Number(l.quantity ?? 1),

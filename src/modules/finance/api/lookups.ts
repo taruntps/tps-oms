@@ -9,7 +9,12 @@ export interface ClientOption {
   company_name: string
   trade_name: string | null
   gstin: string | null
+  address: string | null
+  city: string | null
   state: string | null
+  contact_person: string | null
+  contact_phone: string | null
+  contact_email: string | null
 }
 
 export interface ServiceOption {
@@ -32,7 +37,7 @@ export interface ProjectOption {
 export async function fetchClients(): Promise<ClientOption[]> {
   const { data, error } = await supabase
     .from('clients')
-    .select('id, company_name, trade_name, gstin, state')
+    .select('id, company_name, trade_name, gstin, address, city, state, contact_person, contact_phone, contact_email')
     .eq('is_active', true)
     .order('company_name', { ascending: true })
   if (error) throw error

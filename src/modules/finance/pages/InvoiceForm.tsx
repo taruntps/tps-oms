@@ -71,6 +71,11 @@ export function InvoiceForm({ invoice, onClose }: Props) {
     due_date: invoice?.due_date ?? '',
     place_of_supply: invoice?.place_of_supply ?? '',
     client_gstin: invoice?.client_gstin ?? '',
+    billing_address: invoice?.billing_address ?? '',
+    shipping_address: invoice?.shipping_address ?? '',
+    contact_person: invoice?.contact_person ?? '',
+    contact_email: invoice?.contact_email ?? '',
+    contact_phone: invoice?.contact_phone ?? '',
     notes: invoice?.notes ?? '',
   })
 
@@ -100,11 +105,18 @@ export function InvoiceForm({ invoice, onClose }: Props) {
 
   const onPickClient = (clientId: string) => {
     const c = clients.find((x) => x.id === clientId)
+    // Always pull the latest customer master values on select (user can override).
+    const address = c ? [c.address, c.city, c.state].filter(Boolean).join(', ') : ''
     setHeader((h) => ({
       ...h,
       client_id: clientId,
       client_gstin: c?.gstin ?? h.client_gstin,
       place_of_supply: c?.state ?? h.place_of_supply,
+      billing_address: address || h.billing_address,
+      shipping_address: address || h.shipping_address,
+      contact_person: c?.contact_person ?? h.contact_person,
+      contact_email: c?.contact_email ?? h.contact_email,
+      contact_phone: c?.contact_phone ?? h.contact_phone,
     }))
   }
 
@@ -145,6 +157,11 @@ export function InvoiceForm({ invoice, onClose }: Props) {
       due_date: header.due_date || null,
       place_of_supply: header.place_of_supply.trim() || null,
       client_gstin: header.client_gstin.trim() || null,
+      billing_address: header.billing_address.trim() || null,
+      shipping_address: header.shipping_address.trim() || null,
+      contact_person: header.contact_person.trim() || null,
+      contact_email: header.contact_email.trim() || null,
+      contact_phone: header.contact_phone.trim() || null,
       notes: header.notes.trim() || null,
     }
     try {
@@ -209,6 +226,30 @@ export function InvoiceForm({ invoice, onClose }: Props) {
             <Field label="Client GSTIN" className="col-span-2">
               <input className={ic} value={header.client_gstin} onChange={(e) => setH('client_gstin', e.target.value)} placeholder="GSTIN" />
             </Field>
+          </div>
+
+          {/* Customer Details — auto-filled from client master; editable */}
+          <div>
+            <h3 className="text-xs font-semibold text-brand-950 uppercase tracking-wide mb-2">
+              Customer Details <span className="normal-case font-normal text-muted-foreground">(auto-filled — override if needed)</span>
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Field label="Billing Address">
+                <textarea className={ic} rows={2} value={header.billing_address} onChange={(e) => setH('billing_address', e.target.value)} placeholder="Billing address" />
+              </Field>
+              <Field label="Shipping Address">
+                <textarea className={ic} rows={2} value={header.shipping_address} onChange={(e) => setH('shipping_address', e.target.value)} placeholder="Shipping address" />
+              </Field>
+              <Field label="Contact Person">
+                <input className={ic} value={header.contact_person} onChange={(e) => setH('contact_person', e.target.value)} placeholder="Name" />
+              </Field>
+              <Field label="Contact Phone">
+                <input className={ic} value={header.contact_phone} onChange={(e) => setH('contact_phone', e.target.value)} placeholder="Phone" />
+              </Field>
+              <Field label="Contact Email" className="md:col-span-2">
+                <input className={ic} type="email" value={header.contact_email} onChange={(e) => setH('contact_email', e.target.value)} placeholder="email@example.com" />
+              </Field>
+            </div>
           </div>
 
           {/* Lines */}

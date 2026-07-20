@@ -21,6 +21,11 @@ export interface InvoiceRow {
   due_date: string | null
   place_of_supply: string | null
   client_gstin: string | null
+  billing_address: string | null
+  shipping_address: string | null
+  contact_person: string | null
+  contact_email: string | null
+  contact_phone: string | null
   subtotal: number
   discount_total: number
   tax_total: number
@@ -111,6 +116,11 @@ export interface InvoiceHeaderInput {
   due_date: string | null
   place_of_supply: string | null
   client_gstin: string | null
+  billing_address: string | null
+  shipping_address: string | null
+  contact_person: string | null
+  contact_email: string | null
+  contact_phone: string | null
   notes: string | null
 }
 
