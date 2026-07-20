@@ -226,9 +226,8 @@ export class GetSwipeAdapter implements BillingProvider {
   }
 
   async updateInvoice(ref: ProviderRef, inv: ErpInvoice): Promise<ProviderInvoiceResult> {
-    // TODO: edit endpoint path unverified against live GetSwipe.
-    const body = { ...this.buildDocBody(inv, 'invoice'), hash_id: ref.providerId }
-    const res = await this.call<any>('POST', '/v2/doc/edit', body)
+    // Verified: PUT /v2/doc/{hash_id} with the full document body.
+    const res = await this.call<any>('PUT', `/v2/doc/${encodeURIComponent(ref.providerId)}`, this.buildDocBody(inv, 'invoice'))
     return this.mapDocResult(res)
   }
 
