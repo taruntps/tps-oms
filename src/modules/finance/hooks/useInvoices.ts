@@ -16,7 +16,7 @@ import {
   type InvoiceHeaderInput,
 } from '../api/invoices'
 import type { LineInput } from '../api/tax'
-import { enqueueInvoiceIssue } from '../api/billing'
+import { enqueueInvoiceIssue } from '@/core/billing'
 
 const INVOICES_KEY = ['finance', 'invoices']
 

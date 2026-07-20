@@ -285,7 +285,8 @@ function RecordPaymentModal({ invoice, onClose }: { invoice: InvoiceRow; onClose
       <form onSubmit={onSubmit} className="px-6 py-5 space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <Field label="Amount (₹) *">
-            <input className={ic} type="number" min={0} step="0.01" value={form.amount_rupees} onChange={(e) => set('amount_rupees', e.target.value)} autoFocus />
+            <input className={ic} type="number" min={0} max={balance / 100} step="0.01" value={form.amount_rupees} onChange={(e) => set('amount_rupees', e.target.value)} autoFocus />
+            <p className="text-[11px] text-muted-foreground mt-1">Remaining balance: <span className="font-medium text-brand-950">{formatRupees(balance)}</span></p>
           </Field>
           <Field label="Date *">
             <input className={ic} type="date" value={form.payment_date} onChange={(e) => set('payment_date', e.target.value)} />

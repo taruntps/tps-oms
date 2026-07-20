@@ -55,13 +55,19 @@ async function applyEvent(db: Db, ev: WebhookEvent) {
     .eq('provider_id', ev.providerId)
 
   if (link.erp_entity === 'invoice') {
+    // Provider artifacts are authoritative; BUSINESS status stays ERP-driven
+    // (payments are recorded in the ERP, which is the single source of truth for
+    // paid/partially_paid). We do NOT set paid/partially_paid from a webhook — a
+    // late/out-of-order event must not flip money state (review finding #3).
+    const { data: cur } = await dbAny
+      .from('finance_invoices').select('status').eq('id', link.erp_id).maybeSingle()
     const patch: Record<string, unknown> = { updated_at: new Date().toISOString() }
     if (ev.irn != null) patch.irn = ev.irn
     if (ev.qr != null) patch.qr_code = ev.qr
     if (ev.pdfUrl != null) patch.pdf_url = ev.pdfUrl
-    if (ev.eventType === 'document.cancelled') patch.status = 'cancelled'
-    else if (ev.paymentStatus === 'paid') patch.status = 'paid'
-    else if (ev.paymentStatus === 'partial') patch.status = 'partially_paid'
+    // The only provider-authoritative status transition we honour is an explicit
+    // cancel — and never resurrect an already-cancelled invoice.
+    if (ev.eventType === 'document.cancelled' && cur?.status !== 'cancelled') patch.status = 'cancelled'
     await dbAny.from('finance_invoices').update(patch).eq('id', link.erp_id)
   } else if (link.erp_entity === 'credit_note' && ev.eventType === 'document.cancelled') {
     await dbAny.from('finance_credit_notes').update({ status: 'cancelled' }).eq('id', link.erp_id)

@@ -93,6 +93,18 @@ export async function recordInvoicePayment(
   input: PaymentInput,
   recordedBy: string | null,
 ): Promise<void> {
+  // Guard #4: payments only make sense on an issued (or part-paid) invoice.
+  // draft/cancelled/paid are rejected before any write.
+  if (invoice.status !== 'issued' && invoice.status !== 'partially_paid') {
+    throw new Error('Payments allowed only on issued invoices')
+  }
+
+  // Guard #2: amount must be positive and must not exceed the outstanding
+  // balance (money is bigint paise). Validate BEFORE inserting the payment.
+  const balance = invoice.grand_total - invoice.amount_paid
+  if (input.amount <= 0) throw new Error('Amount must be positive')
+  if (input.amount > balance) throw new Error('Payment exceeds balance')
+
   await insertPayment(input, recordedBy)
 
   const newPaid = invoice.amount_paid + input.amount

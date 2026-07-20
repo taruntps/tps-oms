@@ -227,8 +227,19 @@ async function storeInvoicePdf(
       r.pdfUrl = signed?.signedUrl ?? r.pdfUrl
     }
   } catch (e) {
-    // Non-fatal: leave pdfUrl as-is (may be null). Surface only in server logs.
+    // Non-fatal for the sync, but make it DISCOVERABLE (review finding #9): the
+    // invoice keeps pdf_url null, so record a billing_sync_log row staff can find
+    // instead of it being buried in edge logs.
     console.error('[billing-worker] pdf store skipped', { queueId: row.id, error: sanitizeError(e) })
+    try {
+      await (db as any).from('billing_sync_log').insert({
+        queue_id: row.id,
+        provider: row.provider,
+        direction: 'outbound',
+        response_summary: `pdf_store_failed — invoice ${row.erp_id} pdf_url left null: ${sanitizeError(e)}`,
+        error_code: 'pdf_store_failed',
+      })
+    } catch { /* logging is best-effort */ }
   }
 }
 

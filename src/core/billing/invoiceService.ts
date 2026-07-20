@@ -46,6 +46,13 @@ async function enqueue({ op, erpEntity, erpId, provider = DEFAULT_PROVIDER }: En
       .single()
 
     if (error) {
+      // Unique-violation (23505) against billing_sync_queue_active_uq means an
+      // identical op is already queued/processing for this entity — treat as an
+      // idempotent no-op (review finding #1/#7: prevents duplicate provider sync).
+      if ((error as any).code === '23505') {
+        console.log('[billing/invoiceService] enqueue skipped — active op already queued', { op, erpEntity, erpId })
+        return null
+      }
       console.error('[billing/invoiceService] enqueue failed', { op, erpEntity, erpId, error: error.message })
       throw new Error(`Failed to enqueue billing op "${op}": ${error.message}`)
     }

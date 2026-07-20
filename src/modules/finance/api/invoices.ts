@@ -213,20 +213,33 @@ export async function updateDraftInvoice(
  * (provider_id/irn/qr_code/pdf_url) are populated later by the billing worker.
  */
 export async function markInvoiceIssued(id: string): Promise<void> {
-  const { error } = await db
+  // Guard the draft→issued transition atomically: the `.eq('status','draft')`
+  // filter means a concurrent issue (or a non-draft invoice) matches no row, so
+  // `maybeSingle()` returns null and we abort BEFORE the caller enqueues a
+  // provider op. This closes the double-issue race (review finding #1).
+  const { data, error } = await db
     .from('finance_invoices')
     .update({ status: 'issued', updated_at: new Date().toISOString() })
     .eq('id', id)
     .eq('status', 'draft')
+    .select('id')
+    .maybeSingle()
   if (error) throw error
+  if (!data) throw new Error('Invoice is not a draft (already issued?)')
 }
 
 export async function cancelInvoice(id: string): Promise<void> {
-  const { error } = await db
+  // Only an ISSUED invoice may be cancelled via this path. paid/cancelled/draft
+  // match no row → maybeSingle() returns null and we throw (review finding #5).
+  const { data, error } = await db
     .from('finance_invoices')
     .update({ status: 'cancelled', updated_at: new Date().toISOString() })
     .eq('id', id)
+    .eq('status', 'issued')
+    .select('id')
+    .maybeSingle()
   if (error) throw error
+  if (!data) throw new Error('Only issued invoices can be cancelled')
 }
 
 // ── Credit notes ──
