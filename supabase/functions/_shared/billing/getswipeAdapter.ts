@@ -46,17 +46,33 @@ function toSwipeDate(iso?: string | null): string | undefined {
   return `${d[2]}-${d[1]}-${d[0]}`
 }
 
+/** Lowercase, non-alphanumeric → '-', trim dashes; fallback 'item'. */
+function slug(s?: string | null): string {
+  const out = String(s ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+  return out || 'item'
+}
+
+/** Round a rupee-space number to 2 dp (avoids float drift on fractional qty). */
+function round2(n: number): number {
+  return Math.round(n * 100) / 100
+}
+
 function mapLine(line: ErpInvoiceLine) {
+  // net_amount is the pre-tax line value in rupees = unit_price(rupees) * quantity.
+  // Compute in rupee-space and round to 2dp so fractional quantities are safe.
+  const netAmount = round2(paiseToRupees(line.unitPrice) * line.quantity)
   return {
+    id: line.itemId || slug(line.description),
     name: line.description,
+    item_type: line.itemType || 'Service',
     quantity: line.quantity,
     unit_price: paiseToRupees(line.unitPrice),
     tax_rate: line.gstRate,
+    hsn_code: line.hsnSac ?? undefined,
+    discount_percent: line.discountPercent || undefined,
+    net_amount: netAmount,
     price_with_tax: paiseToRupees(line.lineTotal),
     total_amount: paiseToRupees(line.lineTotal),
-    hsn_code: line.hsnSac ?? undefined,
-    discount_percent: line.discountPercent ?? undefined,
-    item_type: 'product',
   }
 }
 
@@ -174,11 +190,14 @@ export class GetSwipeAdapter implements BillingProvider {
       due_date: toSwipeDate(inv.dueDate),
       einvoice: inv.eInvoice === true,
       place_of_supply: inv.placeOfSupply ?? undefined,
-      party: inv.customerErpId
-        ? { reference: inv.customerErpId, gstin: inv.clientGstin ?? undefined }
-        : undefined,
+      party: {
+        id: inv.customerErpId ?? inv.erpId,
+        type: 'customer',
+        name: inv.customerName ?? 'Customer',
+        phone_number: inv.customerPhone ?? undefined,
+        gstin: inv.clientGstin ?? undefined,
+      },
       items: inv.lines.map(mapLine),
-      round_off: paiseToRupees((inv.grandTotal - inv.subtotal - inv.taxTotal + inv.discountTotal)),
     }
   }
 
@@ -202,13 +221,17 @@ export class GetSwipeAdapter implements BillingProvider {
   }
 
   async updateInvoice(ref: ProviderRef, inv: ErpInvoice): Promise<ProviderInvoiceResult> {
+    // TODO: edit endpoint path unverified against live GetSwipe.
     const body = { ...this.buildDocBody(inv, 'invoice'), hash_id: ref.providerId }
     const res = await this.call<any>('POST', '/v2/doc/edit', body)
     return this.mapDocResult(res)
   }
 
-  async cancelInvoice(ref: ProviderRef, reason: string): Promise<void> {
-    await this.call<any>('POST', '/v2/doc/cancel', { hash_id: ref.providerId, reason })
+  async cancelInvoice(ref: ProviderRef, _reason: string): Promise<void> {
+    // GetSwipe cancel = DELETE {base}/v2/doc/{hash_id}; no body. The reason is
+    // recorded ERP-side (billing_sync_log) — the API takes no reason param.
+    void _reason
+    await this.call<any>('DELETE', `/v2/doc/${encodeURIComponent(ref.providerId)}`)
   }
 
   async createCreditNote(cn: ErpCreditNote): Promise<ProviderInvoiceResult> {
@@ -250,23 +273,48 @@ export class GetSwipeAdapter implements BillingProvider {
   }
 
   async getPaymentStatus(ref: ProviderRef): Promise<PaymentStatus> {
-    const res = await this.call<any>('GET', `/v2/doc/get?hash_id=${encodeURIComponent(ref.providerId)}`)
+    // GET {base}/v2/doc/{hash_id} — hash in the PATH.
+    const res = await this.call<any>('GET', `/v2/doc/${encodeURIComponent(ref.providerId)}`)
     const data = res?.data ?? {}
+    // Map defensively: exact nesting of the get-document payload is to be
+    // re-confirmed during live payment testing (may be data.* or data.document.*).
+    const doc = data.document ?? {}
+    const paymentStatus = data.payment_status ?? doc.payment_status ?? data.status
+    const amountPaidRupees = data.amount_paid ?? doc.amount_paid
     return {
-      status: mapPaymentStatus(data.payment_status ?? data.status),
-      amountPaid: data.amount_paid != null ? BigInt(Math.round(Number(data.amount_paid) * 100)) : undefined,
+      status: mapPaymentStatus(paymentStatus),
+      amountPaid: amountPaidRupees != null ? BigInt(Math.round(Number(amountPaidRupees) * 100)) : undefined,
     }
   }
 
   // ── Artifacts ──
   async getInvoicePdf(ref: ProviderRef): Promise<{ url?: string; bytes?: Uint8Array }> {
-    const res = await this.call<any>('GET', `/v2/doc/pdf?hash_id=${encodeURIComponent(ref.providerId)}`)
-    const url = res?.data?.pdf_url ?? res?.data?.url
-    return url ? { url: String(url) } : {}
+    // GET {base}/v2/doc/pdf/{hash_id} returns RAW PDF bytes (not JSON, no url).
+    // Bypass the JSON call() helper — read the binary body directly.
+    this.requireConfigured()
+    const url = `${this.env.getswipe.baseUrl}/v2/doc/pdf/${encodeURIComponent(ref.providerId)}`
+    let res: Response
+    try {
+      res = await fetch(url, { headers: this.authHeaders() })
+    } catch (err) {
+      throw new BillingProviderError(
+        `GetSwipe network error: ${err instanceof Error ? err.message : String(err)}`,
+        { retryable: true },
+      )
+    }
+    if (!res.ok) {
+      const retryable = res.status === 429 || res.status >= 500
+      throw new BillingProviderError(
+        `GetSwipe GET /v2/doc/pdf failed: HTTP ${res.status}`,
+        { httpStatus: res.status, retryable },
+      )
+    }
+    return { bytes: new Uint8Array(await res.arrayBuffer()) }
   }
 
   async getShareLink(ref: ProviderRef): Promise<string> {
-    const res = await this.call<any>('GET', `/v2/doc/get?hash_id=${encodeURIComponent(ref.providerId)}`)
+    // TODO: share-link endpoint unverified against live GetSwipe.
+    const res = await this.call<any>('GET', `/v2/doc/${encodeURIComponent(ref.providerId)}`)
     const link = res?.data?.share_link ?? res?.data?.public_url
     if (!link) throw new BillingProviderError('GetSwipe getShareLink: no link in response', { retryable: false })
     return String(link)

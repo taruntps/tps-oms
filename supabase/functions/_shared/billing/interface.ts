@@ -29,6 +29,10 @@ export interface ErpInvoiceLine {
   sgst?: bigint
   igst?: bigint
   lineTotal: bigint
+  /** Stable provider item id (falls back to a slug of description). */
+  itemId?: string | null
+  /** GetSwipe item_type; defaults to 'Service'. */
+  itemType?: 'Service' | 'Product'
 }
 
 export interface ErpInvoice {
@@ -46,6 +50,10 @@ export interface ErpInvoice {
   amountPaid?: bigint
   notes?: string | null
   eInvoice?: boolean
+  /** Customer display name for the provider party block. */
+  customerName?: string | null
+  /** Customer phone for the provider party block. */
+  customerPhone?: string | null
   lines: ErpInvoiceLine[]
 }
 

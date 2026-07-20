@@ -89,6 +89,13 @@ async function loadInvoice(db: Db, erpId: string): Promise<ErpInvoice> {
   const { data, error } = await dbAny.from('finance_invoices').select('*').eq('id', erpId).single()
   if (error || !data) throw new BillingProviderError(`Invoice ${erpId} not found`, { retryable: false })
   const { data: lines } = await dbAny.from('finance_invoice_lines').select('*').eq('invoice_id', erpId)
+  // Enrich the provider party block with the client's display name + phone.
+  // Reuse the SAME phone field precedence as loadCustomer (phone ?? contact_phone).
+  let client: any = null
+  if (data.client_id) {
+    const { data: c } = await dbAny.from('clients').select('*').eq('id', data.client_id).single()
+    client = c ?? null
+  }
   return {
     erpId: data.id,
     invoiceNo: data.invoice_no ?? null,
@@ -103,6 +110,8 @@ async function loadInvoice(db: Db, erpId: string): Promise<ErpInvoice> {
     grandTotal: BigInt(data.grand_total ?? 0),
     amountPaid: BigInt(data.amount_paid ?? 0),
     notes: data.notes ?? null,
+    customerName: client?.name ?? client?.company_name ?? 'Customer',
+    customerPhone: client?.phone ?? client?.contact_phone ?? null,
     lines: (lines ?? []).map((l: any) => ({
       description: l.description,
       quantity: Number(l.quantity ?? 1),
@@ -114,6 +123,8 @@ async function loadInvoice(db: Db, erpId: string): Promise<ErpInvoice> {
       sgst: BigInt(l.sgst ?? 0),
       igst: BigInt(l.igst ?? 0),
       lineTotal: BigInt(l.line_total ?? 0),
+      itemId: l.service_id ?? null,
+      itemType: 'Service' as const,
     })),
   }
 }
@@ -189,6 +200,35 @@ interface OpResult {
   serial?: string | null
 }
 
+/**
+ * Fetch the provider PDF (raw bytes) and store it in the `invoice-pdfs` bucket,
+ * setting r.pdfUrl to a long-lived signed URL. Non-fatal: any failure (e.g.
+ * InternalProvider.getInvoicePdf throwing) leaves pdfUrl untouched.
+ */
+async function storeInvoicePdf(
+  db: Db,
+  provider: ReturnType<typeof getProvider>,
+  row: any,
+  r: OpResult['ref'] & { pdfUrl?: string | null },
+) {
+  try {
+    const { bytes } = await provider.getInvoicePdf(r)
+    if (bytes) {
+      const path = `${row.erp_id}.pdf`
+      const dbAny = db as any
+      await dbAny.storage.from('invoice-pdfs').upload(path, bytes, {
+        contentType: 'application/pdf',
+        upsert: true,
+      })
+      const { data: signed } = await dbAny.storage.from('invoice-pdfs').createSignedUrl(path, 31536000)
+      r.pdfUrl = signed?.signedUrl ?? r.pdfUrl
+    }
+  } catch (e) {
+    // Non-fatal: leave pdfUrl as-is (may be null). Surface only in server logs.
+    console.error('[billing-worker] pdf store skipped', { queueId: row.id, error: sanitizeError(e) })
+  }
+}
+
 /** Execute a queue op against the provider; return the provider result. */
 async function runOp(db: Db, provider: ReturnType<typeof getProvider>, row: any, existingLink: any): Promise<OpResult> {
   const existingRef: ProviderRef | null = existingLink?.provider_id
@@ -202,12 +242,14 @@ async function runOp(db: Db, provider: ReturnType<typeof getProvider>, row: any,
     }
     case 'create_invoice': {
       const r = await provider.createInvoice(await loadInvoice(db, row.erp_id))
+      await storeInvoicePdf(db, provider, row, r)
       return { ref: r, irn: r.irn, qr: r.qr, pdfUrl: r.pdfUrl, serial: r.providerSerial }
     }
     case 'update_invoice': {
       const inv = await loadInvoice(db, row.erp_id)
       const ref = existingRef ?? { provider: row.provider, providerId: '' }
       const r = await provider.updateInvoice(ref, inv)
+      await storeInvoicePdf(db, provider, row, r)
       return { ref: r, irn: r.irn, qr: r.qr, pdfUrl: r.pdfUrl, serial: r.providerSerial }
     }
     case 'cancel_invoice': {
