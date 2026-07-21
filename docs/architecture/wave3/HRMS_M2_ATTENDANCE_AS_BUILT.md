@@ -1,6 +1,6 @@
 # HRMS Milestone M2 — Attendance — As-Built, UAT Checklist & Release Notes
 
-> **Status:** Implemented on `staging`, awaiting user review/approval to FREEZE.
+> **Status:** ✅ APPROVED & FROZEN (2026-07-20), tag `v3.0-hrms-m2`. Do not modify except critical defects.
 > Design: `HRMS_02_TIME_ATTENDANCE_LEAVE`, `HRMS_BUSINESS_RULES_AND_POLICY` §2/§5/§6, traceability AT-01…AT-12.
 > Constitution: additive/EXPAND, reuse-before-create, nothing hardcoded, production untouched.
 

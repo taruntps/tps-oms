@@ -35,7 +35,7 @@
 
 ---
 
-## Milestone M2 — Attendance
+## Milestone M2 — Attendance  — ✅ FROZEN (tag `v3.0-hrms-m2`)
 
 *Design: HRMS_02 Part A/B · Business rules: §2, §5, §6.*
 

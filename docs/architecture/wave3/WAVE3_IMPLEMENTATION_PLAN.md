@@ -21,7 +21,7 @@ Every milestone delivers: **Features · Database (additive migrations) · Backen
 - **Testing:** config resolution (most-specific-wins), employee CRUD, PII permission gating.
 - **Deliverable:** Employee Master live; policies configurable; no hardcoding.
 
-### HRMS-M2 · Attendance + Leave  *(design: HRMS_02)*
+### HRMS-M2 · Attendance  — ✅ FROZEN (tag `v3.0-hrms-m2`)  *(design: HRMS_02; as-built: HRMS_M2_ATTENDANCE_AS_BUILT)*
 - **Features:** attendance rules/shifts/corrections (extend existing `attendance_*`), leave types/balances/accrual/approval, holiday calendar.
 - **DB:** additive on `attendance_settings`/`attendance_punches`; new shift + leave + ledger tables.
 - **Backend:** shift resolver, leave-balance ledger RPCs, approval workflow, correction workflow.
