@@ -11,6 +11,12 @@ export const HRMS_PERMISSIONS = [
   'hrms.employee.view.self',
   // Sensitive PII (bank, statutory IDs, medical)
   'hrms.employee.sensitive.view',
+  // Attendance (M2) — self-service, view (team/all), correct, approve; shift admin
+  'hrms.attendance.self',
+  'hrms.attendance.view',
+  'hrms.attendance.manage',
+  'hrms.attendance.approve',
+  'hrms.shift.manage',
 ] as const
 
 export type HrmsPermission = (typeof HRMS_PERMISSIONS)[number]

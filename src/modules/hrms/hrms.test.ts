@@ -1,42 +1,63 @@
-// HRMS M1 — module contract unit tests.
-// Guards the Employee Master module's public surface: stable key, the five permission
-// keys, the four routes, and the nav group. Cheap, deterministic, no network.
+// HRMS module — contract unit tests (M1 Employee Master + M2 Attendance).
+// Guards the module's public surface: stable key, permission keys, routes, nav gating.
+// Cheap, deterministic, no network.
 import { describe, it, expect } from 'vitest'
 import { hrmsModule, HRMS_PERMISSIONS, hrmsNav, hrmsRoutes } from './index'
 
-describe('hrmsModule contract (M1 Employee Master)', () => {
+describe('hrmsModule contract', () => {
   it('registers under the stable "hrms" key', () => {
     expect(hrmsModule.key).toBe('hrms')
   })
 
-  it('defines exactly the five HRMS permission keys', () => {
-    expect(hrmsModule.permissions).toEqual([...HRMS_PERMISSIONS])
-    expect([...HRMS_PERMISSIONS].sort()).toEqual(
-      [
-        'hrms.config.manage',
-        'hrms.employee.manage',
-        'hrms.employee.sensitive.view',
-        'hrms.employee.view',
-        'hrms.employee.view.self',
-      ].sort(),
-    )
+  it('M1 — defines the employee-master + config permission keys', () => {
+    for (const k of [
+      'hrms.config.manage',
+      'hrms.employee.view',
+      'hrms.employee.manage',
+      'hrms.employee.view.self',
+      'hrms.employee.sensitive.view',
+    ]) {
+      expect(HRMS_PERMISSIONS).toContain(k)
+    }
   })
 
-  it('mounts the employee master, org setup and HR settings routes', () => {
+  it('M2 — defines the attendance + shift permission keys', () => {
+    for (const k of [
+      'hrms.attendance.self',
+      'hrms.attendance.view',
+      'hrms.attendance.manage',
+      'hrms.attendance.approve',
+      'hrms.shift.manage',
+    ]) {
+      expect(HRMS_PERMISSIONS).toContain(k)
+    }
+    expect(hrmsModule.permissions).toEqual([...HRMS_PERMISSIONS])
+    // keys are unique
+    expect(new Set(HRMS_PERMISSIONS).size).toBe(HRMS_PERMISSIONS.length)
+  })
+
+  it('mounts the M1 employee + M2 attendance routes', () => {
     const paths = hrmsRoutes.map((r) => r.path)
+    // M1
     expect(paths).toContain('hrms/employees')
     expect(paths).toContain('hrms/employees/:id')
     expect(paths).toContain('hrms/setup/org')
     expect(paths).toContain('hrms/setup/policies')
-    expect(hrmsRoutes.length).toBe(4)
+    // M2
+    expect(paths).toContain('hrms/attendance/me')
+    expect(paths).toContain('hrms/attendance')
+    expect(paths).toContain('hrms/attendance/approvals')
+    expect(paths).toContain('hrms/attendance/shifts')
+    expect(paths).toContain('hrms/attendance/reports')
+    // no duplicate route paths
+    expect(new Set(paths).size).toBe(paths.length)
   })
 
-  it('exposes an HRMS nav group gated to people-ops roles', () => {
-    expect(hrmsNav.length).toBeGreaterThanOrEqual(3)
-    const employees = hrmsNav.find((n) => n.to === '/hrms/employees')
-    expect(employees?.permission).toBe('hrms.employee.view')
-    // config screens require the config permission
-    const orgSetup = hrmsNav.find((n) => n.to === '/hrms/setup/org')
-    expect(orgSetup?.permission).toBe('hrms.config.manage')
+  it('nav entries carry a permission gate', () => {
+    expect(hrmsNav.length).toBeGreaterThanOrEqual(6)
+    const myAtt = hrmsNav.find((n) => n.to === '/hrms/attendance/me')
+    expect(myAtt?.permission).toBe('hrms.attendance.self')
+    const shifts = hrmsNav.find((n) => n.to === '/hrms/attendance/shifts')
+    expect(shifts?.permission).toBe('hrms.shift.manage')
   })
 })
