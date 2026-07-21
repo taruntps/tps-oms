@@ -11,6 +11,7 @@ import { knowledgeModule } from '@/modules/knowledge'
 import { crmModule } from '@/modules/crm'
 import { salesModule } from '@/modules/sales'
 import { financeModule } from '@/modules/finance'
+import { hrmsModule } from '@/modules/hrms'
 
 // Wave 1 adds Administration, Document Management, Knowledge Base alongside Operations.
 // Wave 2 adds the revenue spine: CRM → Sales → Finance & Accounts.
@@ -22,6 +23,7 @@ export const MODULES: ModuleDef[] = [
   crmModule,
   salesModule,
   financeModule,
+  hrmsModule,
 ]
 
 /** All module-owned routes, flattened, for mounting into the router tree. */

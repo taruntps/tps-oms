@@ -25,6 +25,7 @@ const NAV: NavItem[] = [
   { href: '/crm/leads',          label: 'CRM',            icon: 'contact_phone',           roles: ['super_admin','director','manager','executive'] },
   { href: '/sales/deals',        label: 'Sales',          icon: 'point_of_sale',           roles: ['super_admin','director','manager','executive'] },
   { href: '/finance',            label: 'Finance',        icon: 'account_balance',         roles: ['super_admin','director','manager','accounts','auditor'] },
+  { href: '/hrms/employees',     label: 'HRMS',           icon: 'badge',                   roles: ['super_admin','director','manager','hr','auditor'] },
   { href: '/employees',          label: 'Employees',      icon: 'badge',                   roles: ['super_admin','director','manager','hr'] },
   { href: '/documents',          label: 'Documents',      icon: 'folder_open',             roles: ['super_admin','director','manager','executive','accounts','hr','auditor'] },
   { href: '/knowledge',          label: 'Knowledge Base', icon: 'menu_book',               roles: ['super_admin','director','manager','executive','auditor'] },
