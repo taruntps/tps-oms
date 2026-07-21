@@ -13,7 +13,7 @@ Every milestone delivers: **Features · Database (additive migrations) · Backen
 
 ## Part A — HRMS
 
-### HRMS-M1 · Foundation + Employee Master  *(design: HRMS_01)*
+### HRMS-M1 · Foundation + Employee Master  — ✅ FROZEN (tag `v3.0-hrms-m1`)  *(design: HRMS_01; as-built: HRMS_M1_EMPLOYEE_MASTER_AS_BUILT)*
 - **Features:** Company/Org config (branches, departments, designations, grades, employment types, reporting & approval hierarchy); configurable HR settings via Administration (`hr_policy_settings` resolver); Employee Master (extend `employee_details` + child/history tables).
 - **DB:** org master tables + `hr_policy_settings`; additive columns on `employee_details`/`profiles`; audit triggers.
 - **Backend:** `get_hr_policy` resolver; permission keys `hrms.employee.*`, `hrms.config.*`; RLS.

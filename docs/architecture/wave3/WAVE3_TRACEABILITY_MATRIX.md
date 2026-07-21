@@ -12,7 +12,7 @@
 
 ---
 
-## Milestone M1 — Employee Master (+ minimal Foundation it requires)
+## Milestone M1 — Employee Master (+ minimal Foundation it requires)  — ✅ FROZEN (tag `v3.0-hrms-m1`)
 
 *Design: HRMS_01_FOUNDATION · Business rules: §1, §3, §19.* Includes the org masters + configurable-policy framework the Employee Master references (Employee Master cannot function without department/designation/grade + the config resolver).
 

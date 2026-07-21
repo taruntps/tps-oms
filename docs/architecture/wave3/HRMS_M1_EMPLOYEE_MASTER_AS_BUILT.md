@@ -1,6 +1,6 @@
 # HRMS Milestone M1 — Employee Master — As-Built, UAT Checklist & Release Notes
 
-> **Status:** Implemented on `staging`, awaiting user review/approval to FREEZE.
+> **Status:** ✅ APPROVED & FROZEN (2026-07-20), tag `v3.0-hrms-m1`. Do not modify except critical defects.
 > Design source: `HRMS_01_FOUNDATION`, `HRMS_BUSINESS_RULES_AND_POLICY`, `WAVE3_TRACEABILITY_MATRIX` (EM-01…EM-12).
 > Constitution: additive/EXPAND only, reuse-before-create, nothing hardcoded, production untouched.
 
