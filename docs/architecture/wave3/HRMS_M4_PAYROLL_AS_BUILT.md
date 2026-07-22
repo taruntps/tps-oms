@@ -1,6 +1,6 @@
 # HRMS Milestone M4 — Payroll — As-Built, UAT Checklist & Release Notes
 
-> **Status:** Implemented on `staging`, awaiting user review/approval to FREEZE.
+> **Status:** ✅ APPROVED & FROZEN (2026-07-22), tag `v3.0-hrms-m4`. Do not modify except critical defects.
 > Design baseline (frozen, tag `v3.0-hrms-m4-design`): calc spec + data-model spec + process-flow spec.
 > Acceptance basis: `PAYROLL_TEST_SCENARIO_MATRIX`. Constitution: additive/EXPAND, reuse-before-create,
 > nothing hardcoded, money=paise, Finance disburses (no auto-GL), frozen M1/M2/M3 untouched.

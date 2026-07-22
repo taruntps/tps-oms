@@ -197,4 +197,7 @@ export const hrmsNav: NavEntry[] = [
     roles: HRMS_ROLES,
     permission: 'hrms.performance.view',
   },
+  { to: '/hrms/training', label: 'Training', icon: 'school', roles: HRMS_ROLES, permission: 'hrms.training.view' },
+  { to: '/hrms/training/certifications', label: 'Certifications', icon: 'verified', roles: HRMS_ROLES, permission: 'hrms.training.view' },
+  { to: '/hrms/training/me', label: 'My Training', icon: 'cast_for_education', roles: [...HRMS_ROLES, 'executive', 'accounts'], permission: 'hrms.training.view.self' },
 ]

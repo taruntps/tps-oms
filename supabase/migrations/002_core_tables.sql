@@ -212,9 +212,11 @@ create table stage_timeline (
   clock_type    clock_type not null,
   started_at    timestamptz not null default now(),
   ended_at      timestamptz,
-  duration_min  integer generated always as (
-    extract(epoch from (coalesce(ended_at, now()) - started_at)) / 60
-  ) stored,
+  -- Plain nullable integer to match production. (A previous edit to this file
+  -- turned this into a GENERATED ... STORED column using now(), which Postgres
+  -- rejects as non-immutable and which production never actually had. Duration
+  -- is populated by the stage-timeline triggers added in migration 055.)
+  duration_min  integer,
   note          text,
   created_by    uuid references profiles(id)
 );

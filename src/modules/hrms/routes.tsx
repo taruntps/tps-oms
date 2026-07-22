@@ -39,6 +39,10 @@ const MyPerformancePage = lazy(() => import('./pages/MyPerformancePage'))
 const PerformancePage = lazy(() => import('./pages/PerformancePage'))
 const PerformanceSetupPage = lazy(() => import('./pages/PerformanceSetupPage'))
 const PerformanceReportsPage = lazy(() => import('./pages/PerformanceReportsPage'))
+// ── Training (M7) ──
+const TrainingPage = lazy(() => import('./pages/TrainingPage'))
+const CertificationsPage = lazy(() => import('./pages/CertificationsPage'))
+const MyTrainingPage = lazy(() => import('./pages/MyTrainingPage'))
 
 const HRMS_ROLES = ['super_admin', 'director', 'manager', 'hr', 'auditor'] as const
 // My Attendance / My Leave (ESS) is also reachable by individual-contributor roles.
@@ -314,6 +318,31 @@ export const hrmsRoutes: RouteObject[] = [
     element: (
       <ProtectedRoute allowedRoles={[...HRMS_SELF_ROLES]}>
         <PerformanceReportsPage />
+      </ProtectedRoute>
+    ),
+  },
+  // ── Training (M7) ──
+  {
+    path: 'hrms/training',
+    element: (
+      <ProtectedRoute allowedRoles={[...HRMS_ROLES]}>
+        <TrainingPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: 'hrms/training/certifications',
+    element: (
+      <ProtectedRoute allowedRoles={[...HRMS_ROLES]}>
+        <CertificationsPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: 'hrms/training/me',
+    element: (
+      <ProtectedRoute allowedRoles={[...HRMS_SELF_ROLES]}>
+        <MyTrainingPage />
       </ProtectedRoute>
     ),
   },

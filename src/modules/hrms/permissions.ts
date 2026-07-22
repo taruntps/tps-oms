@@ -50,6 +50,10 @@ export const HRMS_PERMISSIONS = [
   'hrms.performance.review.manager',
   'hrms.performance.view',
   'hrms.performance.recommend.approve',
+  // M7 Training
+  'hrms.training.manage',
+  'hrms.training.view',
+  'hrms.training.view.self',
 ] as const
 
 export type HrmsPermission = (typeof HRMS_PERMISSIONS)[number]

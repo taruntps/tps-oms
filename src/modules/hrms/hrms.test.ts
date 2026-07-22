@@ -96,6 +96,18 @@ describe('hrmsModule contract', () => {
     expect(new Set(HRMS_PERMISSIONS).size).toBe(HRMS_PERMISSIONS.length)
   })
 
+  it('M7 — defines training permission keys and routes', () => {
+    for (const k of ['hrms.training.manage', 'hrms.training.view', 'hrms.training.view.self'])
+      expect(HRMS_PERMISSIONS).toContain(k)
+    const paths = hrmsRoutes.map((r) => r.path)
+    for (const p of ['hrms/training', 'hrms/training/certifications', 'hrms/training/me'])
+      expect(paths).toContain(p)
+    // My Training nav is reachable by individual-contributor roles
+    const myTraining = hrmsNav.find((n) => n.to === '/hrms/training/me')
+    expect(myTraining?.permission).toBe('hrms.training.view.self')
+    expect(myTraining?.roles).toContain('executive')
+  })
+
   it('mounts the M1 employee + M2 attendance + M3 leave routes', () => {
     const paths = hrmsRoutes.map((r) => r.path)
     // M1
