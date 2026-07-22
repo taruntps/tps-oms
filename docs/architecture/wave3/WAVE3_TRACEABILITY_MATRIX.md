@@ -99,7 +99,7 @@
 
 ---
 
-## Milestone M5 — Recruitment & Employee Lifecycle
+## Milestone M5 — Recruitment & Employee Lifecycle  — ✅ FROZEN (tag `v3.0-hrms-m5`)
 
 *Design: HRMS_04 §1–3 · Business rules: §12, §13, §14.* Recruitment INTERNAL ONLY (no external/candidate portal).
 
