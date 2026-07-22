@@ -1,5 +1,6 @@
 # HRMS M4 — Payroll Calculation Specification
 
+> **Status:** ✅ APPROVED & FROZEN — M4 design baseline (2026-07-20), tag `v3.0-hrms-m4-design`.
 > **DESIGN ONLY — no code, SQL, or migrations produced.** Await user approval before implementing M4.
 > Builds on frozen M1 (Employee), M2 (Attendance), M3 (Leave). Design source: `HRMS_03_PAYROLL_STATUTORY`,
 > `HRMS_BUSINESS_RULES_AND_POLICY` §9–§11. **Money = `bigint` paise** everywhere. **Finance disburses;

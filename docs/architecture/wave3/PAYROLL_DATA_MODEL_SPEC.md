@@ -1,5 +1,6 @@
 # Payroll (M4) — Data Model Specification
 
+> **Status:** ✅ APPROVED & FROZEN — M4 design baseline (2026-07-20), tag `v3.0-hrms-m4-design`.
 > **DESIGN ONLY — no code, SQL, or migrations.** Await user approval before implementing M4.
 > Companion to `HRMS_M4_PAYROLL_CALCULATION_SPEC`. Builds on frozen M1/M2/M3 + Wave 2 Finance +
 > Document Management. **Money = `bigint` paise.** All statutory rules effective-dated + versioned.
