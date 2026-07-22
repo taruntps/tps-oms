@@ -99,11 +99,11 @@ The engine evaluates in a fixed, dependency-safe order so results are reproducib
 ## Proposed M4 milestone deliverables (on spec approval)
 Same process as M1–M3: **Database** (the §1 tables, additive) · **Backend** (calculation engine RPCs, statutory config, Finance handoff, RLS) · **Frontend** (salary structures, payroll run console, payslip viewer, ESS payslips, statutory registers) · **Permissions** (`hrms.payroll.*`, `hrms.salary.*`) · **Validation** · **Unit tests** (calc vs expected, statutory edge cases) · **Integration tests** (M2/M3 inputs → run; Finance handoff) · **Documentation** · **UAT checklist** · **Release notes**.
 
-## Open questions for confirmation before implementation
-1. **Statutory seed values** — seed PF/ESI/PT(Punjab)/gratuity/bonus with the defaults in §10, or seed placeholders and let Administration set exact current-year values?
-2. **TDS scope for the first milestone** — full Sec-192 YTD engine with old/new-regime declarations, or a simpler flat/declared-TDS input first (full engine as a follow-up)?
-3. **OT pay** — is paid OT actually used at TPS (day-shift consultancy), or is OT effectively comp-off only (then §6 stays but dormant)?
-4. **Payroll → Finance posting** — auto-create the Finance payout batch on lock, or export a bank file + let Accounts post in Finance (matching your "disbursement is human-executed" rule)?
+## Approved decisions (2026-07-20)
+1. **Statutory values:** seed **placeholders only**; Administration configures actual values; all statutory rules **effective-dated + versioned**.
+2. **TDS:** implement **Phase 1 simplified** — monthly **declared** TDS + manual adjustment + **YTD tracking** + payslip display. Full Section-192 engine deferred to a later enhancement.
+3. **Overtime:** default policy = **Comp-Off**; paid OT remains configurable but **disabled by default**.
+4. **Finance integration:** Payroll does **NOT** auto-create Finance accounting entries. Payroll produces an **approved payroll batch** → Finance reviews/authorizes/executes payment → **bank file generated after Finance approval**.
 
 **Stop condition:** specification only — no code/SQL/migrations. Await review + approval before implementing M4.
 
