@@ -4,6 +4,7 @@
 // Adding a module = write it + append one line to MODULES.
 import type { RouteObject } from 'react-router-dom'
 import type { ModuleDef, NavEntry } from './moduleTypes'
+import { coreNav } from './coreNav'
 import { operationsModule } from '@/modules/operations'
 import { administrationModule } from '@/modules/administration'
 import { documentsModule } from '@/modules/documents'
@@ -31,11 +32,14 @@ export function getAllRoutes(): RouteObject[] {
   return MODULES.flatMap((m) => m.routes)
 }
 
-/** Nav entries visible to a given role (entries without `roles` are visible to all). */
+/** Nav entries visible to a given role (entries without `roles` are visible to all).
+ *  Includes cross-cutting core entries (Dashboard, Clients, Tasks, Reports) that
+ *  are not owned by a feature module. Legacy duplicates (/attendance, /employees,
+ *  /referrals, /director) are intentionally NOT surfaced — module versions are
+ *  canonical (see docs/architecture/production-readiness/PR1_UI_NAVIGATION_DESIGN.md). */
 export function getNavFor(role: string | undefined): NavEntry[] {
-  return MODULES.flatMap((m) => m.nav).filter(
-    (entry) => !entry.roles || (role != null && entry.roles.includes(role))
-  )
+  const all = [...coreNav, ...MODULES.flatMap((m) => m.nav)]
+  return all.filter((entry) => !entry.roles || (role != null && entry.roles.includes(role)))
 }
 
 /** All permission keys defined across modules. */

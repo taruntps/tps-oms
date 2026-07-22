@@ -6,27 +6,35 @@ import type { NavEntry } from '@/core/moduleTypes'
 
 const FINANCE_ROLES = ['super_admin', 'director', 'manager', 'accounts', 'auditor']
 
+// PR1: grouped under "Finance" with Sales (from the sales module, order 0).
+// Invoices → "Billing", Payments → "Collections" per the required enterprise nav.
 export const financeNav: NavEntry[] = [
   {
-    to: '/finance',
-    label: 'Dashboard',
-    icon: 'account_balance',
-    roles: FINANCE_ROLES,
-    permission: 'finance.report.view',
-  },
-  {
     to: '/finance/invoices',
-    label: 'Invoices',
+    label: 'Billing',
     icon: 'receipt_long',
     roles: FINANCE_ROLES,
     permission: 'finance.invoice.view',
+    group: 'Finance',
+    order: 1,
+  },
+  {
+    to: '/finance',
+    label: 'Finance',
+    icon: 'account_balance',
+    roles: FINANCE_ROLES,
+    permission: 'finance.report.view',
+    group: 'Finance',
+    order: 2,
   },
   {
     to: '/finance/payments',
-    label: 'Payments',
+    label: 'Collections',
     icon: 'payments',
     roles: FINANCE_ROLES,
     permission: 'finance.payment.view',
+    group: 'Finance',
+    order: 3,
   },
   {
     to: '/finance/govt-fees',
@@ -34,5 +42,7 @@ export const financeNav: NavEntry[] = [
     icon: 'gavel',
     roles: FINANCE_ROLES,
     permission: 'finance.govtfee.manage',
+    group: 'Finance',
+    order: 5,
   },
 ]

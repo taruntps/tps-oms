@@ -5,15 +5,19 @@ import type { NavEntry } from '@/core/moduleTypes'
 
 export const operationsNav: NavEntry[] = [
   {
-    to: '/operations',
-    label: 'Operations',
-    icon: 'shield',
-    roles: ['super_admin', 'director', 'manager', 'executive', 'accounts', 'hr', 'auditor'],
-  },
-  {
     to: '/projects',
     label: 'Projects',
     icon: 'assignment',
     roles: ['super_admin', 'director', 'manager', 'executive'],
+    group: 'Business',
+    order: 3,
+  },
+  {
+    to: '/operations',
+    label: 'Operations',
+    icon: 'shield',
+    roles: ['super_admin', 'director', 'manager', 'executive', 'accounts', 'hr', 'auditor'],
+    group: 'Business',
+    order: 5,
   },
 ]

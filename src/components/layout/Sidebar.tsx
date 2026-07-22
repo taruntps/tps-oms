@@ -1,47 +1,39 @@
+// App shell — sidebar navigation (PR1 UI/Nav Modernization).
+// Registry-driven + grouped: renders getNavFor(role) organised into collapsible
+// enterprise groups (Dashboard / Business / Finance / HRMS / Documents / Reports /
+// Administration) via core/navGroups. Replaces the previous hard-coded flat NAV
+// (which ignored the module registry and duplicated HRMS/Attendance/Employees).
+// Permission-gated entries are filtered by the user's effective permissions.
+import { useMemo, useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/AuthContext'
 import { Sym } from '@/components/shared/Sym'
 import { useNotifications } from '@/hooks/useNotifications'
+import { getNavFor } from '@/core/registry'
+import { groupNav, DEFAULT_COLLAPSED, type NavGroup } from '@/core/navGroups'
+import { useMyPermissions } from '@/core/access/useCan'
 import type { UserRole } from '@/types'
-
-interface NavItem {
-  href: string
-  label: string
-  icon: string // Material Symbols ligature name
-  roles: UserRole[]
-}
-
-const NAV: NavItem[] = [
-  { href: '/dashboard',          label: 'My Dashboard',   icon: 'dashboard',               roles: ['super_admin','director','manager','executive','accounts','hr','auditor'] },
-  { href: '/attendance',         label: 'Attendance',     icon: 'fingerprint',             roles: ['super_admin','director','manager','executive','accounts','hr','auditor'] },
-  { href: '/tasks',              label: 'Tasks',          icon: 'task_alt',                roles: ['super_admin','director','manager','executive','accounts','hr','auditor'] },
-  { href: '/notifications',      label: 'Notifications',  icon: 'notifications',           roles: ['super_admin','director','manager','executive','accounts','hr','auditor'] },
-  { href: '/director',           label: 'Director View',  icon: 'trending_up',             roles: ['super_admin','director'] },
-  { href: '/operations',         label: 'Operations',     icon: 'shield',                  roles: ['super_admin','director','manager','executive','accounts','hr','auditor'] },
-  { href: '/clients',            label: 'Clients',        icon: 'apartment',               roles: ['super_admin','director','manager','executive','accounts','auditor'] },
-  { href: '/referrals',          label: 'Referrals',      icon: 'handshake',               roles: ['super_admin','director','manager'] },
-  { href: '/projects',           label: 'Projects',       icon: 'assignment',              roles: ['super_admin','director','manager','executive'] },
-  { href: '/crm/leads',          label: 'CRM',            icon: 'contact_phone',           roles: ['super_admin','director','manager','executive'] },
-  { href: '/sales/deals',        label: 'Sales',          icon: 'point_of_sale',           roles: ['super_admin','director','manager','executive'] },
-  { href: '/finance',            label: 'Finance',        icon: 'account_balance',         roles: ['super_admin','director','manager','accounts','auditor'] },
-  { href: '/hrms/employees',     label: 'HRMS',           icon: 'badge',                   roles: ['super_admin','director','manager','hr','auditor'] },
-  { href: '/employees',          label: 'Employees',      icon: 'badge',                   roles: ['super_admin','director','manager','hr'] },
-  { href: '/documents',          label: 'Documents',      icon: 'folder_open',             roles: ['super_admin','director','manager','executive','accounts','hr','auditor'] },
-  { href: '/knowledge',          label: 'Knowledge Base', icon: 'menu_book',               roles: ['super_admin','director','manager','executive','auditor'] },
-  { href: '/reports/performance',label: 'Reports',        icon: 'bar_chart',               roles: ['super_admin','director','manager'] },
-  { href: '/settings',           label: 'Settings',       icon: 'settings',                roles: ['super_admin'] },
-  { href: '/admin/users',        label: 'User Management',icon: 'admin_panel_settings',    roles: ['super_admin','director'] },
-  { href: '/admin/roles',        label: 'Roles & Access', icon: 'shield_person',           roles: ['super_admin','director'] },
-  { href: '/admin/audit',        label: 'Audit Log',      icon: 'history',                 roles: ['super_admin','director'] },
-]
 
 export function Sidebar() {
   const { profile, signOut } = useAuth()
   const role = profile?.role as UserRole | undefined
   const { unreadCount } = useNotifications()
-  const hasReportAccess = ['super_admin','director','manager'].includes(role ?? '')
-    || ((profile as any)?.report_permissions?.length ?? 0) > 0
+  const { data: perms } = useMyPermissions()
+
+  // Role-visible entries, then permission-gate (fail-closed while perms load, mirroring useCan).
+  const grouped = useMemo(() => {
+    const visible = getNavFor(role).filter((e) => !e.permission || (perms ? e.permission in perms : false))
+    return groupNav(visible)
+  }, [role, perms])
+
+  const [collapsed, setCollapsed] = useState<Set<NavGroup>>(() => new Set(DEFAULT_COLLAPSED))
+  const toggle = (g: NavGroup) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev)
+      next.has(g) ? next.delete(g) : next.add(g)
+      return next
+    })
 
   return (
     <aside className="w-60 h-screen glass-panel border-r-0 flex flex-col shrink-0">
@@ -58,46 +50,50 @@ export function Sidebar() {
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-        {/* While profile is still loading, show placeholder bars so the nav column
-            never appears empty — prevents a CLS flash as items appear. */}
-        {!role && [1,2,3,4,5,6].map(i => (
-          <div key={i} className="h-9 rounded-xl bg-white/8 animate-pulse mx-0.5" />
-        ))}
-        {role && NAV.filter(item =>
-          item.roles.includes(role) ||
-          (item.href === '/reports/performance' && hasReportAccess)
-        ).map(item => (
-          <NavLink
-            key={item.href}
-            to={item.href}
-            className={({ isActive }) => cn(
-              // Use relative + shadow-inset-r instead of border-r-4 so the active
-              // indicator does NOT consume content width (which caused "Knowledge Base"
-              // to wrap onto a second line and every nav item to shift 4px on activation).
-              'relative flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all group',
-              isActive
-                ? 'bg-white/20 text-white font-medium'
-                : 'text-white/70 hover:bg-white/10 hover:text-white'
-            )}
-          >
-            {({ isActive }) => (
-              <>
-                {/* Active indicator bar — absolutely positioned so it never shifts content width */}
-                {isActive && (
-                  <span className="absolute right-0 top-1.5 bottom-1.5 w-1 rounded-l-full bg-white" />
+      <nav className="flex-1 px-3 py-4 overflow-y-auto">
+        {!role &&
+          [1, 2, 3, 4, 5, 6].map((i) => <div key={i} className="h-9 rounded-xl bg-white/8 animate-pulse mx-0.5 mb-1" />)}
+
+        {role &&
+          grouped.map(({ group, items }) => {
+            const isCollapsed = collapsed.has(group)
+            return (
+              <div key={group} className="mb-1.5">
+                <button
+                  onClick={() => toggle(group)}
+                  className="w-full flex items-center justify-between px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-white/45 hover:text-white/70 transition-colors"
+                >
+                  <span>{group}</span>
+                  <Sym name={isCollapsed ? 'chevron_right' : 'expand_more'} size={15} className="shrink-0" />
+                </button>
+                {!isCollapsed && (
+                  <div className="space-y-0.5">
+                    {items.map((item) => (
+                      <NavLink
+                        key={item.to}
+                        to={item.to}
+                        end={item.to === '/dashboard'}
+                        className={({ isActive }) =>
+                          cn(
+                            'relative flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all group',
+                            isActive ? 'bg-white/20 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white',
+                          )
+                        }
+                      >
+                        {({ isActive }) => (
+                          <>
+                            {isActive && <span className="absolute right-0 top-1.5 bottom-1.5 w-1 rounded-l-full bg-white" />}
+                            <Sym name={item.icon} size={18} fill={isActive} className="shrink-0" />
+                            <span className="flex-1 truncate">{item.label}</span>
+                          </>
+                        )}
+                      </NavLink>
+                    ))}
+                  </div>
                 )}
-                <Sym name={item.icon} size={18} fill={isActive} className="shrink-0" />
-                <span className="flex-1">{item.label}</span>
-                {item.href === '/notifications' && unreadCount > 0 && (
-                  <span className="text-[9px] bg-red-500 text-white rounded-full min-w-[16px] h-4 px-1 flex items-center justify-center font-bold shrink-0">
-                    {unreadCount > 9 ? '9+' : unreadCount}
-                  </span>
-                )}
-              </>
-            )}
-          </NavLink>
-        ))}
+              </div>
+            )
+          })}
       </nav>
 
       {/* User footer */}
@@ -106,13 +102,25 @@ export function Sidebar() {
           <div className="flex items-center gap-2.5 px-2 py-2">
             <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center shrink-0">
               <span className="text-white text-xs font-bold">
-                {profile.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
+                {profile.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()}
               </span>
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-white text-xs font-medium truncate">{profile.name}</p>
               <p className="text-white/55 text-[10px] capitalize">{profile.role.replace('_', ' ')}</p>
             </div>
+            <NavLink
+              to="/notifications"
+              className="relative text-white/60 hover:text-white shrink-0 transition-colors"
+              title="Notifications"
+            >
+              <Sym name="notifications" size={18} />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 text-[9px] bg-red-500 text-white rounded-full min-w-[15px] h-[15px] px-1 flex items-center justify-center font-bold">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </NavLink>
             <button
               onClick={signOut}
               className="text-white/60 hover:text-white text-[10px] shrink-0 transition-colors"

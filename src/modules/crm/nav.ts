@@ -8,10 +8,12 @@ const CRM_ROLES = ['super_admin', 'director', 'manager', 'executive']
 export const crmNav: NavEntry[] = [
   {
     to: '/crm/leads',
-    label: 'Leads',
+    label: 'CRM',
     icon: 'contact_phone',
     roles: CRM_ROLES,
     permission: 'crm.lead.view',
+    group: 'Business',
+    order: 0,
   },
   {
     to: '/crm/referrals',
@@ -19,5 +21,7 @@ export const crmNav: NavEntry[] = [
     icon: 'handshake',
     roles: CRM_ROLES,
     permission: 'crm.referral.manage',
+    group: 'Business',
+    order: 2,
   },
 ]

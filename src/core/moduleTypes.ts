@@ -16,6 +16,15 @@ export interface NavEntry {
   roles?: string[]
   /** Optional granular permission key required to see this entry. */
   permission?: string
+  /**
+   * Optional sidebar group this entry belongs to (e.g. 'Business', 'HRMS').
+   * The registry-driven Sidebar renders entries under collapsible group headers.
+   * Entries without a group fall under a catch-all 'General' section. Additive —
+   * existing entries render unchanged until tagged.
+   */
+  group?: string
+  /** Optional ordering hint within a group (lower = higher). Defaults to array order. */
+  order?: number
 }
 
 /** The public contract a feature module exposes to the platform. */
