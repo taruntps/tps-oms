@@ -42,6 +42,35 @@ describe('hrmsModule contract', () => {
     }
   })
 
+  it('M4 — defines the salary + payroll + payslip permission keys', () => {
+    for (const k of [
+      'hrms.salary.view',
+      'hrms.salary.manage',
+      'hrms.payroll.process',
+      'hrms.payroll.approve',
+      'hrms.payroll.view',
+      'hrms.payslip.self',
+    ]) {
+      expect(HRMS_PERMISSIONS).toContain(k)
+    }
+    // keys remain unique
+    expect(new Set(HRMS_PERMISSIONS).size).toBe(HRMS_PERMISSIONS.length)
+  })
+
+  it('M4 — mounts the payroll routes', () => {
+    const paths = hrmsRoutes.map((r) => r.path)
+    for (const p of [
+      'hrms/payroll/components',
+      'hrms/payroll/structures',
+      'hrms/payroll/statutory',
+      'hrms/payroll/runs',
+      'hrms/payroll/runs/:id',
+      'hrms/payroll/payslips',
+    ]) {
+      expect(paths).toContain(p)
+    }
+  })
+
   it('mounts the M1 employee + M2 attendance + M3 leave routes', () => {
     const paths = hrmsRoutes.map((r) => r.path)
     // M1

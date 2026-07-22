@@ -20,6 +20,13 @@ const LeaveApprovalsPage = lazy(() => import('./pages/LeaveApprovalsPage'))
 const LeaveSetupPage = lazy(() => import('./pages/LeaveSetupPage'))
 const LeaveReportsPage = lazy(() => import('./pages/LeaveReportsPage'))
 const AttendanceStatusPage = lazy(() => import('./pages/AttendanceStatusPage'))
+// ── Payroll (M4) ──
+const ComponentMasterPage = lazy(() => import('./pages/ComponentMasterPage'))
+const SalaryStructuresPage = lazy(() => import('./pages/SalaryStructuresPage'))
+const StatutoryConfigPage = lazy(() => import('./pages/StatutoryConfigPage'))
+const PayrollRunsPage = lazy(() => import('./pages/PayrollRunsPage'))
+const PayrollRunDetailPage = lazy(() => import('./pages/PayrollRunDetailPage'))
+const PayslipsPage = lazy(() => import('./pages/PayslipsPage'))
 
 const HRMS_ROLES = ['super_admin', 'director', 'manager', 'hr', 'auditor'] as const
 // My Attendance / My Leave (ESS) is also reachable by individual-contributor roles.
@@ -30,6 +37,9 @@ const HRMS_APPROVE_ROLES = ['super_admin', 'director', 'manager', 'hr'] as const
 const HRMS_SHIFT_ROLES = ['super_admin', 'director', 'hr'] as const
 // Leave/status setup — roles that hold hrms.leave.manage / hrms.config.manage (status master).
 const HRMS_SETUP_ROLES = ['super_admin', 'director', 'hr'] as const
+// Payroll (M4) — salary/payroll are confidential (hr/director/super_admin). Fine-grained
+// process-vs-approve gating is enforced per action via useCan inside the pages.
+const HRMS_PAYROLL_ROLES = ['super_admin', 'director', 'hr'] as const
 
 export const hrmsRoutes: RouteObject[] = [
   {
@@ -151,6 +161,55 @@ export const hrmsRoutes: RouteObject[] = [
     element: (
       <ProtectedRoute allowedRoles={[...HRMS_SETUP_ROLES]}>
         <AttendanceStatusPage />
+      </ProtectedRoute>
+    ),
+  },
+  // ── Payroll (M4) ──
+  {
+    path: 'hrms/payroll/components',
+    element: (
+      <ProtectedRoute allowedRoles={[...HRMS_PAYROLL_ROLES]}>
+        <ComponentMasterPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: 'hrms/payroll/structures',
+    element: (
+      <ProtectedRoute allowedRoles={[...HRMS_PAYROLL_ROLES]}>
+        <SalaryStructuresPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: 'hrms/payroll/statutory',
+    element: (
+      <ProtectedRoute allowedRoles={[...HRMS_PAYROLL_ROLES]}>
+        <StatutoryConfigPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: 'hrms/payroll/runs',
+    element: (
+      <ProtectedRoute allowedRoles={[...HRMS_PAYROLL_ROLES]}>
+        <PayrollRunsPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: 'hrms/payroll/runs/:id',
+    element: (
+      <ProtectedRoute allowedRoles={[...HRMS_PAYROLL_ROLES]}>
+        <PayrollRunDetailPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: 'hrms/payroll/payslips',
+    element: (
+      <ProtectedRoute allowedRoles={[...HRMS_SELF_ROLES]}>
+        <PayslipsPage />
       </ProtectedRoute>
     ),
   },

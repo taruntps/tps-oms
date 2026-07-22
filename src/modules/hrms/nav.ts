@@ -95,4 +95,40 @@ export const hrmsNav: NavEntry[] = [
     roles: HRMS_ROLES,
     permission: 'hrms.config.manage',
   },
+  // ── Payroll (M4) ──
+  {
+    to: '/hrms/payroll/structures',
+    label: 'Salary Structures',
+    icon: 'payments',
+    roles: HRMS_ROLES,
+    permission: 'hrms.salary.view',
+  },
+  {
+    to: '/hrms/payroll/runs',
+    label: 'Payroll Runs',
+    icon: 'receipt_long',
+    roles: HRMS_ROLES,
+    permission: 'hrms.payroll.view',
+  },
+  {
+    to: '/hrms/payroll/payslips',
+    label: 'Payslips',
+    icon: 'description',
+    roles: HRMS_SELF_ROLES,
+    permission: 'hrms.payslip.self',
+  },
+  {
+    to: '/hrms/payroll/components',
+    label: 'Salary Components',
+    icon: 'tune',
+    roles: HRMS_ROLES,
+    permission: 'hrms.salary.manage',
+  },
+  {
+    to: '/hrms/payroll/statutory',
+    label: 'Statutory Config',
+    icon: 'gavel',
+    roles: HRMS_ROLES,
+    permission: 'hrms.salary.manage',
+  },
 ]

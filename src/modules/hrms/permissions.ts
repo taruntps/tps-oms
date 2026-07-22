@@ -23,6 +23,14 @@ export const HRMS_PERMISSIONS = [
   'hrms.leave.view',
   'hrms.leave.approve',
   'hrms.leave.manage',
+  // Payroll (M4) — salary confidential (view/manage), payroll run process vs approve
+  // (segregation of duties), payroll view, and self-service payslip.
+  'hrms.salary.view',
+  'hrms.salary.manage',
+  'hrms.payroll.process',
+  'hrms.payroll.approve',
+  'hrms.payroll.view',
+  'hrms.payslip.self',
 ] as const
 
 export type HrmsPermission = (typeof HRMS_PERMISSIONS)[number]
