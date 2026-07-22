@@ -119,6 +119,16 @@ describe('hrmsModule contract', () => {
     expect(myAssets?.roles).toContain('executive')
   })
 
+  it('M9 — defines ESS hub permission, route and nav', () => {
+    expect(HRMS_PERMISSIONS).toContain('hrms.ess.view')
+    expect(hrmsRoutes.map((r) => r.path)).toContain('hrms/me')
+    const hub = hrmsNav.find((n) => n.to === '/hrms/me')
+    expect(hub?.permission).toBe('hrms.ess.view')
+    expect(hub?.roles).toContain('executive')
+    // ESS hub is the first nav entry
+    expect(hrmsNav[0].to).toBe('/hrms/me')
+  })
+
   it('mounts the M1 employee + M2 attendance + M3 leave routes', () => {
     const paths = hrmsRoutes.map((r) => r.path)
     // M1

@@ -8,6 +8,14 @@ const HRMS_ROLES = ['super_admin', 'director', 'manager', 'hr', 'auditor']
 const HRMS_SELF_ROLES = [...HRMS_ROLES, 'executive', 'accounts']
 
 export const hrmsNav: NavEntry[] = [
+  // ── Employee Self-Service hub (M9) — first entry, open to every role ──
+  {
+    to: '/hrms/me',
+    label: 'My Hub',
+    icon: 'dashboard',
+    roles: HRMS_SELF_ROLES,
+    permission: 'hrms.ess.view',
+  },
   {
     to: '/hrms/employees',
     label: 'Employees',
