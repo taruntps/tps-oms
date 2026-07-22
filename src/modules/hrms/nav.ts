@@ -131,4 +131,41 @@ export const hrmsNav: NavEntry[] = [
     roles: HRMS_ROLES,
     permission: 'hrms.salary.manage',
   },
+  // ── Recruitment (M5) ──
+  {
+    to: '/hrms/recruit/requisitions',
+    label: 'Requisitions',
+    icon: 'work',
+    roles: HRMS_ROLES,
+    permission: 'hrms.recruitment.manage',
+  },
+  {
+    to: '/hrms/recruit/candidates',
+    label: 'Candidates',
+    icon: 'groups',
+    roles: HRMS_ROLES,
+    permission: 'hrms.recruitment.manage',
+  },
+  // ── Lifecycle (M5) ──
+  {
+    to: '/hrms/lifecycle/onboarding',
+    label: 'Onboarding',
+    icon: 'checklist',
+    roles: HRMS_ROLES,
+    permission: 'hrms.onboarding.manage',
+  },
+  {
+    to: '/hrms/lifecycle',
+    label: 'Lifecycle',
+    icon: 'manage_accounts',
+    roles: HRMS_ROLES,
+    permission: 'hrms.lifecycle.manage',
+  },
+  {
+    to: '/hrms/lifecycle/separations',
+    label: 'Separations',
+    icon: 'logout',
+    roles: HRMS_ROLES,
+    permission: 'hrms.lifecycle.manage',
+  },
 ]

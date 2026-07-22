@@ -71,6 +71,16 @@ describe('hrmsModule contract', () => {
     }
   })
 
+  it('M5 — defines recruitment + lifecycle permission keys and routes', () => {
+    for (const k of [
+      'hrms.recruitment.manage', 'hrms.recruitment.approve', 'hrms.recruitment.interview',
+      'hrms.onboarding.manage', 'hrms.lifecycle.manage', 'hrms.lifecycle.approve',
+    ]) expect(HRMS_PERMISSIONS).toContain(k)
+    const paths = hrmsRoutes.map((r) => r.path)
+    for (const p of ['hrms/recruit/requisitions', 'hrms/recruit/candidates', 'hrms/recruit/candidates/:id', 'hrms/lifecycle', 'hrms/lifecycle/onboarding', 'hrms/lifecycle/separations'])
+      expect(paths).toContain(p)
+  })
+
   it('mounts the M1 employee + M2 attendance + M3 leave routes', () => {
     const paths = hrmsRoutes.map((r) => r.path)
     // M1

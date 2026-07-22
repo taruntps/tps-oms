@@ -31,6 +31,15 @@ export const HRMS_PERMISSIONS = [
   'hrms.payroll.approve',
   'hrms.payroll.view',
   'hrms.payslip.self',
+  // Recruitment & Employee Lifecycle (M5) — internal recruitment (requisitions,
+  // candidates, interviews, offers), onboarding checklists, and lifecycle
+  // (confirmation/transfer/promotion status events + separations & F&F).
+  'hrms.recruitment.manage',
+  'hrms.recruitment.approve',
+  'hrms.recruitment.interview',
+  'hrms.onboarding.manage',
+  'hrms.lifecycle.manage',
+  'hrms.lifecycle.approve',
 ] as const
 
 export type HrmsPermission = (typeof HRMS_PERMISSIONS)[number]

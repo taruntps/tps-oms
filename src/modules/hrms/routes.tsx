@@ -27,6 +27,13 @@ const StatutoryConfigPage = lazy(() => import('./pages/StatutoryConfigPage'))
 const PayrollRunsPage = lazy(() => import('./pages/PayrollRunsPage'))
 const PayrollRunDetailPage = lazy(() => import('./pages/PayrollRunDetailPage'))
 const PayslipsPage = lazy(() => import('./pages/PayslipsPage'))
+// ── Recruitment & Lifecycle (M5) ──
+const RequisitionsPage = lazy(() => import('./pages/RequisitionsPage'))
+const CandidatesPage = lazy(() => import('./pages/CandidatesPage'))
+const CandidateDetailPage = lazy(() => import('./pages/CandidateDetailPage'))
+const OnboardingPage = lazy(() => import('./pages/OnboardingPage'))
+const LifecyclePage = lazy(() => import('./pages/LifecyclePage'))
+const SeparationsPage = lazy(() => import('./pages/SeparationsPage'))
 
 const HRMS_ROLES = ['super_admin', 'director', 'manager', 'hr', 'auditor'] as const
 // My Attendance / My Leave (ESS) is also reachable by individual-contributor roles.
@@ -40,6 +47,11 @@ const HRMS_SETUP_ROLES = ['super_admin', 'director', 'hr'] as const
 // Payroll (M4) — salary/payroll are confidential (hr/director/super_admin). Fine-grained
 // process-vs-approve gating is enforced per action via useCan inside the pages.
 const HRMS_PAYROLL_ROLES = ['super_admin', 'director', 'hr'] as const
+// Recruitment (M5) — internal recruitment is open to the people-ops + hiring-manager
+// roles; fine-grained manage/approve/interview gating is enforced per action via useCan.
+const HRMS_RECRUIT_ROLES = ['super_admin', 'director', 'hr', 'manager'] as const
+// Lifecycle (M5) — confirmation/transfer/promotion + separations & F&F are HR/leadership only.
+const HRMS_LIFECYCLE_ROLES = ['super_admin', 'director', 'hr'] as const
 
 export const hrmsRoutes: RouteObject[] = [
   {
@@ -210,6 +222,56 @@ export const hrmsRoutes: RouteObject[] = [
     element: (
       <ProtectedRoute allowedRoles={[...HRMS_SELF_ROLES]}>
         <PayslipsPage />
+      </ProtectedRoute>
+    ),
+  },
+  // ── Recruitment (M5) ──
+  {
+    path: 'hrms/recruit/requisitions',
+    element: (
+      <ProtectedRoute allowedRoles={[...HRMS_RECRUIT_ROLES]}>
+        <RequisitionsPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: 'hrms/recruit/candidates',
+    element: (
+      <ProtectedRoute allowedRoles={[...HRMS_RECRUIT_ROLES]}>
+        <CandidatesPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: 'hrms/recruit/candidates/:id',
+    element: (
+      <ProtectedRoute allowedRoles={[...HRMS_RECRUIT_ROLES]}>
+        <CandidateDetailPage />
+      </ProtectedRoute>
+    ),
+  },
+  // ── Lifecycle (M5) ──
+  {
+    path: 'hrms/lifecycle/onboarding',
+    element: (
+      <ProtectedRoute allowedRoles={[...HRMS_LIFECYCLE_ROLES]}>
+        <OnboardingPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: 'hrms/lifecycle',
+    element: (
+      <ProtectedRoute allowedRoles={[...HRMS_LIFECYCLE_ROLES]}>
+        <LifecyclePage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: 'hrms/lifecycle/separations',
+    element: (
+      <ProtectedRoute allowedRoles={[...HRMS_LIFECYCLE_ROLES]}>
+        <SeparationsPage />
       </ProtectedRoute>
     ),
   },
