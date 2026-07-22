@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import * as XLSX from 'xlsx'
+// PR2: `xlsx` (~302 kB) is lazy-loaded inside downloadExcel() so it is fetched
+// only when a user actually exports — not on every SOI-tab open.
 import { Sym } from '@/components/shared/Sym'
 import { useSoiArchive, useDeleteSoi } from '@/hooks/useAuthorityQueries'
 import { RoleGuard } from '@/components/shared/ProtectedRoute'
@@ -190,6 +191,7 @@ export function SoiTab({ projectId, clientId, clientName, closed }: Props) {
 
   const downloadExcel = async (s: any) => {
     try {
+      const XLSX = await import('xlsx')
       const products = await loadProducts(s.id)
       const cols: ColDef[] = (s.columns?.length ? s.columns : colsFor(s.soi_type)) as ColDef[]
       const header = ['S.No', ...cols.map(c => c.label)]
