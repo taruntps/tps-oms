@@ -58,4 +58,41 @@ export const hrmsNav: NavEntry[] = [
     roles: HRMS_ROLES,
     permission: 'hrms.shift.manage',
   },
+  // ── Leave (M3) ──
+  {
+    to: '/hrms/leave/me',
+    label: 'My Leave',
+    icon: 'beach_access',
+    roles: HRMS_SELF_ROLES,
+    permission: 'hrms.leave.apply',
+  },
+  {
+    to: '/hrms/leave',
+    label: 'Leave',
+    icon: 'event_available',
+    roles: HRMS_ROLES,
+    permission: 'hrms.leave.view',
+  },
+  {
+    to: '/hrms/leave/approvals',
+    label: 'Leave Approvals',
+    icon: 'how_to_reg',
+    roles: HRMS_ROLES,
+    permission: 'hrms.leave.approve',
+  },
+  {
+    to: '/hrms/leave/setup',
+    label: 'Leave Setup',
+    icon: 'event_note',
+    roles: HRMS_ROLES,
+    permission: 'hrms.leave.manage',
+  },
+  // Attendance-status master (M3 configurability enhancement).
+  {
+    to: '/hrms/setup/attendance-status',
+    label: 'Attendance Status',
+    icon: 'rule',
+    roles: HRMS_ROLES,
+    permission: 'hrms.config.manage',
+  },
 ]

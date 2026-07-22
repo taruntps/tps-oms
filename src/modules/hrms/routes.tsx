@@ -14,14 +14,22 @@ const AttendancePage = lazy(() => import('./pages/AttendancePage'))
 const AttendanceApprovalsPage = lazy(() => import('./pages/AttendanceApprovalsPage'))
 const ShiftsPage = lazy(() => import('./pages/ShiftsPage'))
 const AttendanceReportsPage = lazy(() => import('./pages/AttendanceReportsPage'))
+const MyLeavePage = lazy(() => import('./pages/MyLeavePage'))
+const LeavePage = lazy(() => import('./pages/LeavePage'))
+const LeaveApprovalsPage = lazy(() => import('./pages/LeaveApprovalsPage'))
+const LeaveSetupPage = lazy(() => import('./pages/LeaveSetupPage'))
+const LeaveReportsPage = lazy(() => import('./pages/LeaveReportsPage'))
+const AttendanceStatusPage = lazy(() => import('./pages/AttendanceStatusPage'))
 
 const HRMS_ROLES = ['super_admin', 'director', 'manager', 'hr', 'auditor'] as const
-// My Attendance (ESS) is also reachable by individual-contributor roles.
+// My Attendance / My Leave (ESS) is also reachable by individual-contributor roles.
 const HRMS_SELF_ROLES = [...HRMS_ROLES, 'executive', 'accounts'] as const
-// Approvals — roles that hold hrms.attendance.approve.
+// Approvals — roles that hold hrms.attendance.approve / hrms.leave.approve.
 const HRMS_APPROVE_ROLES = ['super_admin', 'director', 'manager', 'hr'] as const
 // Shift admin — roles that hold hrms.shift.manage.
 const HRMS_SHIFT_ROLES = ['super_admin', 'director', 'hr'] as const
+// Leave/status setup — roles that hold hrms.leave.manage / hrms.config.manage (status master).
+const HRMS_SETUP_ROLES = ['super_admin', 'director', 'hr'] as const
 
 export const hrmsRoutes: RouteObject[] = [
   {
@@ -94,6 +102,55 @@ export const hrmsRoutes: RouteObject[] = [
     element: (
       <ProtectedRoute allowedRoles={[...HRMS_ROLES]}>
         <AttendanceReportsPage />
+      </ProtectedRoute>
+    ),
+  },
+  // ── Leave (M3) ──
+  {
+    path: 'hrms/leave/me',
+    element: (
+      <ProtectedRoute allowedRoles={[...HRMS_SELF_ROLES]}>
+        <MyLeavePage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: 'hrms/leave',
+    element: (
+      <ProtectedRoute allowedRoles={[...HRMS_ROLES]}>
+        <LeavePage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: 'hrms/leave/approvals',
+    element: (
+      <ProtectedRoute allowedRoles={[...HRMS_APPROVE_ROLES]}>
+        <LeaveApprovalsPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: 'hrms/leave/setup',
+    element: (
+      <ProtectedRoute allowedRoles={[...HRMS_SETUP_ROLES]}>
+        <LeaveSetupPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: 'hrms/leave/reports',
+    element: (
+      <ProtectedRoute allowedRoles={[...HRMS_ROLES]}>
+        <LeaveReportsPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: 'hrms/setup/attendance-status',
+    element: (
+      <ProtectedRoute allowedRoles={[...HRMS_SETUP_ROLES]}>
+        <AttendanceStatusPage />
       </ProtectedRoute>
     ),
   },

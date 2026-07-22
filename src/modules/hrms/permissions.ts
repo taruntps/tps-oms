@@ -17,6 +17,12 @@ export const HRMS_PERMISSIONS = [
   'hrms.attendance.manage',
   'hrms.attendance.approve',
   'hrms.shift.manage',
+  // Leave (M3) — self-service apply/cancel, view (team/all), approve, and manage
+  // (leave types, holidays, balances, encashments).
+  'hrms.leave.apply',
+  'hrms.leave.view',
+  'hrms.leave.approve',
+  'hrms.leave.manage',
 ] as const
 
 export type HrmsPermission = (typeof HRMS_PERMISSIONS)[number]

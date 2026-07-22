@@ -36,7 +36,13 @@ describe('hrmsModule contract', () => {
     expect(new Set(HRMS_PERMISSIONS).size).toBe(HRMS_PERMISSIONS.length)
   })
 
-  it('mounts the M1 employee + M2 attendance routes', () => {
+  it('M3 — defines the leave permission keys', () => {
+    for (const k of ['hrms.leave.apply', 'hrms.leave.view', 'hrms.leave.approve', 'hrms.leave.manage']) {
+      expect(HRMS_PERMISSIONS).toContain(k)
+    }
+  })
+
+  it('mounts the M1 employee + M2 attendance + M3 leave routes', () => {
     const paths = hrmsRoutes.map((r) => r.path)
     // M1
     expect(paths).toContain('hrms/employees')
@@ -49,6 +55,11 @@ describe('hrmsModule contract', () => {
     expect(paths).toContain('hrms/attendance/approvals')
     expect(paths).toContain('hrms/attendance/shifts')
     expect(paths).toContain('hrms/attendance/reports')
+    // M3
+    expect(paths).toContain('hrms/leave/me')
+    expect(paths).toContain('hrms/leave/approvals')
+    expect(paths).toContain('hrms/leave/setup')
+    expect(paths).toContain('hrms/setup/attendance-status')
     // no duplicate route paths
     expect(new Set(paths).size).toBe(paths.length)
   })
