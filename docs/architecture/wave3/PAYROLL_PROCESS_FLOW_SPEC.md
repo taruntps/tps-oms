@@ -1,6 +1,8 @@
 # Payroll (M4) — Process Flow Specification
 
-> **DESIGN ONLY — no code, SQL, or migrations.** Await user approval before implementing M4.
+> **Status:** ✅ APPROVED & FROZEN — part of the M4 design baseline (2026-07-20, tag `v3.0-hrms-m4-design`,
+> alongside `HRMS_M4_PAYROLL_CALCULATION_SPEC` + `PAYROLL_DATA_MODEL_SPEC`).
+> **DESIGN ONLY — no code, SQL, or migrations.**
 > Operational lifecycle for the frozen M4 design baseline (`HRMS_M4_PAYROLL_CALCULATION_SPEC` +
 > `PAYROLL_DATA_MODEL_SPEC`, tag `v3.0-hrms-m4-design`). Reads frozen M2/M3; **Finance disburses,
 > Payroll never posts GL.** Every step configurable (`hr_policy_settings.payroll.*`) — nothing hardcoded.
