@@ -200,4 +200,7 @@ export const hrmsNav: NavEntry[] = [
   { to: '/hrms/training', label: 'Training', icon: 'school', roles: HRMS_ROLES, permission: 'hrms.training.view' },
   { to: '/hrms/training/certifications', label: 'Certifications', icon: 'verified', roles: HRMS_ROLES, permission: 'hrms.training.view' },
   { to: '/hrms/training/me', label: 'My Training', icon: 'cast_for_education', roles: [...HRMS_ROLES, 'executive', 'accounts'], permission: 'hrms.training.view.self' },
+  // ── Assets (M8) ──
+  { to: '/hrms/assets', label: 'Asset Register', icon: 'devices', roles: HRMS_ROLES, permission: 'hrms.asset.manage' },
+  { to: '/hrms/assets/me', label: 'My Assets', icon: 'laptop_mac', roles: HRMS_SELF_ROLES, permission: 'hrms.asset.view.self' },
 ]

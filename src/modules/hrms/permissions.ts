@@ -54,6 +54,9 @@ export const HRMS_PERMISSIONS = [
   'hrms.training.manage',
   'hrms.training.view',
   'hrms.training.view.self',
+  // M8 Assets
+  'hrms.asset.manage',
+  'hrms.asset.view.self',
 ] as const
 
 export type HrmsPermission = (typeof HRMS_PERMISSIONS)[number]

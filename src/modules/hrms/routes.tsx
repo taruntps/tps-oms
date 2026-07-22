@@ -43,6 +43,9 @@ const PerformanceReportsPage = lazy(() => import('./pages/PerformanceReportsPage
 const TrainingPage = lazy(() => import('./pages/TrainingPage'))
 const CertificationsPage = lazy(() => import('./pages/CertificationsPage'))
 const MyTrainingPage = lazy(() => import('./pages/MyTrainingPage'))
+// ── Assets (M8) ──
+const AssetsPage = lazy(() => import('./pages/AssetsPage'))
+const MyAssetsPage = lazy(() => import('./pages/MyAssetsPage'))
 
 const HRMS_ROLES = ['super_admin', 'director', 'manager', 'hr', 'auditor'] as const
 // My Attendance / My Leave (ESS) is also reachable by individual-contributor roles.
@@ -343,6 +346,23 @@ export const hrmsRoutes: RouteObject[] = [
     element: (
       <ProtectedRoute allowedRoles={[...HRMS_SELF_ROLES]}>
         <MyTrainingPage />
+      </ProtectedRoute>
+    ),
+  },
+  // ── Assets (M8) ──
+  {
+    path: 'hrms/assets',
+    element: (
+      <ProtectedRoute allowedRoles={[...HRMS_ROLES]}>
+        <AssetsPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: 'hrms/assets/me',
+    element: (
+      <ProtectedRoute allowedRoles={[...HRMS_SELF_ROLES]}>
+        <MyAssetsPage />
       </ProtectedRoute>
     ),
   },

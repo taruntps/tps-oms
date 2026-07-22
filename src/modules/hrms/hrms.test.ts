@@ -108,6 +108,17 @@ describe('hrmsModule contract', () => {
     expect(myTraining?.roles).toContain('executive')
   })
 
+  it('M8 — defines asset permission keys and routes', () => {
+    for (const k of ['hrms.asset.manage', 'hrms.asset.view.self'])
+      expect(HRMS_PERMISSIONS).toContain(k)
+    const paths = hrmsRoutes.map((r) => r.path)
+    for (const p of ['hrms/assets', 'hrms/assets/me'])
+      expect(paths).toContain(p)
+    const myAssets = hrmsNav.find((n) => n.to === '/hrms/assets/me')
+    expect(myAssets?.permission).toBe('hrms.asset.view.self')
+    expect(myAssets?.roles).toContain('executive')
+  })
+
   it('mounts the M1 employee + M2 attendance + M3 leave routes', () => {
     const paths = hrmsRoutes.map((r) => r.path)
     // M1
