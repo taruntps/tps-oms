@@ -129,6 +129,13 @@ describe('hrmsModule contract', () => {
     expect(hrmsNav[0].to).toBe('/hrms/me')
   })
 
+  it('M10 — defines dashboard permission, route and nav', () => {
+    expect(HRMS_PERMISSIONS).toContain('hrms.dashboard.view')
+    expect(hrmsRoutes.map((r) => r.path)).toContain('hrms/dashboard')
+    const dash = hrmsNav.find((n) => n.to === '/hrms/dashboard')
+    expect(dash?.permission).toBe('hrms.dashboard.view')
+  })
+
   it('mounts the M1 employee + M2 attendance + M3 leave routes', () => {
     const paths = hrmsRoutes.map((r) => r.path)
     // M1

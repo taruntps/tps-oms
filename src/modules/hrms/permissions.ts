@@ -59,6 +59,8 @@ export const HRMS_PERMISSIONS = [
   'hrms.asset.view.self',
   // M9 Employee Self-Service hub
   'hrms.ess.view',
+  // M10 Dashboards & Reports
+  'hrms.dashboard.view',
 ] as const
 
 export type HrmsPermission = (typeof HRMS_PERMISSIONS)[number]

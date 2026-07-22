@@ -17,6 +17,13 @@ export const hrmsNav: NavEntry[] = [
     permission: 'hrms.ess.view',
   },
   {
+    to: '/hrms/dashboard',
+    label: 'HR Dashboard',
+    icon: 'monitoring',
+    roles: HRMS_ROLES,
+    permission: 'hrms.dashboard.view',
+  },
+  {
     to: '/hrms/employees',
     label: 'Employees',
     icon: 'badge',
