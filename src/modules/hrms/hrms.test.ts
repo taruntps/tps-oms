@@ -81,6 +81,21 @@ describe('hrmsModule contract', () => {
       expect(paths).toContain(p)
   })
 
+  it('M6 — defines performance permission keys and routes', () => {
+    for (const k of [
+      'hrms.performance.manage',
+      'hrms.performance.review.self',
+      'hrms.performance.review.manager',
+      'hrms.performance.view',
+      'hrms.performance.recommend.approve',
+    ]) expect(HRMS_PERMISSIONS).toContain(k)
+    const paths = hrmsRoutes.map((r) => r.path)
+    for (const p of ['hrms/performance/me', 'hrms/performance', 'hrms/performance/cycles', 'hrms/performance/reports'])
+      expect(paths).toContain(p)
+    // keys remain unique
+    expect(new Set(HRMS_PERMISSIONS).size).toBe(HRMS_PERMISSIONS.length)
+  })
+
   it('mounts the M1 employee + M2 attendance + M3 leave routes', () => {
     const paths = hrmsRoutes.map((r) => r.path)
     // M1

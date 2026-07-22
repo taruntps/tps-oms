@@ -34,6 +34,11 @@ const CandidateDetailPage = lazy(() => import('./pages/CandidateDetailPage'))
 const OnboardingPage = lazy(() => import('./pages/OnboardingPage'))
 const LifecyclePage = lazy(() => import('./pages/LifecyclePage'))
 const SeparationsPage = lazy(() => import('./pages/SeparationsPage'))
+// ── Performance (M6) ──
+const MyPerformancePage = lazy(() => import('./pages/MyPerformancePage'))
+const PerformancePage = lazy(() => import('./pages/PerformancePage'))
+const PerformanceSetupPage = lazy(() => import('./pages/PerformanceSetupPage'))
+const PerformanceReportsPage = lazy(() => import('./pages/PerformanceReportsPage'))
 
 const HRMS_ROLES = ['super_admin', 'director', 'manager', 'hr', 'auditor'] as const
 // My Attendance / My Leave (ESS) is also reachable by individual-contributor roles.
@@ -52,6 +57,10 @@ const HRMS_PAYROLL_ROLES = ['super_admin', 'director', 'hr'] as const
 const HRMS_RECRUIT_ROLES = ['super_admin', 'director', 'hr', 'manager'] as const
 // Lifecycle (M5) — confirmation/transfer/promotion + separations & F&F are HR/leadership only.
 const HRMS_LIFECYCLE_ROLES = ['super_admin', 'director', 'hr'] as const
+// Performance (M6) — cycle/goal/calibration setup is HR/leadership only; the team
+// Performance surface is open to the people-ops + manager roles; My Performance / Reports
+// reach the individual-contributor roles too. Fine-grained gating is per-action via useCan.
+const HRMS_PERF_MANAGE_ROLES = ['super_admin', 'director', 'hr'] as const
 
 export const hrmsRoutes: RouteObject[] = [
   {
@@ -272,6 +281,39 @@ export const hrmsRoutes: RouteObject[] = [
     element: (
       <ProtectedRoute allowedRoles={[...HRMS_LIFECYCLE_ROLES]}>
         <SeparationsPage />
+      </ProtectedRoute>
+    ),
+  },
+  // ── Performance (M6) ──
+  {
+    path: 'hrms/performance/me',
+    element: (
+      <ProtectedRoute allowedRoles={[...HRMS_SELF_ROLES]}>
+        <MyPerformancePage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: 'hrms/performance',
+    element: (
+      <ProtectedRoute allowedRoles={[...HRMS_ROLES]}>
+        <PerformancePage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: 'hrms/performance/cycles',
+    element: (
+      <ProtectedRoute allowedRoles={[...HRMS_PERF_MANAGE_ROLES]}>
+        <PerformanceSetupPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: 'hrms/performance/reports',
+    element: (
+      <ProtectedRoute allowedRoles={[...HRMS_SELF_ROLES]}>
+        <PerformanceReportsPage />
       </ProtectedRoute>
     ),
   },

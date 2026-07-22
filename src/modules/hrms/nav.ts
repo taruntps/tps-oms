@@ -168,4 +168,33 @@ export const hrmsNav: NavEntry[] = [
     roles: HRMS_ROLES,
     permission: 'hrms.lifecycle.manage',
   },
+  // ── Performance (M6) ──
+  {
+    to: '/hrms/performance/me',
+    label: 'My Performance',
+    icon: 'star',
+    roles: HRMS_SELF_ROLES,
+    permission: 'hrms.performance.review.self',
+  },
+  {
+    to: '/hrms/performance',
+    label: 'Performance',
+    icon: 'insights',
+    roles: HRMS_ROLES,
+    permission: 'hrms.performance.view',
+  },
+  {
+    to: '/hrms/performance/cycles',
+    label: 'Cycles',
+    icon: 'event_repeat',
+    roles: HRMS_ROLES,
+    permission: 'hrms.performance.manage',
+  },
+  {
+    to: '/hrms/performance/reports',
+    label: 'Reports',
+    icon: 'bar_chart',
+    roles: HRMS_ROLES,
+    permission: 'hrms.performance.view',
+  },
 ]

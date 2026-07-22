@@ -40,6 +40,16 @@ export const HRMS_PERMISSIONS = [
   'hrms.onboarding.manage',
   'hrms.lifecycle.manage',
   'hrms.lifecycle.approve',
+  // Performance Management (M6) — review cycles, goals (KRA/KPI), single-level reviews
+  // (self / manager / calibration / final), and increment/promotion recommendations.
+  // `manage` runs cycles/goals/calibration; `review.self`/`review.manager` gate the
+  // respective review stages; `view` is read/report access; `recommend.approve` decides
+  // raised increment/promotion recommendations.
+  'hrms.performance.manage',
+  'hrms.performance.review.self',
+  'hrms.performance.review.manager',
+  'hrms.performance.view',
+  'hrms.performance.recommend.approve',
 ] as const
 
 export type HrmsPermission = (typeof HRMS_PERMISSIONS)[number]
