@@ -56,7 +56,7 @@
 
 ---
 
-## Milestone M3 — Leave Management
+## Milestone M3 — Leave Management  — ✅ FROZEN (tag `v3.0-hrms-m3`)
 
 *Design: HRMS_02 Part C · Business rules: §7, §8.*
 

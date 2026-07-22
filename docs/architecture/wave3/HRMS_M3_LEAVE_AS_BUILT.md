@@ -1,6 +1,6 @@
 # HRMS Milestone M3 — Leave Management — As-Built, Lifecycle Review, UAT & Release Notes
 
-> **Status:** Implemented on `staging`, awaiting user review/approval to FREEZE.
+> **Status:** ✅ APPROVED & FROZEN (2026-07-20), tag `v3.0-hrms-m3`. Do not modify except critical defects.
 > Design: `HRMS_02` Part C, `HRMS_BUSINESS_RULES_AND_POLICY` §6/§7, traceability LV-01…LV-11.
 > Constitution: additive/EXPAND, reuse-before-create, nothing hardcoded, frozen M1/M2 untouched.
 
