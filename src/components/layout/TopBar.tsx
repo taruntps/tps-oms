@@ -8,9 +8,11 @@ import { Sym } from '@/components/shared/Sym'
 interface TopBarProps {
   title: string
   subtitle?: string
+  /** Optional page-level actions rendered on the right of the header (e.g. "New …" buttons). */
+  children?: React.ReactNode
 }
 
-export function TopBar({ title, subtitle }: TopBarProps) {
+export function TopBar({ title, subtitle, children }: TopBarProps) {
   const { profile, user, refreshProfile, signOut } = useAuth()
   const fileRef = useRef<HTMLInputElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -81,6 +83,7 @@ export function TopBar({ title, subtitle }: TopBarProps) {
         {subtitle && <p className="text-xs text-white/60 mt-0.5">{subtitle}</p>}
       </div>
       <div className="flex items-center gap-3">
+        {children && <div className="flex items-center gap-2">{children}</div>}
         <NotificationPanel />
         <div className="text-right hidden sm:block">
           <p className="text-xs font-semibold text-white">{profile?.name}</p>

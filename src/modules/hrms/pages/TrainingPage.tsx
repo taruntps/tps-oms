@@ -14,7 +14,6 @@ import { StatusPill, TypePill, inputCls, parseScore, istToday } from './training
 import { fmtPaise } from './payrollShared'
 
 const TYPES: TrainingType[] = ['internal', 'external']
-const emptyForm: TrainingInput = { title: '', type: 'internal', trainer: '', start_date: istToday(), end_date: istToday(), cost: 0, status: 'planned' }
 
 export default function TrainingPage() {
   const canManage = useCan('hrms.training.manage')
@@ -33,8 +32,14 @@ export default function TrainingPage() {
   const startCreate = () => { setEditId(null); setForm({ title: '', type: 'internal', trainer: '', start_date: istToday(), end_date: istToday(), cost_rupees: '', status: 'planned' }); setOpen(true) }
   const startEdit = (t: Training) => { setEditId(t.id); setForm({ title: t.title, type: t.type, trainer: t.trainer ?? '', start_date: t.start_date ?? istToday(), end_date: t.end_date ?? istToday(), cost_rupees: t.cost ? String(t.cost / 100) : '', status: t.status }); setOpen(true) }
   const submit = async () => {
-    const payload: TrainingInput = { title: form.title.trim(), type: form.type, trainer: form.trainer.trim() || null, start_date: form.start_date || null, end_date: form.end_date || null, cost: Math.round((Number(form.cost_rupees) || 0) * 100), status: form.status }
-    if (editId) await update.mutateAsync({ id: editId, input: payload }); else await create.mutateAsync(payload)
+    // status is not part of TrainingInput — create starts 'planned'; status changes go via setTrainingStatus.
+    const payload: TrainingInput = { title: form.title.trim(), type: form.type, trainer: form.trainer.trim() || null, start_date: form.start_date || null, end_date: form.end_date || null, cost: Math.round((Number(form.cost_rupees) || 0) * 100) }
+    if (editId) {
+      await update.mutateAsync({ id: editId, input: payload })
+      await setStatus.mutateAsync({ id: editId, status: form.status })
+    } else {
+      await create.mutateAsync(payload)
+    }
     setOpen(false)
   }
 

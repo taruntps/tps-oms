@@ -4,8 +4,9 @@ import { Link } from 'react-router-dom'
 import { TopBar } from '@/components/layout/TopBar'
 import { Sym } from '@/components/shared/Sym'
 import { useDashboardStats } from '../hooks/useDashboard'
+import type { DashboardStats } from '../api/dashboard'
 
-type Stat = { key: keyof NonNullable<ReturnType<typeof useDashboardStats>['data']>; label: string; icon: string; to?: string; tone?: 'default' | 'alert' }
+type Stat = { key: keyof DashboardStats; label: string; icon: string; to?: string; tone?: 'default' | 'alert' }
 
 const STATS: Stat[] = [
   { key: 'headcount', label: 'Active Employees', icon: 'groups', to: '/hrms/employees' },
