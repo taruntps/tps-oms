@@ -58,13 +58,23 @@
     @apply font-mono;
   }
 
-  /* Material Symbols icon base */
+  /* Material Symbols icon base.
+     width:1em + overflow:hidden pin every icon slot to a single-glyph box so its
+     width is correct from first paint. Without this, while the icon webfont is
+     still loading (font-display:block) the slot expands to the width of the raw
+     ligature word ("contact_phone", "point_of_sale", …), which staircased the
+     sidebar labels for 2–3s until the font arrived. 1em scales with the inline
+     font-size, so every icon size stays square. */
   .material-symbols-outlined {
     font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
     line-height: 1;
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    width: 1em;
+    overflow: hidden;
+    white-space: nowrap;
+    flex-shrink: 0;
     user-select: none;
   }
 }
