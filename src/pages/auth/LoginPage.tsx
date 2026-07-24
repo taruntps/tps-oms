@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
-import { Sym } from '@/components/shared/Sym'
-import { cn } from '@/lib/utils'
-import { PlainCapture } from '@/pages/attendance/PlainCapture'
 
+// Authentication is fully decoupled from Face Recognition (2026-07-22). Login is
+// standard email/User-ID + password only — no camera, no webcam, no biometric
+// engine, no face-login edge function. Face capture/verification lives entirely in
+// the Attendance module (src/pages/attendance/*) and is untouched here.
 export default function LoginPage() {
   const navigate = useNavigate()
   const [email,    setEmail]    = useState('')
@@ -12,17 +13,7 @@ export default function LoginPage() {
   const [remember, setRemember] = useState(true)
   const [error,    setError]    = useState('')
   const [loading,  setLoading]  = useState(false)
-
-  // Face-scan state
-  const [faceScanOpen, setFaceScanOpen] = useState(false)
-  const [faceScanBusy, setFaceScanBusy] = useState(false)
-
-  // Request camera permission on mount so the Face ID tap opens instantly.
-  useEffect(() => {
-    navigator.mediaDevices?.getUserMedia({ video: true, audio: false })
-      .then(s => { s.getTracks().forEach(t => t.stop()) })
-      .catch(() => {})
-  }, [])
+  const [showForgot, setShowForgot] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -64,47 +55,6 @@ export default function LoginPage() {
     }
   }
 
-  const handleFaceScan = () => {
-    if (!email.trim()) return
-    setError('')
-    setFaceScanOpen(true)
-  }
-
-  const onFaceCapture = async (photo: string) => {
-    setFaceScanBusy(true)
-    try {
-      const { data, error: fnErr } = await supabase.functions.invoke('face-login', {
-        body: { identifier: email.trim(), photo },
-      })
-      let errMsg: string | null = null
-      if (fnErr) {
-        try { const body = await (fnErr as any).context?.json?.(); errMsg = body?.error } catch { errMsg = fnErr.message }
-        throw new Error(errMsg ?? fnErr.message)
-      }
-      if (data?.error) throw new Error(data.error)
-
-      const { error: verifyErr } = await supabase.auth.verifyOtp({
-        token_hash: data.token_hash,
-        type: 'magiclink',
-      })
-      if (verifyErr) throw new Error(verifyErr.message)
-
-      navigate('/dashboard')
-    } catch (e: any) {
-      setFaceScanOpen(false)
-      const raw = e.message ?? ''
-      setError(
-        raw.includes('not recognized') ? 'Face not recognized — use password to sign in.' :
-        raw.includes('timed out') ? 'Face check timed out — use password to sign in.' :
-        raw.includes('No face registered') ? 'No face registered for this account — register on your first attendance punch, or use password.' :
-        raw.includes('not found') || raw.includes('User not found') ? 'User not found.' :
-        `Face sign-in failed: ${raw}`
-      )
-    } finally {
-      setFaceScanBusy(false)
-    }
-  }
-
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
       {/* Soft glow accents over the mesh-gradient backdrop */}
@@ -137,37 +87,15 @@ export default function LoginPage() {
                 <label className="text-xs font-semibold text-brand-950 uppercase tracking-wide">
                   User ID
                 </label>
-                {/* Input + face scan icon */}
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={email}
-                    onChange={e => setEmail(e.target.value)}
-                    placeholder="Email or Employee Code (e.g. T002)"
-                    required
-                    autoFocus
-                    className="w-full px-3 py-2.5 pr-10 rounded-lg border border-border bg-[#F8FAFC] text-sm font-sans focus:outline-none focus:ring-2 focus:ring-brand-600/30 focus:border-brand-600 transition-all"
-                  />
-                  <button
-                    type="button"
-                    title={email.trim() ? 'Sign in with Face ID' : 'Enter your User ID first'}
-                    onClick={handleFaceScan}
-                    className={cn(
-                      'absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full transition-all',
-                      email.trim()
-                        ? 'text-brand-600 hover:bg-brand-50 cursor-pointer'
-                        : 'text-muted-foreground/35 cursor-default'
-                    )}
-                  >
-                    <Sym name="fingerprint" size={17} />
-                  </button>
-                </div>
-                {email.trim() && (
-                  <p className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5">
-                    <Sym name="fingerprint" size={10} />
-                    Tap the icon to sign in with Face ID
-                  </p>
-                )}
+                <input
+                  type="text"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  placeholder="Email or Employee Code (e.g. T002)"
+                  required
+                  autoFocus
+                  className="w-full px-3 py-2.5 rounded-lg border border-border bg-[#F8FAFC] text-sm font-sans focus:outline-none focus:ring-2 focus:ring-brand-600/30 focus:border-brand-600 transition-all"
+                />
               </div>
 
               <div className="space-y-1.5">
@@ -184,16 +112,32 @@ export default function LoginPage() {
                 />
               </div>
 
-              {/* Remember me */}
-              <label className="flex items-center gap-2 text-xs text-brand-950 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={remember}
-                  onChange={e => setRemember(e.target.checked)}
-                  className="w-4 h-4 rounded border-border text-brand-600 focus:ring-brand-600/30"
-                />
-                Remember me on this device
-              </label>
+              {/* Remember me + Forgot password */}
+              <div className="flex items-center justify-between">
+                <label className="flex items-center gap-2 text-xs text-brand-950 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={remember}
+                    onChange={e => setRemember(e.target.checked)}
+                    className="w-4 h-4 rounded border-border text-brand-600 focus:ring-brand-600/30"
+                  />
+                  Remember me
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowForgot(v => !v)}
+                  className="text-xs text-brand-600 hover:text-brand-700 hover:underline"
+                >
+                  Forgot password?
+                </button>
+              </div>
+
+              {showForgot && (
+                <div className="bg-brand-50 border border-brand-200 rounded-lg px-3 py-2 text-xs text-brand-900">
+                  Please contact your administrator to reset your password. Admins can reset it from
+                  <span className="font-medium"> User Management → Reset Password</span>.
+                </div>
+              )}
 
               {error && (
                 <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm text-red-700">
@@ -225,16 +169,6 @@ export default function LoginPage() {
           TPS Xperts Group © {new Date().getFullYear()}
         </p>
       </div>
-
-      {/* Face scan modal — plain photo, verified server-side (no on-device engine) */}
-      {faceScanOpen && (
-        <PlainCapture
-          label="Sign in with Face"
-          busy={faceScanBusy}
-          onCapture={onFaceCapture}
-          onCancel={() => { setFaceScanOpen(false); setFaceScanBusy(false) }}
-        />
-      )}
     </div>
   )
 }
