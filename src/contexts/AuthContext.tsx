@@ -23,17 +23,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // getSession() + onAuthStateChange (and token refreshes) don't each refetch
   // the profile. Eliminates the duplicate `profiles` request seen in doc 18.
   const loadedFor = useRef<string | null>(null)
+  // Holds the in-flight profile fetch so concurrent callers (getSession +
+  // onAuthStateChange, which race on first load) share ONE load. Without this the
+  // second caller early-returned a resolved promise, so `.finally(setLoading(false))`
+  // fired while `profile` was still null — bouncing allowedRoles routes to /dashboard
+  // on hard refresh/deep-link. Returning the shared promise makes the loading gate
+  // wait for the real result.
+  const inflight = useRef<Promise<void> | null>(null)
 
-  async function loadProfile(userId: string, force = false) {
-    if (!force && loadedFor.current === userId) return
-    loadedFor.current = userId
-    try {
-      const p = await getProfile(userId)
-      setProfile(p as unknown as UserProfile)
-    } catch {
-      setProfile(null)
-      loadedFor.current = null
+  function loadProfile(userId: string, force = false): Promise<void> {
+    if (!force && loadedFor.current === userId) {
+      return inflight.current ?? Promise.resolve()
     }
+    loadedFor.current = userId
+    const p = getProfile(userId)
+      .then((pr) => { setProfile(pr as unknown as UserProfile) })
+      .catch(() => { setProfile(null); loadedFor.current = null })
+    inflight.current = p
+    return p
   }
 
   useEffect(() => {
