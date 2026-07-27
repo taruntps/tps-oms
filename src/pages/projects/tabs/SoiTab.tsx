@@ -46,7 +46,7 @@ const HEADER_HINTS = [
 // We split on TAB (preserving empty cells so indices stay aligned); fall back to
 // 2+ spaces only when a row has no tabs.
 function parseFssaiTable(raw: string, type: SoiType): ParsedRow[] {
-  const lines = raw.split('\n').map(l => l.replace(/ /g, ' ')).filter(l => l.trim().length > 0)
+  const lines = raw.split('\n').map(l => l.replace(/\u00A0/g, ' ')).filter(l => l.trim().length > 0)
   const out: ParsedRow[] = []
   let sr = 1
 

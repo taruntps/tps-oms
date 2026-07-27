@@ -37,7 +37,7 @@ export function useUploadStageDocument() {
 
       const { data: existing } = await (supabase as any).from('stage_documents').select('version_no').eq('stage_id', stageId)
       const nextVersion = Math.max(0, ...((existing ?? []).map((r: any) => r.version_no ?? 0))) + 1
-      const safeName = file.name.replace(/[^\w.\-]+/g, '_')
+      const safeName = file.name.replace(/[^\w.-]+/g, '_')
       const path = `stages/${stageId}/v${nextVersion}_${Date.now()}_${safeName}`
 
       const { error: storageErr } = await supabase.storage.from('documents').upload(path, file, { upsert: false, contentType: file.type })
