@@ -68,7 +68,13 @@ serve(async (req) => {
             components: params.length > 0
               ? [{
                   type: 'body',
-                  parameters: params.map(text => ({ type: 'text', text })),
+                  // Meta rejects any empty text value with error 131008
+                  // ("Parameter of type text is missing text value"), so never
+                  // send a blank — fall back to an em-dash.
+                  parameters: params.map(text => ({
+                    type: 'text',
+                    text: (text ?? '').toString().trim() || '—',
+                  })),
                 }]
               : [],
           },
