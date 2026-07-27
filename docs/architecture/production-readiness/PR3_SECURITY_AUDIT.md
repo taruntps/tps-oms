@@ -65,6 +65,19 @@
 | Logging | 95 | 95 |
 | **Overall** | **~72** | **~89** |
 
+## M2 — Dependency Review (resolution, PR3 Stage 2)
+Evidence-based; both audit hits are **not reachable** in this app's usage → no dependency change (upgrade-only-where-necessary; avoid breaking changes).
+
+- **`react-router-dom@6.30.4`** (already latest 6.x). CVEs `GHSA-wrjc-x8rr-h8h6` (open-redirect) + `GHSA-337j-9hxr-rhxg` (SSR deserializeErrors). Fix requires **breaking v7 major**.
+  - **Open-redirect: not reachable** — every dynamic `navigate()`/`<Navigate>` targets a fixed internal path with an interpolated ID (e.g. `/clients/${id}`); no user-controlled/external URL, no `redirect`/`next`/`returnUrl` query-param sink.
+  - **SSR CVE: not reachable** — pure client SPA (`BrowserRouter`), no `hydrateRoot`/`StaticRouter`.
+  - **Decision:** DEFER the v6→v7 upgrade (breaking; not a security necessity here). Optionally schedule as a separate, tested migration.
+- **`xlsx@0.18.5`** — HIGH (prototype pollution + ReDoS), **no npm fix**. Usage is **export-only** (`aoa_to_sheet`, `book_new`, `book_append_sheet`, `writeFile`); no `read`/`readFile`/`sheet_to_json`. The vulns are in the **parse** path → **not reachable**.
+  - **Decision:** ACCEPT with justification (export-only). Optional future hardening: replace with the official SheetJS CDN build (`cdn.sheetjs.com`) — not required.
+- **Unused packages** (attack-surface reduction, deferred to PR4): `@tanstack/react-table` (unused → remove). `@vladmandic/human` (unused now but **reserved** for the future Attendance on-device engine → keep).
+
+**Net:** 0 dependency changes; residual risk accepted with documented, evidence-based justification. Dependency-Security posture: the flagged CVEs carry no reachable exploit path in this application.
+
 ## Production Readiness recommendation
 **❌ Additional security fixes required before PR4** — specifically **C1 (critical) and H1 (high)** are *live* exposures reachable with the public anon key. Both fixes are 2-line, reversible `REVOKE` migrations with **no app behaviour change** (verified the client never calls these RPCs). After C1/H1 (+ the MEDIUM items), → ✅ ready for PR4.
 
