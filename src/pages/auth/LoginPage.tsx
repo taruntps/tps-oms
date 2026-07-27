@@ -51,6 +51,9 @@ export default function LoginPage() {
       setError('Invalid user ID or password.')
     } else {
       await (supabase.rpc as any)('record_login_attempt', { p_identifier: identifier, p_success: true })
+      // Every fresh login starts with the sidebar collapsed (except Dashboard):
+      // clear the persisted collapse state so the Sidebar falls back to DEFAULT_COLLAPSED.
+      try { localStorage.removeItem('tps_nav_collapsed') } catch { /* ignore */ }
       navigate('/dashboard')
     }
   }
