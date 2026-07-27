@@ -3,7 +3,7 @@
 Clients, referrals, contacts.
 
 ## Planned scope / current mapping
-- Clients: `src/pages/clients/*`, `useClients`, `useClientDocuments`
+- Clients: `src/pages/clients/*`, `useClients`
 - Referrals: `src/pages/referrals/*`, `useReferrals`
 
 _No code moved yet — scaffold establishes the boundary._
