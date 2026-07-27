@@ -31,9 +31,10 @@ export function Sidebar() {
 
   // Role-visible entries, then permission-gate (fail-closed while perms load, mirroring useCan).
   const grouped = useMemo(() => {
-    const visible = getNavFor(role).filter((e) => !e.permission || (perms ? e.permission in perms : false))
+    const reportPerms = (profile as any)?.report_permissions ?? []
+    const visible = getNavFor(role, reportPerms).filter((e) => !e.permission || (perms ? e.permission in perms : false))
     return groupNav(visible)
-  }, [role, perms])
+  }, [role, perms, profile])
 
   // Collapse state persists per browser so the user's expand/collapse choices survive refresh.
   const [collapsed, setCollapsed] = useState<Set<NavGroup>>(() => {

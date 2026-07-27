@@ -37,9 +37,16 @@ export function getAllRoutes(): RouteObject[] {
  *  are not owned by a feature module. Legacy duplicates (/attendance, /employees,
  *  /referrals, /director) are intentionally NOT surfaced — module versions are
  *  canonical (see docs/architecture/production-readiness/PR1_UI_NAVIGATION_DESIGN.md). */
-export function getNavFor(role: string | undefined): NavEntry[] {
+export function getNavFor(role: string | undefined, reportPerms: string[] = []): NavEntry[] {
   const all = [...coreNav, ...MODULES.flatMap((m) => m.nav)]
-  return all.filter((entry) => !entry.roles || (role != null && entry.roles.includes(role)))
+  return all.filter((entry) => {
+    if (!entry.roles) return true
+    if (role != null && entry.roles.includes(role)) return true
+    // Reports is also visible to any user with an explicit per-user report grant
+    // (report_permissions), matching the legacy behaviour before role-based nav.
+    if (entry.to === '/reports/performance' && reportPerms.length > 0) return true
+    return false
+  })
 }
 
 /** All permission keys defined across modules. */
