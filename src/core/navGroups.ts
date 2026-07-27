@@ -19,8 +19,10 @@ export const GROUP_ORDER = [
 
 export type NavGroup = (typeof GROUP_ORDER)[number]
 
-/** Which groups start collapsed on first render (kept tidy for an enterprise feel). */
-export const DEFAULT_COLLAPSED: NavGroup[] = ['HRMS']
+/** Which groups start collapsed on first render (before any saved preference).
+ *  Everything except Dashboard starts collapsed for a tidy enterprise default;
+ *  the user's expand/collapse choices then persist per browser. */
+export const DEFAULT_COLLAPSED: NavGroup[] = GROUP_ORDER.filter((g) => g !== 'Dashboard')
 
 // Path-prefix → group. First match wins (order matters: longer/more-specific first).
 const PREFIX_GROUP: [string, NavGroup][] = [

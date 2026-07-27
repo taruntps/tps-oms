@@ -15,11 +15,19 @@ import { groupNav, DEFAULT_COLLAPSED, type NavGroup } from '@/core/navGroups'
 import { useMyPermissions } from '@/core/access/useCan'
 import type { UserRole } from '@/types'
 
+const NAV_COLLAPSED_KEY = 'tps_nav_collapsed'
+
 export function Sidebar() {
   const { profile, signOut } = useAuth()
   const role = profile?.role as UserRole | undefined
   const { unreadCount } = useNotifications()
-  const { data: perms } = useMyPermissions()
+  const { data: perms, isLoading: permsLoading } = useMyPermissions()
+
+  // Render the nav only once BOTH role and permissions have loaded, so permission-gated
+  // items appear in a single shot. Previously the skeleton only waited for `role`, so on
+  // refresh the sidebar showed the un-gated items first and the gated ones popped in
+  // 2-3s later (the "few → many" flash).
+  const navReady = !!role && !permsLoading
 
   // Role-visible entries, then permission-gate (fail-closed while perms load, mirroring useCan).
   const grouped = useMemo(() => {
@@ -27,11 +35,19 @@ export function Sidebar() {
     return groupNav(visible)
   }, [role, perms])
 
-  const [collapsed, setCollapsed] = useState<Set<NavGroup>>(() => new Set(DEFAULT_COLLAPSED))
+  // Collapse state persists per browser so the user's expand/collapse choices survive refresh.
+  const [collapsed, setCollapsed] = useState<Set<NavGroup>>(() => {
+    try {
+      const saved = localStorage.getItem(NAV_COLLAPSED_KEY)
+      if (saved) return new Set(JSON.parse(saved) as NavGroup[])
+    } catch { /* ignore malformed storage */ }
+    return new Set(DEFAULT_COLLAPSED)
+  })
   const toggle = (g: NavGroup) =>
     setCollapsed((prev) => {
       const next = new Set(prev)
       if (next.has(g)) next.delete(g); else next.add(g)
+      try { localStorage.setItem(NAV_COLLAPSED_KEY, JSON.stringify([...next])) } catch { /* ignore */ }
       return next
     })
 
@@ -51,10 +67,10 @@ export function Sidebar() {
 
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 overflow-y-auto">
-        {!role &&
+        {!navReady &&
           [1, 2, 3, 4, 5, 6].map((i) => <div key={i} className="h-9 rounded-xl bg-white/8 animate-pulse mx-0.5 mb-1" />)}
 
-        {role &&
+        {navReady &&
           grouped.map(({ group, items }) => {
             const isCollapsed = collapsed.has(group)
             return (
