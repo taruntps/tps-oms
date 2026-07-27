@@ -12,7 +12,7 @@ where each concern currently lives. Files migrate into `src/core/*` incrementall
 
 | Core concern | Current location (V1) | Target (V2) |
 |---|---|---|
-| Authentication / session | `src/contexts/AuthContext.tsx`, `src/lib/supabase.ts`, `src/hooks/useIdleLogout.ts` | `src/core/auth/` |
+| Authentication / session | `src/contexts/AuthContext.tsx`, `src/lib/supabase.ts`, `src/components/shared/IdleTimeout.tsx` | `src/core/auth/` |
 | Users / Roles / Permissions | `src/types/index.ts` (role enums + permission constants), `src/components/shared/ProtectedRoute.tsx`, `RoleBasedRedirect.tsx` | `src/core/access/` |
 | Notifications | `src/hooks/useNotifications.ts`, `src/components/layout/NotificationPanel.tsx`, `src/pages/notifications/*` | `src/core/notifications/` |
 | File management | `src/hooks/useDrive.ts`, `src/components/shared/DriveTab.tsx`, storage helpers | `src/core/files/` |
