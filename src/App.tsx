@@ -19,7 +19,6 @@ const ClientDetailPage = lazy(() => import('@/pages/clients/ClientDetailPage'))
 const DirectorPage = lazy(() => import('@/pages/director/DirectorPage'))
 const SettingsPage = lazy(() => import('@/pages/settings/SettingsPage'))
 const PerformancePage = lazy(() => import('@/pages/reports/PerformancePage'))
-const QueriesReportPage = lazy(() => import('@/pages/reports/QueriesReportPage'))
 const KnowledgePage = lazy(() => import('@/pages/knowledge/KnowledgePage'))
 const UserManagementPage = lazy(() => import('@/pages/admin/UserManagementPage'))
 const EmployeesPage = lazy(() => import('@/pages/employees/EmployeesPage'))
@@ -124,11 +123,6 @@ export default function App() {
               <Route path="reports/performance" element={
                 <ProtectedRoute>
                   <PerformancePage />
-                </ProtectedRoute>
-              } />
-              <Route path="reports/queries" element={
-                <ProtectedRoute allowedRoles={['super_admin','director','manager']}>
-                  <QueriesReportPage />
                 </ProtectedRoute>
               } />
               <Route path="settings" element={
