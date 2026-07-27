@@ -49,7 +49,19 @@
 1. **Green tier + PITR/backups** — you confirmed paid tier ✅; please also toggle **Point-in-Time Recovery + daily backups ON** (Green → Database → Backups).
 2. **Backup Blue** — take an on-demand backup of old prod before Phase 2 (Blue → Database → Backups) and note the restore point. *(Copy never writes Blue, but this is the safety net.)*
 3. **Green auth hardening** (Green → Authentication → Providers/Policies): disable public sign-ups, enable leaked-password protection, set Site URL / redirect URLs to `https://portal.tpsxpert.com`, and configure SMTP so password-reset emails send at cutover.
-4. **Secrets you'll re-enter in Phase 2.D** (I can't read them out of Blue): Vault → Google service-account JSON + FSSAI credentials; Edge Function env → Resend key, AiSensy key, service-role key.
+4. **Secrets for Phase 2.D** — see the verified inventory in §7 below. (Vault can be auto-migrated by me; Edge Function env values you copy Blue→Green.)
+
+## 7. Verified secret inventory (Phase 2.D)
+**Vault — Blue has 64 secrets; Green Vault is empty.**
+- `google_sa_json` ×1 (Google service account for Drive)
+- `fssai_cred_<license-uuid>` ×62 (per-license FSSAI portal passwords; 62 of 64 licenses)
+
+Because Phase 2 preserves license UUIDs, these secret **names still match** after the copy. **Migration path:** auto — read each decrypted value from Blue's `vault.decrypted_secrets` and recreate in Green via `vault.create_secret(value, name, description)`. Caveat: plaintext transits tool output (only way to move cross-project — encrypted per-project key). User to choose auto vs manual at Phase 2 start.
+
+**Mailer = ZeptoMail (NOT Resend).** Edge Functions use `ZEPTOMAIL_TOKEN` + `MAIL_FROM`. Auth SMTP → `smtp.zeptomail.in:587`, user `emailapikey`, pass = ZeptoMail token.
+
+**Edge Function secrets to copy Blue→Green (values write-only; user copies).** Auto-injected `SUPABASE_URL`/`SUPABASE_ANON_KEY`/`SUPABASE_SERVICE_ROLE_KEY` excluded:
+`ZEPTOMAIL_TOKEN, MAIL_FROM, SITE_URL, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, GETSWIPE_API_KEY, GETSWIPE_BASE_URL, GETSWIPE_BUSINESS_ID, GETSWIPE_WEBHOOK_SECRET, BILLING_PROVIDER, DRIVE_SUB_EMAIL, SHEETS_SYNC_TOKEN`
 
 ## 6. What did NOT happen (by your instruction)
 - ❌ No production data copied. ❌ No writes to Blue or Green. ❌ Purge not executed. ❌ No `staging→main` merge. ❌ No secrets flipped. ❌ Nothing deployed.
