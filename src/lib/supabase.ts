@@ -13,19 +13,25 @@ if (!url || !key) {
 // "Remember me" storage: when the user opts out (tps_remember === 'false') the
 // session lives in sessionStorage (cleared when the tab/browser closes); otherwise
 // it persists in localStorage. The flag is set by the login form before sign-in.
+// Access is guarded so this also works in non-browser environments (tests/SSR)
+// where sessionStorage/localStorage are undefined — falling back to memory.
+const memoryStore: Record<string, string> = {}
+const ss = () => (typeof sessionStorage !== 'undefined' ? sessionStorage : null)
+const ls = () => (typeof localStorage !== 'undefined' ? localStorage : null)
+
 const rememberStorage = {
-  pick() {
-    return localStorage.getItem('tps_remember') === 'false' ? sessionStorage : localStorage
-  },
   getItem(k: string) {
-    return sessionStorage.getItem(k) ?? localStorage.getItem(k)
+    return ss()?.getItem(k) ?? ls()?.getItem(k) ?? (k in memoryStore ? memoryStore[k] : null)
   },
   setItem(k: string, v: string) {
-    this.pick().setItem(k, v)
+    const target = ls()?.getItem('tps_remember') === 'false' ? ss() : ls()
+    if (target) target.setItem(k, v)
+    else memoryStore[k] = v
   },
   removeItem(k: string) {
-    localStorage.removeItem(k)
-    sessionStorage.removeItem(k)
+    ls()?.removeItem(k)
+    ss()?.removeItem(k)
+    delete memoryStore[k]
   },
 }
 
