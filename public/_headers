@@ -1,0 +1,16 @@
+# Cloudflare Pages security headers (PR3 M1). Applied to every response.
+# CSP scoped to the exact origins the app uses (evidence-based):
+#   - Supabase (*.supabase.co, wss for realtime) — API/auth/storage
+#   - Google Fonts (fonts.googleapis.com style, fonts.gstatic.com font)
+#   - inline SPA-restore script in index.html/404.html → 'unsafe-inline' on script-src
+#     (no HTML-injection sinks exist; React auto-escapes, no dangerouslySetInnerHTML.
+#      Tightening to nonce/hash is a future option.)
+#   - img-src allows https: (avatars/Drive thumbnails) + data:/blob: (face-capture canvas)
+#   - camera/geolocation restricted to self (Attendance only); mic/payment denied
+/*
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(self), microphone=(), geolocation=(self), payment=()
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co; frame-src 'self' https://*.google.com; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'
