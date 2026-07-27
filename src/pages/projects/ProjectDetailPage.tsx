@@ -23,7 +23,7 @@ import {
   useSubmitBlockRequest, useSubmitCancelRequest,
   usePendingCancelRequests, useApproveCancelRequest,
 } from '@/hooks/useProjects'
-import { useLicenses, useRevealCredential } from '@/hooks/useLicenses'
+import { useLicenses, useRevealCredential, useStoreCredential, useCreateProjectFssaiCredential, useLinkProjectLicense } from '@/hooks/useLicenses'
 import { useAuth }   from '@/contexts/AuthContext'
 import { supabase }  from '@/lib/supabase'
 import { toast }     from '@/components/shared/Toast'
@@ -114,7 +114,7 @@ export default function ProjectDetailPage() {
                              : ((currentStage as any)?.active_clock ?? project.active_clock ?? 'employee')) as ClockType
   const appRefNo         = (project as any).app_ref_no as string | null | undefined
   const executiveName    = (project as any).profiles_assigned?.name as string | undefined
-  const fssaiLicense     = licenses.find((l: any) => l.credential_username)
+  const fssaiLicense     = licenses.find((l: any) => l.id === (project as any).license_id)
   const execFirstName    = executiveName?.trim().split(/\s+/)[0]
 
   // Tab visibility by project type. Annual Return / Claim Check / Renewal don't
@@ -494,16 +494,17 @@ export default function ProjectDetailPage() {
           </div>
           )}
 
-          {/* FSSAI Portal Password — from client's license credentials */}
-          {fssaiLicense && (
-            <div className="mt-4 pt-4 border-t border-border flex items-center gap-3 flex-wrap">
-              <div className="flex items-center gap-2 shrink-0">
-                <Sym name="lock" size={12} className="text-muted-foreground" />
-                <span className="text-[11px] text-muted-foreground uppercase tracking-wide">FSSAI Password</span>
-                <span className="text-[11px] text-muted-foreground/60">({fssaiLicense.credential_username})</span>
-              </div>
-              <FssaiReveal licenseId={fssaiLicense.id} />
-            </div>
+          {/* FSSAI Portal Credential — bound to THIS project's licence */}
+          {['New Application','Renewal','Modification','Form II'].includes(project.service_type ?? '') && (
+            <ProjectFssaiCredential
+              projectId={project.id}
+              clientId={clientId}
+              appRefNo={appRefNo ?? null}
+              licenseId={(project as any).license_id ?? null}
+              linkedLicense={fssaiLicense}
+              clientLicenses={licenses}
+              canManage={['super_admin','director','manager','executive'].includes(profile?.role ?? '')}
+            />
           )}
 
           {project.notes && (
@@ -692,6 +693,97 @@ export default function ProjectDetailPage() {
 }
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
+
+function ProjectFssaiCredential({ projectId, clientId, appRefNo, licenseId, linkedLicense, clientLicenses, canManage }: {
+  projectId: string; clientId: string; appRefNo: string | null; licenseId: string | null;
+  linkedLicense: any; clientLicenses: any[]; canManage: boolean
+}) {
+  const { profile } = useAuth()
+  const [pwdDraft, setPwdDraft] = useState('')
+  const [mode, setMode] = useState<'idle' | 'setpwd' | 'link'>('idle')
+  const create = useCreateProjectFssaiCredential()
+  const link   = useLinkProjectLicense()
+  const store  = useStoreCredential()
+
+  // Bound to a licence → show it + reveal/edit/unlink
+  if (licenseId && linkedLicense) {
+    return (
+      <div className="mt-4 pt-4 border-t border-border flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-2 shrink-0">
+          <Sym name="lock" size={12} className="text-muted-foreground" />
+          <span className="text-[11px] text-muted-foreground uppercase tracking-wide">FSSAI Password</span>
+          <span className="text-[11px] text-muted-foreground/60">
+            ({linkedLicense.credential_username}{linkedLicense.license_number ? '' : ' · pending'})
+          </span>
+        </div>
+        <FssaiReveal licenseId={linkedLicense.id} />
+        {canManage && mode !== 'setpwd' && (
+          <div className="flex items-center gap-2">
+            <button onClick={() => { setPwdDraft(''); setMode('setpwd') }} className="text-xs text-brand-600 hover:text-brand-700">Edit password</button>
+            <button onClick={async () => { try { await link.mutateAsync({ projectId, licenseId: null }); toast.success('Unlinked from project') } catch (e: any) { toast.error('Failed', e.message) } }} className="text-xs text-muted-foreground hover:text-red-600">Unlink</button>
+          </div>
+        )}
+        {canManage && mode === 'setpwd' && (
+          <div className="flex items-center gap-2">
+            <input type="password" value={pwdDraft} onChange={e => setPwdDraft(e.target.value)} placeholder="New password" className="px-2 py-1 text-xs border border-border rounded-lg w-40" />
+            <button disabled={store.isPending} onClick={async () => {
+              if (!pwdDraft.trim()) { toast.error('Enter a password'); return }
+              try { await store.mutateAsync({ licenseId: linkedLicense.id, username: linkedLicense.credential_username, password: pwdDraft }); toast.success('Password updated'); setMode('idle') } catch (e: any) { toast.error('Failed', e.message) }
+            }} className="px-2 py-1 bg-brand-600 text-white text-xs rounded-lg disabled:opacity-50">Save</button>
+            <button onClick={() => setMode('idle')} className="text-xs text-muted-foreground hover:text-brand-950">✕</button>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // Not linked — only managers+ can set/link
+  if (!canManage) return null
+  return (
+    <div className="mt-4 pt-4 border-t border-border flex flex-col gap-2">
+      <div className="flex items-center gap-2">
+        <Sym name="lock" size={12} className="text-muted-foreground" />
+        <span className="text-[11px] text-muted-foreground uppercase tracking-wide">FSSAI Credential</span>
+        <span className="text-[11px] text-muted-foreground/50">not linked</span>
+      </div>
+      {mode !== 'link' && (
+        <div className="flex items-center gap-2 flex-wrap">
+          {appRefNo ? (
+            <>
+              <span className="text-[11px] text-muted-foreground">Set portal password for <span className="font-mono">{appRefNo}</span>:</span>
+              <input type="password" value={pwdDraft} onChange={e => setPwdDraft(e.target.value)} placeholder="Portal password" className="px-2 py-1 text-xs border border-border rounded-lg w-40" />
+              <button disabled={create.isPending} onClick={async () => {
+                try { await create.mutateAsync({ projectId, clientId, appRefNo, password: pwdDraft, createdBy: profile?.id }); toast.success('Credential saved & linked') } catch (e: any) { toast.error('Failed', e.message) }
+              }} className="px-2 py-1 bg-brand-600 text-white text-xs rounded-lg disabled:opacity-50">Save &amp; link</button>
+            </>
+          ) : (
+            <span className="text-[11px] text-muted-foreground/70 italic">Add the App Ref No above, then set the portal password here.</span>
+          )}
+          {clientLicenses.length > 0 && (
+            <button onClick={() => setMode('link')} className="text-xs text-brand-600 hover:text-brand-700 ml-auto">Link existing licence</button>
+          )}
+        </div>
+      )}
+      {mode === 'link' && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-[11px] text-muted-foreground">Link to:</span>
+          <select defaultValue="" onChange={async (e) => {
+            const v = e.target.value; if (!v) return
+            try { await link.mutateAsync({ projectId, licenseId: v }); toast.success('Linked to licence') } catch (err: any) { toast.error('Failed', err.message) }
+          }} className="px-2 py-1 text-xs border border-border rounded-lg">
+            <option value="" disabled>Select a licence…</option>
+            {clientLicenses.map((l: any) => (
+              <option key={l.id} value={l.id}>
+                {l.license_number || `Pending — ${l.credential_username ?? 'no ref'}`}{l.license_type ? ` · ${l.license_type}` : ''}{l.status ? ` · ${l.status}` : ''}
+              </option>
+            ))}
+          </select>
+          <button onClick={() => setMode('idle')} className="text-xs text-muted-foreground hover:text-brand-950">✕</button>
+        </div>
+      )}
+    </div>
+  )
+}
 
 function FssaiReveal({ licenseId }: { licenseId: string }) {
   const [password,     setPassword]     = useState<string | null>(null)

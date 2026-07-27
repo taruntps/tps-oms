@@ -33,6 +33,11 @@ soi_products 4103=4103 · notifications 1552=1552 · whatsapp_log 1372=1372 · s
 - Blue is **live**, so its counts keep growing (e.g., clients 77→78 during this work). Green matches Blue's snapshot at copy time. Any rows added on Blue after this point are reconciled by the **cutover delta-sync** (re-run of the same idempotent copy) during Phase 4.
 - The `blue_src` FDW link is **retained** (for the delta-sync); it will be dropped after cutover.
 
-## Remaining before cutover
-1. **Storage files (~68 objects, ~5.5 MB)** — Blue buckets → Green buckets (documents, attendance, face-refs, avatars). *Next step, on your go-ahead.*
-2. **Phase 4 cutover** — brief freeze → final delta-sync → flip GitHub Pages secrets + merge staging→main → password-less login on the new backend.
+## Storage — ✅ COMPLETE
+Copied via `scripts/migrate-storage.mjs` (Storage API, service-role, prod read-only). Green == Blue on every bucket: **attendance 56, avatars 1, documents 8, face-refs 5** (70 objects). (Green also has 2 orphaned test invoice PDFs in `invoice-pdfs` that predate the migration; Supabase blocks direct SQL deletion and the finance module is empty, so they're inert — left as-is.)
+
+## Phase 2 — COMPLETE ✅
+Data (40 tables 1:1) · identity (5 users, passwords preserved) · RBAC · Vault (64) · Storage (70). Production untouched throughout.
+
+## Remaining — Phase 4 cutover only
+Brief freeze → final delta-sync (re-run the idempotent FDW copy to catch rows added on Blue since) → flip GitHub Pages secrets + merge staging→main → live on the new backend. Then drop the `blue_src` FDW link.
