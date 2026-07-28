@@ -9,8 +9,6 @@ import {
   useAttendanceSettings, useTodayPunches, useMyAttendanceDays, usePunch, useTeamToday,
 } from '@/hooks/useAttendance'
 import { PlainCapture } from './PlainCapture'
-import { FaceScanRing } from './FaceScanRing'
-import { useEnrollFace, useVerifiedPunch, useResetFace } from '@/hooks/useFaceVerify'
 
 const fmtTime = (iso: string) =>
   new Date(iso).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' })
@@ -38,22 +36,7 @@ export default function AttendancePage() {
   const punch = usePunch()
   const [busy, setBusy] = useState(false)
 
-  const enrollFace = useEnrollFace()
-  const verifiedPunch = useVerifiedPunch()
-  const resetFace = useResetFace()
-  const faceOn = !!(settings as any)?.face_match_required
-  const [mode, setMode] = useState<null | 'enroll' | 'punch' | 'selfie'>(null)
-
-  // Clear my stored face and immediately re-scan (new phone / changed appearance).
-  const reRegisterMyFace = async () => {
-    if (!window.confirm('Re-register your face? Your current face data is cleared and you scan again now.')) return
-    try {
-      await resetFace.mutateAsync({})
-      setMode('enroll')
-    } catch (e: any) {
-      toast.error('Could not reset', e?.message ?? 'Try again')
-    }
-  }
+  const [mode, setMode] = useState<null | 'selfie'>(null)
 
   const firstIn = today[0]
   const lastPunch = today[today.length - 1]
@@ -93,9 +76,8 @@ export default function AttendancePage() {
   }
 
   const onPunchClick = () => {
-    if (faceOn) setMode('punch')                    // server-side face verification
-    else if (settings?.selfie_required) setMode('selfie')  // photo record, no match
-    else doPunch(null)                              // plain GPS/time punch
+    if (settings?.selfie_required) setMode('selfie')  // GPS + selfie photo (no face match)
+    else doPunch(null)                                // plain GPS/time punch
   }
 
   // Upload a base64 selfie to the attendance bucket (photo-only mode, no face match).
@@ -108,55 +90,18 @@ export default function AttendancePage() {
     return path
   }
 
-  // PlainCapture hands back a base64 JPEG (no on-device face engine — cannot hang).
+  // PlainCapture hands back a base64 JPEG. GPS + selfie only — no face match, no AWS.
   const onPhoto = async (b64: string) => {
     if (!user) return
     try {
       setBusy(true)
-
-      if (mode === 'selfie') {                      // photo record only
-        const path = await uploadSelfieB64(b64)
-        setMode(null)
-        await doPunch(path)
-        return
-      }
-
-      if (mode === 'enroll') {                       // one-time face registration
-        await enrollFace.mutateAsync({ photo: b64 })
-        toast.success('Face registered', 'Now punching…')
-        setMode('punch')                             // reopen capture to actually punch
-        setBusy(false)
-        return
-      }
-
-      // mode === 'punch' with face verification: the edge function matches + records.
-      const pos = await getPosition()
-      const res = await verifiedPunch.mutateAsync({
-        photo: b64,
-        gps: { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy },
-      })
-      if (res.needs_enrollment) {                    // first ever punch → enrol first
-        toast.success('One-time face setup', 'Scan your face to register, then punch.')
-        setMode('enroll'); setBusy(false)
-        return
-      }
-      if (res.needs_retake) {                        // bad photo → keep modal open, ask again
-        toast.error('Please retake', res.reason ?? 'Center your face and try again.')
-        setBusy(false)
-        return
-      }
+      const path = await uploadSelfieB64(b64)
       setMode(null)
-      if (res.status === 'verified') toast.success('Punched ✓', 'Face verified')
-      else if (res.status === 'no_match') toast.error('Punched — face not matched', 'Recorded & flagged for HR review')
-      else toast.success('Punched', 'Recorded (verification temporarily skipped)')
+      await doPunch(path)
     } catch (e: any) {
-      const msg = e?.code === 1 ? 'Location is blocked for this site — allow it (see help below) and retry.'
-        : e?.code === 2 ? 'Location unavailable — turn on GPS and retry.'
-        : e?.code === 3 ? 'Location timed out — move to an open area and retry.'
-        : e?.message ?? 'Could not punch'
-      toast.error('Punch failed', msg)
+      toast.error('Punch failed', e?.message ?? 'Could not save the selfie — try again.')
     } finally {
-      if (mode !== 'enroll') setBusy(false)
+      setBusy(false)
     }
   }
 
@@ -184,17 +129,6 @@ export default function AttendancePage() {
             <p className="text-[11px] text-white/55 mt-4 flex items-center justify-center gap-1">
               <Sym name="photo_camera" size={12} /> A selfie (camera) is required at each punch.
             </p>
-          )}
-          {faceOn && (
-            <>
-              <p className="text-[11px] text-white/55 mt-1 flex items-center justify-center gap-1">
-                <Sym name="face" size={12} /> Face verification is on. New staff register once (guided scan) on their first punch.
-              </p>
-              <button onClick={reRegisterMyFace} disabled={resetFace.isPending}
-                className="mt-2 text-[11px] text-white/70 hover:text-white underline underline-offset-2 inline-flex items-center gap-1 disabled:opacity-50">
-                <Sym name="restart_alt" size={12} /> {resetFace.isPending ? 'Resetting…' : 'Re-register my face'}
-              </button>
-            </>
           )}
         </div>
 
@@ -309,26 +243,14 @@ export default function AttendancePage() {
       {mode && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-5">
-            <h2 className="font-display font-semibold text-brand-950 text-center mb-1">
-              {mode === 'enroll' ? 'Register your face' : mode === 'selfie' ? 'Take your selfie' : 'Face verification'}
-            </h2>
-            <p className="text-xs text-muted-foreground text-center mb-3">
-              {mode === 'enroll' ? 'One-time setup — follow the prompts to scan your face.'
-                : 'Center your face and tap Capture.'}
-            </p>
-            {mode === 'enroll' ? (
-              <FaceScanRing
-                onDone={() => { toast.success('Face registered ✓', 'Now punching…'); setMode('punch') }}
-                onCancel={() => { setMode(null); setBusy(false) }}
-              />
-            ) : (
-              <PlainCapture
-                busy={busy}
-                label={mode === 'selfie' ? 'Capture & Punch' : 'Capture & Punch'}
-                onCapture={onPhoto}
-                onCancel={() => { setMode(null); setBusy(false) }}
-              />
-            )}
+            <h2 className="font-display font-semibold text-brand-950 text-center mb-1">Take your selfie</h2>
+            <p className="text-xs text-muted-foreground text-center mb-3">Center your face and tap Capture.</p>
+            <PlainCapture
+              busy={busy}
+              label="Capture & Punch"
+              onCapture={onPhoto}
+              onCancel={() => { setMode(null); setBusy(false) }}
+            />
           </div>
         </div>
       )}

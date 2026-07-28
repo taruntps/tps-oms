@@ -6,7 +6,6 @@ import { toast } from '@/components/shared/Toast'
 import { useAuth } from '@/contexts/AuthContext'
 import { Sym } from '@/components/shared/Sym'
 import { cn, formatDate } from '@/lib/utils'
-import { useResetFace } from '@/hooks/useFaceVerify'
 
 const ROLES = ['executive', 'manager', 'director', 'accounts', 'super_admin'] as const
 type Role = typeof ROLES[number]
@@ -78,13 +77,6 @@ export default function UserManagementPage() {
   const [editUser, setEditUser] = useState<UserRow | null>(null)
   const [resetUser, setResetUser] = useState<UserRow | null>(null)
   const [newPwd, setNewPwd] = useState('')
-
-  const resetFace = useResetFace()
-  const onResetFace = async (id: string, name: string) => {
-    if (!confirm(`Clear ${name}'s face registration? They will re-register (guided scan) on their next punch.`)) return
-    try { await resetFace.mutateAsync({ targetUserId: id }); toast.success('Face registration cleared') }
-    catch (e: any) { toast.error('Failed', e.message) }
-  }
 
   const resetPassword = useMutation({
     mutationFn: async ({ id, password }: { id: string; password: string }) => {
@@ -288,25 +280,6 @@ export default function UserManagementPage() {
                           >
                             <Sym name="key" size={13} />
                           </button>
-                        )}
-                        {profile?.role === 'super_admin' && (
-                          u.face_enrolled_at ? (
-                            <span className="flex items-center gap-1.5">
-                              <span title={`Face enrolled ${formatDate(u.face_enrolled_at)}`}
-                                className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-200">
-                                <Sym name="face" size={11} /> Enrolled
-                              </span>
-                              <button onClick={() => onResetFace(u.id, u.name)} title="Reset face enrolment"
-                                className="p-1.5 text-muted-foreground hover:text-amber-600 hover:bg-amber-50 rounded-lg">
-                                <Sym name="face_retouching_off" size={13} />
-                              </button>
-                            </span>
-                          ) : (
-                            <span title="Face not enrolled yet"
-                              className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-gray-50 text-gray-400 border border-gray-200">
-                              <Sym name="face_retouching_off" size={11} /> No face
-                            </span>
-                          )
                         )}
                         {u.id !== profile?.id && (
                           <button

@@ -50,10 +50,10 @@ export function AttendanceSettingsSection() {
 
   // One control for the two underlying flags. Face match implies a captured photo,
   // so "face" sets face_match_required and leaves selfie_required off (avoids redundancy).
-  type VerifyMode = 'off' | 'photo' | 'face'
-  const verifyMode: VerifyMode = s.face_match_required ? 'face' : s.selfie_required ? 'photo' : 'off'
+  type VerifyMode = 'off' | 'photo'
+  const verifyMode: VerifyMode = s.selfie_required ? 'photo' : 'off'
   const setVerifyMode = (m: VerifyMode) =>
-    setS(v => ({ ...v, selfie_required: m === 'photo', face_match_required: m === 'face' }))
+    setS(v => ({ ...v, selfie_required: m === 'photo', face_match_required: false }))
 
   return (
     <section className="bg-white rounded-xl border border-border">
@@ -98,7 +98,7 @@ export function AttendanceSettingsSection() {
             <L label="GPS Accuracy Limit (m)"><input type="number" className={ic} value={s.accuracy_threshold_m} onChange={e=>setS({...s, accuracy_threshold_m:Number(e.target.value)})} /></L>
             <L label="Punch Verification" wide>
               <div className="flex rounded-lg border border-border overflow-hidden text-sm max-w-md">
-                {([['off','None'],['photo','Photo only'],['face','Face match']] as const).map(([m, lbl]) => (
+                {([['off','None'],['photo','Photo only']] as const).map(([m, lbl]) => (
                   <button key={m} type="button" onClick={() => setVerifyMode(m)}
                     className={`flex-1 py-2 px-3 font-medium transition-colors ${verifyMode === m ? 'bg-brand-600 text-white' : 'bg-white text-muted-foreground hover:bg-[#F8FAFC]'}`}>
                     {lbl}
@@ -107,20 +107,9 @@ export function AttendanceSettingsSection() {
               </div>
               <p className="text-[11px] text-muted-foreground mt-1.5">
                 {verifyMode === 'off' ? 'Punch records GPS location only — no photo.'
-                  : verifyMode === 'photo' ? 'A selfie is captured and stored at each punch (kept as a record, not verified).'
-                  : 'The live face is captured and verified against the employee’s enrolled face — non-matching punches are rejected. Each employee enrols once on their first punch.'}
+                  : 'A selfie is captured and stored at each punch (kept as a record, not verified).'}
               </p>
             </L>
-            {s.face_match_required && (
-              <L label="Match Strictness" wide>
-                <label className="block text-[11px] text-muted-foreground mb-1">
-                  Face similarity ≥ {Math.round(s.face_match_threshold * 100)}% (higher = stricter). 90% recommended.
-                </label>
-                <input type="range" min={0.80} max={0.98} step={0.01} value={s.face_match_threshold}
-                  onChange={e => setS(v => ({ ...v, face_match_threshold: Number(e.target.value) }))}
-                  className="w-full max-w-xs" />
-              </L>
-            )}
           </div>
           <div className="mt-3 flex justify-end">
             <button onClick={saveSettings} disabled={updateSettings.isPending} className="px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 disabled:opacity-50">Save Rules</button>
