@@ -3,11 +3,13 @@ import { Outlet } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
 import { Sym } from '@/components/shared/Sym'
 import { IdleTimeout } from '@/components/shared/IdleTimeout'
+import { QuickPunchProvider, QuickPunchFab } from '@/components/attendance/QuickPunch'
 
 export function AppShell() {
   const [mobileOpen, setMobileOpen] = useState(false)
 
   return (
+    <QuickPunchProvider>
     <div className="flex h-screen overflow-hidden">
       {/* Idle session: 13-min warning + 15-min auto sign-out (PR3 M3) */}
       <IdleTimeout />
@@ -50,6 +52,8 @@ export function AppShell() {
 
         <Outlet />
       </main>
+      <QuickPunchFab />
     </div>
+    </QuickPunchProvider>
   )
 }

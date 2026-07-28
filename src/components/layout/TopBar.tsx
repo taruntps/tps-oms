@@ -4,6 +4,7 @@ import { NotificationPanel } from './NotificationPanel'
 import { supabase } from '@/lib/supabase'
 import { toast } from '@/components/shared/Toast'
 import { Sym } from '@/components/shared/Sym'
+import { QuickPunchHeaderButton } from '@/components/attendance/QuickPunch'
 
 interface TopBarProps {
   title: string
@@ -83,6 +84,7 @@ export function TopBar({ title, subtitle, children }: TopBarProps) {
         {subtitle && <p className="text-xs text-white/60 mt-0.5">{subtitle}</p>}
       </div>
       <div className="flex items-center gap-3">
+        <QuickPunchHeaderButton />
         {children && <div className="flex items-center gap-2">{children}</div>}
         <NotificationPanel />
         <div className="text-right hidden sm:block">

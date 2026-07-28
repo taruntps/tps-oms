@@ -111,13 +111,13 @@ export default function AttendancePage() {
       <div className="p-6 animate-fade-up space-y-5 max-w-3xl">
 
         {/* Punch card */}
-        <div className="glass-panel-heavy rounded-2xl p-6 text-center">
+        <div className="glass-panel-heavy rounded-2xl p-5 text-center">
           <p className="text-white/70 text-sm">{new Date().toLocaleDateString('en-IN', { weekday: 'long', day: '2-digit', month: 'long' })}</p>
-          <div className="my-5 flex items-center justify-center">
+          <div className="my-3 flex items-center justify-center">
             <button onClick={onPunchClick} disabled={busy}
-              className="w-36 h-36 rounded-full bg-white/15 border-2 border-white/40 hover:bg-white/25 transition-all flex flex-col items-center justify-center gap-1 disabled:opacity-60">
-              <Sym name={busy ? 'progress_activity' : 'fingerprint'} size={44} className={`text-white ${busy ? 'animate-spin' : ''}`} />
-              <span className="text-white font-semibold text-sm">{busy ? 'Working…' : today.length === 0 ? 'Punch In' : 'Punch'}</span>
+              className="w-24 h-24 rounded-full bg-white/15 border-2 border-white/40 hover:bg-white/25 transition-all flex flex-col items-center justify-center gap-0.5 disabled:opacity-60">
+              <Sym name={busy ? 'progress_activity' : 'fingerprint'} size={30} className={`text-white ${busy ? 'animate-spin' : ''}`} />
+              <span className="text-white font-semibold text-xs">{busy ? 'Working…' : today.length === 0 ? 'Punch In' : 'Punch'}</span>
             </button>
           </div>
           <div className="flex items-center justify-center gap-6 text-white">
