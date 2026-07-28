@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { toast } from '@/components/shared/Toast'
 import { useAuth } from '@/contexts/AuthContext'
 import { Sym } from '@/components/shared/Sym'
-import { cn, formatDate } from '@/lib/utils'
+import { cn } from '@/lib/utils'
 
 const ROLES = ['executive', 'manager', 'director', 'accounts', 'super_admin'] as const
 type Role = typeof ROLES[number]
