@@ -11,7 +11,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useEmployees } from '../hooks/useEmployees'
 import { useDepartments } from '../hooks/useMasters'
 import { useAttendanceDaysRange, useHrDaysRange, useCorrectAttendanceDay } from '../hooks/useAttendance'
-import { AttendanceStatusPill, fmtMinutes, fmtTime, monthRange } from './attendanceShared'
+import { AttendanceStatusPill, fmtMinutes, fmtTime, monthRange, istToday } from './attendanceShared'
 import type { AttendanceDay, AttendanceStatus, HrAttendanceDay } from '../api/attendance'
 
 interface Cell {
@@ -41,6 +41,8 @@ export default function AttendancePage() {
   const [deptFilter, setDeptFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [search, setSearch] = useState('')
+  // Day-wise view: a single date (defaults to today). Empty = whole-month muster.
+  const [dateFilter, setDateFilter] = useState<string>(istToday())
   const [editCell, setEditCell] = useState<{ employeeId: string; workDate: string; hr: HrAttendanceDay | null } | null>(null)
 
   const deptName = useMemo(() => {
@@ -80,8 +82,10 @@ export default function AttendancePage() {
   // Flatten into muster rows (employee × date), applying status filter.
   const rows = useMemo<{ emp: (typeof employees)[number]; cell: Cell }[]>(() => {
     const out: { emp: (typeof employees)[number]; cell: Cell }[] = []
+    // Day-wise: when a date is picked, restrict to it; otherwise the whole month.
+    const iterDates = dateFilter ? [dateFilter] : dates
     for (const emp of filteredEmployees) {
-      for (const d of dates) {
+      for (const d of iterDates) {
         const p = punchMap.get(`${emp.id}|${d}`) ?? null
         const h = hrMap.get(`${emp.id}|${d}`) ?? null
         if (!p && !h) continue
@@ -99,14 +103,29 @@ export default function AttendancePage() {
         })
       }
     }
+    // Date-first (newest day on top), then employee name — reads as a daily muster.
+    out.sort((a, b) =>
+      a.cell.work_date === b.cell.work_date
+        ? (a.emp.name ?? '').localeCompare(b.emp.name ?? '')
+        : (a.cell.work_date < b.cell.work_date ? 1 : -1))
     return out
-  }, [filteredEmployees, dates, punchMap, hrMap, statusFilter])
+  }, [filteredEmployees, dates, punchMap, hrMap, statusFilter, dateFilter])
 
   const monthLabel = new Intl.DateTimeFormat('en-IN', { month: 'long', year: 'numeric' }).format(new Date(ym.y, ym.m, 1))
-  const shiftMonth = (delta: number) => setYm(s => {
-    const d = new Date(s.y, s.m + delta, 1)
-    return { y: d.getFullYear(), m: d.getMonth() }
-  })
+  const shiftMonth = (delta: number) => {
+    setYm(s => {
+      const d = new Date(s.y, s.m + delta, 1)
+      return { y: d.getFullYear(), m: d.getMonth() }
+    })
+    setDateFilter('')  // leaving the current month → show the whole month
+  }
+
+  // Jump to today's month + pin the date to today.
+  const goToday = () => {
+    const t = new Date()
+    setYm({ y: t.getFullYear(), m: t.getMonth() })
+    setDateFilter(istToday())
+  }
 
   const isLoading = le || lp || lh
 
@@ -121,6 +140,24 @@ export default function AttendancePage() {
             <button onClick={() => shiftMonth(-1)} className="p-1.5 rounded-lg border border-border hover:bg-[#F8FAFC]"><Sym name="chevron_left" size={16} /></button>
             <span className="text-sm font-medium text-brand-950 min-w-[130px] text-center">{monthLabel}</span>
             <button onClick={() => shiftMonth(1)} className="p-1.5 rounded-lg border border-border hover:bg-[#F8FAFC]"><Sym name="chevron_right" size={16} /></button>
+          </div>
+
+          {/* Day-wise: pick a date (within the shown month), or clear for the whole month. */}
+          <div className="flex items-center gap-2">
+            <input
+              type="date"
+              value={dateFilter}
+              min={from}
+              max={to}
+              onChange={e => setDateFilter(e.target.value)}
+              className="px-3 py-2 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-600/20"
+            />
+            <button onClick={goToday} className="px-3 py-2 text-sm border border-border rounded-lg bg-white hover:bg-[#F8FAFC] font-medium">Today</button>
+            {dateFilter && (
+              <button onClick={() => setDateFilter('')} className="px-3 py-2 text-sm border border-border rounded-lg bg-white hover:bg-[#F8FAFC] text-muted-foreground flex items-center gap-1">
+                <Sym name="close" size={14} /> Month
+              </button>
+            )}
           </div>
 
           <div className="relative flex-1 min-w-[200px] max-w-xs">
