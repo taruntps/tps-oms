@@ -105,7 +105,7 @@ export default function UserManagementPage() {
   const { data: grantedRoleIds } = useQuery({
     queryKey: ['user_roles_granted'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('user_roles').select('user_id')
+      const { data, error } = await (supabase as any).from('user_roles').select('user_id')
       if (error) throw error
       return new Set((data as { user_id: string }[]).map(r => r.user_id))
     },
