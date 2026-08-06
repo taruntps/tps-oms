@@ -101,6 +101,28 @@ export default function UserManagementPage() {
     },
   })
 
+  // Which users currently have a portal role grant (user_roles) — drives the tick.
+  const { data: grantedRoleIds } = useQuery({
+    queryKey: ['user_roles_granted'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('user_roles').select('user_id')
+      if (error) throw error
+      return new Set((data as { user_id: string }[]).map(r => r.user_id))
+    },
+  })
+
+  const setPortalRole = useMutation({
+    mutationFn: async ({ id, grant }: { id: string; grant: boolean }) => {
+      const { error } = await (supabase.rpc as any)('admin_set_portal_role', { p_user_id: id, p_grant: grant })
+      if (error) throw error
+    },
+    onSuccess: (_d, v) => {
+      toast.success(v.grant ? 'Portal role granted' : 'Portal role removed')
+      qc.invalidateQueries({ queryKey: ['user_roles_granted'] })
+    },
+    onError: (e: Error) => toast.error('Failed', e.message),
+  })
+
   const toggleActive = useMutation({
     mutationFn: async ({ id, is_active }: { id: string; is_active: boolean }) => {
       const { error } = await supabase.from('profiles').update({ is_active }).eq('id', id)
@@ -114,8 +136,12 @@ export default function UserManagementPage() {
     mutationFn: async ({ id, role }: { id: string; role: Role }) => {
       const { error } = await supabase.from('profiles').update({ role }).eq('id', id)
       if (error) throw error
+      // if this user has portal access, keep their RBAC grant in sync with the new role
+      if (grantedRoleIds?.has(id)) {
+        await (supabase.rpc as any)('admin_set_portal_role', { p_user_id: id, p_grant: true })
+      }
     },
-    onSuccess: () => { toast.success('Role updated'); qc.invalidateQueries({ queryKey: ['profiles'] }) },
+    onSuccess: () => { toast.success('Role updated'); qc.invalidateQueries({ queryKey: ['profiles'] }); qc.invalidateQueries({ queryKey: ['user_roles_granted'] }) },
     onError: (e: Error) => toast.error('Failed', e.message),
   })
 
@@ -196,6 +222,14 @@ export default function UserManagementPage() {
                       >
                         {ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
                       </select>
+                      {profile?.role === 'super_admin' && u.id !== profile?.id && (
+                        <label className="mt-1.5 flex items-center gap-1.5 text-[10px] text-muted-foreground cursor-pointer"
+                          title="Grant this employee their role's portal permissions (HRMS self-service, dashboards, etc.). Off = HR record only, no portal role access.">
+                          <input type="checkbox" checked={grantedRoleIds?.has(u.id) ?? false}
+                            onChange={e => setPortalRole.mutate({ id: u.id, grant: e.target.checked })}
+                            className="accent-brand-600" /> Portal role
+                        </label>
+                      )}
                     </td>
                     <td className="px-5 py-3">
                       <span className={cn('inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full',
