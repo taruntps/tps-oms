@@ -25,6 +25,15 @@ const SECTIONS: { key: keyof ProfileChangeRequest['payload']; title: string; fie
 
 const fmtDate = (iso: string) => new Date(iso).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
 
+// Display a submitted value; DOB (stored YYYY-MM-DD) is shown as DD-MM-YYYY.
+const fmtValue = (key: string, val: string) => {
+  if (key === 'date_of_birth') {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(val)
+    if (m) return `${m[3]}-${m[2]}-${m[1]}`
+  }
+  return val
+}
+
 export default function ProfileApprovalsPage() {
   const { data: pending = [], isLoading } = usePendingRequests()
   const review = useReviewProfileChange()
@@ -78,9 +87,9 @@ export default function ProfileApprovalsPage() {
                         <h4 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">{sec.title}</h4>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1">
                           {rows.map(([k, label]) => (
-                            <div key={k} className="flex justify-between gap-3 text-sm py-0.5 border-b border-border/50">
-                              <span className="text-muted-foreground">{label}</span>
-                              <span className="text-brand-950 font-medium text-right break-all">{data[k]}</span>
+                            <div key={k} className="flex justify-between gap-4 text-sm py-0.5 border-b border-border/50">
+                              <span className="text-muted-foreground shrink-0">{label}</span>
+                              <span className="text-brand-950 font-medium text-right break-words min-w-0">{fmtValue(k, data[k])}</span>
                             </div>
                           ))}
                         </div>
