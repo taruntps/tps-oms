@@ -110,6 +110,7 @@ export interface EmployeeProfileInput {
   name: string
   email?: string | null
   phone?: string | null
+  whatsapp_number?: string | null
   employee_code?: string | null
   department_id?: string | null
   designation_id?: string | null

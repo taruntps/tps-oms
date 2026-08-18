@@ -43,6 +43,7 @@ export function EmployeeForm({ employee, details, onClose }: Props) {
     name: employee?.name ?? '',
     email: employee?.email ?? '',
     phone: employee?.phone ?? '',
+    whatsapp: (employee as any)?.whatsapp_number ?? '',
     // create-only: auth provisioning via admin_create_user
     password: '',
     role: employee?.role ?? 'executive',
@@ -83,10 +84,14 @@ export function EmployeeForm({ employee, details, onClose }: Props) {
     if (form.name.trim().length < 2) return
     if (!isEdit && (!form.email.trim() || form.password.length < 6)) return // create needs email + temp password
 
+    // WhatsApp defaults to the Phone number when left blank, so notifications always land.
+    const waNumber = form.whatsapp.trim() || form.phone.trim() || null
+
     const profile = {
       name: form.name.trim(),
       email: form.email.trim() || null,
       phone: form.phone.trim() || null,
+      whatsapp_number: waNumber,
       employee_code: form.employee_code.trim() || null,
       department_id: form.department_id || null,
       designation_id: form.designation_id || null,
@@ -128,6 +133,7 @@ export function EmployeeForm({ employee, details, onClose }: Props) {
             email: form.email.trim(),
             password: form.password,
             role: form.role,
+            whatsapp: waNumber,
           },
           details: detailsPayload,
         })
@@ -150,6 +156,7 @@ export function EmployeeForm({ employee, details, onClose }: Props) {
             <Field label="Employee Code"><input className={ic} value={form.employee_code} onChange={e => set('employee_code', e.target.value)} placeholder="Auto if blank" /></Field>
             <Field label={isEdit ? 'Work Email' : 'Work Email *'}><input className={ic} value={form.email} onChange={e => set('email', e.target.value)} disabled={isEdit} /></Field>
             <Field label="Phone"><input className={ic} value={form.phone} onChange={e => set('phone', e.target.value)} /></Field>
+            <Field label="WhatsApp Number"><input className={ic} value={form.whatsapp} onChange={e => set('whatsapp', e.target.value)} placeholder="Defaults to Phone if blank" /></Field>
             {!isEdit && (
               <>
                 <Field label="Login Role *">
