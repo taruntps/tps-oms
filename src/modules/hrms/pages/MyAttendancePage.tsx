@@ -17,6 +17,7 @@ import {
   useMyOvertime,
 } from '../hooks/useAttendance'
 import { RequestModal, type RequestKind } from './RequestModal'
+import { AttendanceCalendar } from './AttendanceCalendar'
 import {
   AttendanceStatusPill,
   RequestStatusPill,
@@ -115,6 +116,9 @@ export default function MyAttendancePage() {
             </button>
           </div>
         </div>
+
+        {/* Monthly calendar */}
+        {uid && <AttendanceCalendar employeeId={uid} />}
 
         {/* Month selector */}
         <div className="flex items-center gap-3">

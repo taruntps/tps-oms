@@ -12,6 +12,7 @@ import { useEmployees } from '../hooks/useEmployees'
 import { useDepartments } from '../hooks/useMasters'
 import { useAttendanceDaysRange, useHrDaysRange, useCorrectAttendanceDay } from '../hooks/useAttendance'
 import { AttendanceStatusPill, fmtMinutes, fmtTime, monthRange, istToday } from './attendanceShared'
+import { AttendanceCalendar } from './AttendanceCalendar'
 import type { AttendanceDay, AttendanceStatus, HrAttendanceDay } from '../api/attendance'
 
 interface Cell {
@@ -44,6 +45,8 @@ export default function AttendancePage() {
   // Day-wise view: a single date (defaults to today). Empty = whole-month muster.
   const [dateFilter, setDateFilter] = useState<string>(istToday())
   const [editCell, setEditCell] = useState<{ employeeId: string; workDate: string; hr: HrAttendanceDay | null } | null>(null)
+  const [view, setView] = useState<'muster' | 'calendar'>('muster')
+  const [calEmp, setCalEmp] = useState('')
 
   const deptName = useMemo(() => {
     const m = new Map<string, string>()
@@ -128,12 +131,33 @@ export default function AttendancePage() {
   }
 
   const isLoading = le || lp || lh
+  const calEmpId = calEmp || employees[0]?.id || ''
 
   return (
     <div>
       <TopBar title="Attendance" subtitle="Team & organisation muster" />
 
       <div className="p-6 animate-fade-up space-y-5">
+        {/* View toggle */}
+        <div className="flex items-center gap-1 bg-[#F1F5F9] rounded-lg p-1 w-fit">
+          {(['muster', 'calendar'] as const).map(v => (
+            <button key={v} onClick={() => setView(v)}
+              className={`px-3.5 py-1.5 text-sm rounded-md font-medium capitalize ${view === v ? 'bg-white text-brand-950 shadow-sm' : 'text-muted-foreground'}`}>{v}</button>
+          ))}
+        </div>
+
+        {view === 'calendar' ? (
+          <div className="space-y-3 max-w-3xl">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Employee</span>
+              <select value={calEmpId} onChange={e => setCalEmp(e.target.value)}
+                className="px-3 py-2 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-600/20 min-w-[220px]">
+                {employees.map(e => <option key={e.id} value={e.id}>{e.name || e.employee_code || 'Employee'}</option>)}
+              </select>
+            </div>
+            {calEmpId && <AttendanceCalendar employeeId={calEmpId} />}
+          </div>
+        ) : (<>
         {/* Toolbar */}
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2">
@@ -224,6 +248,7 @@ export default function AttendancePage() {
             </table>
           </div>
         )}
+        </>)}
       </div>
 
       {editCell && canManage && user?.id && (

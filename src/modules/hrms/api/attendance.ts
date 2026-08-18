@@ -163,6 +163,22 @@ export async function fetchMyAttendanceDays(userId: string, limit = 60): Promise
   return (data ?? []) as AttendanceDay[]
 }
 
+/** Punch-derived days for one employee within a date range (RLS scopes to self/admin). */
+export async function fetchEmployeeAttendanceDays(
+  employeeId: string,
+  fromDate: string,
+  toDate: string,
+): Promise<AttendanceDay[]> {
+  const { data, error } = await db
+    .from('attendance_days')
+    .select('*')
+    .eq('user_id', employeeId)
+    .gte('work_date', fromDate)
+    .lte('work_date', toDate)
+  if (error) throw error
+  return (data ?? []) as AttendanceDay[]
+}
+
 /** HR-evaluated daily records for one employee within a date range. */
 export async function fetchHrAttendanceDays(
   employeeId: string,
