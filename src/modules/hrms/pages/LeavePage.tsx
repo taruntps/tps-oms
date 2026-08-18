@@ -134,7 +134,7 @@ export default function LeavePage() {
                     </td>
                     {leaveTypes.map(t => (
                       <td key={t.id} className="px-3 py-2.5 text-center text-muted-foreground">
-                        {fmtDays(balanceOf.get(`${e.id}|${t.id}`) ?? 0)}
+                        {t.is_paid ? fmtDays(balanceOf.get(`${e.id}|${t.id}`) ?? 0) : '—'}
                       </td>
                     ))}
                   </tr>

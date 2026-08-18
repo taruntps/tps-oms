@@ -91,9 +91,11 @@ export default function MyLeavePage() {
                     <span className="text-[11px] font-semibold text-brand-600 bg-brand-600/10 rounded px-1.5 py-0.5">{type.code}</span>
                     {type.is_encashable && <Sym name="payments" size={14} className="text-muted-foreground" title="Encashable" />}
                   </div>
-                  <p className="mt-2 text-2xl font-display font-semibold text-brand-950">{fmtDays(balance)}</p>
+                  {type.is_paid
+                    ? <p className="mt-2 text-2xl font-display font-semibold text-brand-950">{fmtDays(balance)}</p>
+                    : <p className="mt-2 text-lg font-display font-semibold text-brand-950/70">On approval</p>}
                   <p className="text-xs text-muted-foreground truncate" title={type.name}>{type.name}</p>
-                  <p className="text-[10px] text-muted-foreground/70 mt-1">Quota {fmtDays(type.annual_quota)} · {type.is_paid ? 'Paid' : 'Unpaid'}</p>
+                  <p className="text-[10px] text-muted-foreground/70 mt-1">{type.is_paid ? `Quota ${fmtDays(type.annual_quota)} · Paid` : 'No balance · Unpaid'}</p>
                 </div>
               ))}
             </div>
