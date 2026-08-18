@@ -6,6 +6,8 @@ import type { NavEntry } from '@/core/moduleTypes'
 const HRMS_ROLES = ['super_admin', 'director', 'manager', 'hr', 'auditor']
 // Self-service (My Attendance) is also open to individual-contributor roles.
 const HRMS_SELF_ROLES = [...HRMS_ROLES, 'executive', 'accounts']
+// Profile-approval admins — must match review_profile_change's role guard (migration 104).
+const HRMS_PROFILE_ADMIN_ROLES = ['super_admin', 'director', 'hr']
 
 export const hrmsNav: NavEntry[] = [
   // ── Employee Self-Service hub (M9) — first entry, open to every role ──
@@ -15,6 +17,20 @@ export const hrmsNav: NavEntry[] = [
     icon: 'dashboard',
     roles: HRMS_SELF_ROLES,
     permission: 'hrms.ess.view',
+  },
+  {
+    to: '/hrms/profile',
+    label: 'My Profile',
+    icon: 'contact_page',
+    roles: HRMS_SELF_ROLES,
+    permission: 'hrms.ess.view',
+  },
+  {
+    to: '/hrms/profile/approvals',
+    label: 'Profile Approvals',
+    icon: 'how_to_reg',
+    roles: HRMS_PROFILE_ADMIN_ROLES,
+    permission: 'hrms.employee.view',
   },
   {
     to: '/hrms/dashboard',

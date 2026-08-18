@@ -20,6 +20,8 @@ const LeaveApprovalsPage = lazy(() => import('./pages/LeaveApprovalsPage'))
 const LeaveSetupPage = lazy(() => import('./pages/LeaveSetupPage'))
 const LeaveReportsPage = lazy(() => import('./pages/LeaveReportsPage'))
 const HolidaysPage = lazy(() => import('./pages/HolidaysPage'))
+const MyProfilePage = lazy(() => import('./pages/MyProfilePage'))
+const ProfileApprovalsPage = lazy(() => import('./pages/ProfileApprovalsPage'))
 const AttendanceStatusPage = lazy(() => import('./pages/AttendanceStatusPage'))
 // ── Payroll (M4) ──
 const ComponentMasterPage = lazy(() => import('./pages/ComponentMasterPage'))
@@ -162,6 +164,22 @@ export const hrmsRoutes: RouteObject[] = [
     element: (
       <ProtectedRoute allowedRoles={[...HRMS_SELF_ROLES]}>
         <HolidaysPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: 'hrms/profile',
+    element: (
+      <ProtectedRoute allowedRoles={[...HRMS_SELF_ROLES]}>
+        <MyProfilePage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: 'hrms/profile/approvals',
+    element: (
+      <ProtectedRoute allowedRoles={['super_admin', 'director', 'hr']}>
+        <ProfileApprovalsPage />
       </ProtectedRoute>
     ),
   },

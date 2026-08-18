@@ -21,6 +21,7 @@ export default function MyHubPage() {
     { to: '/hrms/attendance/me', label: 'My Attendance', desc: 'Punch in/out & regularise', icon: 'schedule', perm: 'hrms.attendance.self' },
     { to: '/hrms/leave/me', label: 'My Leave', desc: 'Apply & track balances', icon: 'beach_access', perm: 'hrms.leave.apply' },
     { to: '/hrms/holidays', label: 'Holidays', desc: 'Company holiday calendar', icon: 'celebration', perm: 'hrms.ess.view' },
+    { to: '/hrms/profile', label: 'My Profile', desc: 'Fill your details for approval', icon: 'contact_page', perm: 'hrms.ess.view' },
     { to: '/hrms/payroll/payslips', label: 'My Payslips', desc: 'Download payslips', icon: 'description', perm: 'hrms.payslip.self' },
     { to: '/hrms/performance/me', label: 'My Performance', desc: 'Goals & reviews', icon: 'star', perm: 'hrms.performance.review.self' },
     { to: '/hrms/training/me', label: 'My Training', desc: 'Enrolments & certifications', icon: 'cast_for_education', perm: 'hrms.training.view.self', badge: (enrolments as any[]).length + (certs as any[]).length },
