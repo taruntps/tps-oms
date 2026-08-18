@@ -82,6 +82,13 @@ export const hrmsNav: NavEntry[] = [
     permission: 'hrms.leave.apply',
   },
   {
+    to: '/hrms/holidays',
+    label: 'Holidays',
+    icon: 'celebration',
+    roles: HRMS_SELF_ROLES,
+    permission: 'hrms.ess.view',
+  },
+  {
     to: '/hrms/leave',
     label: 'Leave',
     icon: 'event_available',
