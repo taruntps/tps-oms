@@ -93,7 +93,7 @@ export function AttendanceCalendar({ employeeId }: { employeeId: string }) {
       else if (hs === 'wfh' || hs === 'od') cat = 'wfh'
       else if (hs === 'holiday') cat = 'holiday'
       else if (hs === 'half_day') cat = 'half'
-      else if (hs === 'weekly_off' || dow === 0) cat = 'off'
+      else if (hs === 'weekly_off' || dow === 0 || dow === 6) cat = 'off'
       else if (ds <= today && hasActivity) cat = 'absent'
       out.set(ds, { cat, first_in, last_out, worked })
     }
