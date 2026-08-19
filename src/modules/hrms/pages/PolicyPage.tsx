@@ -16,19 +16,19 @@ const LEAVE_ROWS: [string, string, string, string, string][] = [
 export default function PolicyPage() {
   return (
     <div>
-      <TopBar title="Leave & Attendance Policy" subtitle="Company policy · effective 19 August 2026" />
+      <TopBar title="Leave & Attendance Policy" subtitle="Company policy · effective 1 January 2026" />
       <div className="p-6 animate-fade-up max-w-3xl">
         <div className="bg-white rounded-2xl border border-border p-6 space-y-6 text-sm leading-relaxed text-brand-950">
 
           <p className="text-muted-foreground">
             <strong className="text-brand-950">Working hours:</strong> 9:00 AM – 6:00 PM ·
             <strong className="text-brand-950"> Weekly off:</strong> Saturday &amp; Sunday ·
-            <strong className="text-brand-950"> Leave year:</strong> April–March · Minimum unit: half day.
+            <strong className="text-brand-950"> Leave year:</strong> January–December (calendar year) · Minimum unit: half day.
           </p>
 
           <Block icon="schedule" title="Attendance & punching">
             <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
-              <li>Punch <strong className="text-brand-950">in and out</strong> daily (GPS + selfie); always punch out.</li>
+              <li>Punch <strong className="text-brand-950">in and out</strong> daily; always punch out.</li>
               <li><strong className="text-brand-950">Late:</strong> up to 9:10 fine · 9:11–9:30 allowed once/month, then half day · after 9:30 = half day.</li>
               <li><strong className="text-brand-950">Early going:</strong> by 17:50 fine · 17:30–17:50 once/month · before 17:30 = half day.</li>
               <li><strong className="text-brand-950">Half day</strong> also if worked under 4.5 hours. <strong className="text-brand-950">Absent</strong> (no punch, no leave) = Loss of Pay.</li>
@@ -61,6 +61,13 @@ export default function PolicyPage() {
             </div>
           </Block>
 
+          <Block icon="trending_up" title="Leave accrual (pro-rata)">
+            <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+              <li>Annual leave — <strong className="text-brand-950">CL 7, SL 7, EL 15</strong> — is credited on <strong className="text-brand-950">1 January</strong> each year, <strong className="text-brand-950">pro-rated to your working days in the previous calendar year</strong>.</li>
+              <li>New joiners earn annual leave on a pro-rata basis; it is credited the following January based on days worked. <strong className="text-brand-950">Short leave</strong> is available from your <strong className="text-brand-950">date of joining</strong>.</li>
+            </ul>
+          </Block>
+
           <Block icon="date_range" title="Weekend clubbing (sandwich rule)">
             <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
               <li>If leave is taken on <strong className="text-brand-950">both the Friday before and the Monday after</strong> a weekend, the Saturday and Sunday in between are <strong className="text-brand-950">clubbed as leave</strong> — the whole Friday–Monday = 4 days is counted.</li>
@@ -84,7 +91,7 @@ export default function PolicyPage() {
           </Block>
 
           <p className="text-[12px] text-muted-foreground border-t border-border pt-4">
-            Effective from 19 August 2026. TPS Xperts may revise these rules; changes will be posted in the portal.
+            Effective from 1 January 2026. TPS Xperts may revise these rules; changes will be posted in the portal.
           </p>
         </div>
       </div>

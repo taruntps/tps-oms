@@ -52,7 +52,9 @@ export function LeaveRequestModal({
   }, [fromDate, toDate, isHalfDay, canHalfDay, minUnit])
 
   const insufficient = !isLWP && !allowNegative && days > 0 && balance < days
-  const canSubmit = !!typeId && days > 0 && !insufficient && !create.isPending
+  // CL cannot exceed 2 consecutive days (intervening weekends are clubbed into the span).
+  const clExceeds = selectedType?.code === 'CL' && !(isHalfDay && canHalfDay) && days > 2
+  const canSubmit = !!typeId && days > 0 && !insufficient && !clExceeds && !create.isPending
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -137,6 +139,12 @@ export function LeaveRequestModal({
             <span className="text-muted-foreground">Days requested</span>
             <span className="font-semibold text-brand-950">{fmtDays(days)}</span>
           </div>
+
+          {clExceeds && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+              Casual Leave can't exceed 2 consecutive days (weekends in between count too). Use Earned Leave for a longer spell.
+            </div>
+          )}
 
           {insufficient && (
             <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
