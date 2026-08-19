@@ -22,6 +22,7 @@ export default function MyHubPage() {
     { to: '/hrms/leave/me', label: 'My Leave', desc: 'Apply & track balances', icon: 'beach_access', perm: 'hrms.leave.apply' },
     { to: '/hrms/short-leave', label: 'Short Leave', desc: '2 hours a month, on approval', icon: 'hourglass_bottom', perm: 'hrms.ess.view' },
     { to: '/hrms/holidays', label: 'Holidays', desc: 'Company holiday calendar', icon: 'celebration', perm: 'hrms.ess.view' },
+    { to: '/hrms/policy', label: 'Leave Policy', desc: 'Leave & attendance rules', icon: 'menu_book', perm: 'hrms.ess.view' },
     { to: '/hrms/profile', label: 'My Profile', desc: 'Fill your details for approval', icon: 'contact_page', perm: 'hrms.ess.view' },
     { to: '/hrms/payroll/payslips', label: 'My Payslips', desc: 'Download payslips', icon: 'description', perm: 'hrms.payslip.self' },
     { to: '/hrms/performance/me', label: 'My Performance', desc: 'Goals & reviews', icon: 'star', perm: 'hrms.performance.review.self' },

@@ -112,6 +112,13 @@ export const hrmsNav: NavEntry[] = [
     permission: 'hrms.ess.view',
   },
   {
+    to: '/hrms/policy',
+    label: 'Leave Policy',
+    icon: 'menu_book',
+    roles: HRMS_SELF_ROLES,
+    permission: 'hrms.ess.view',
+  },
+  {
     to: '/hrms/leave',
     label: 'Leave',
     icon: 'event_available',
