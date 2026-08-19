@@ -14,6 +14,11 @@ export function AttendanceSettingsSection() {
 
   const [s, setS] = useState({ expected_start_time: '09:30', standard_hours: 8, selfie_required: false, accuracy_threshold_m: 100, face_match_required: false, face_match_threshold: 0.5 })
   const [o, setO] = useState({ name: '', latitude: '', longitude: '', radius_m: 150 })
+  const [r, setR] = useState({
+    expected_end_time: '18:00', grace_late_min: 10, late_half_after: '09:30',
+    grace_early_min: 10, early_half_before: '17:30', half_day_hours: 4.5,
+    monthly_grace_count: 1, self_regularize_limit: 2,
+  })
 
   useEffect(() => { if (settings) setS({
     expected_start_time: (settings.expected_start_time ?? '09:30').slice(0,5),
@@ -22,6 +27,16 @@ export function AttendanceSettingsSection() {
     accuracy_threshold_m: settings.accuracy_threshold_m ?? 100,
     face_match_required: !!(settings as any).face_match_required,
     face_match_threshold: Number((settings as any).face_match_threshold ?? 0.5),
+  }) }, [settings])
+  useEffect(() => { if (settings) setR({
+    expected_end_time: ((settings as any).expected_end_time ?? '18:00:00').slice(0,5),
+    grace_late_min: Number((settings as any).grace_late_min ?? 10),
+    late_half_after: ((settings as any).late_half_after ?? '09:30:00').slice(0,5),
+    grace_early_min: Number((settings as any).grace_early_min ?? 10),
+    early_half_before: ((settings as any).early_half_before ?? '17:30:00').slice(0,5),
+    half_day_hours: Number((settings as any).half_day_hours ?? 4.5),
+    monthly_grace_count: Number((settings as any).monthly_grace_count ?? 1),
+    self_regularize_limit: Number((settings as any).self_regularize_limit ?? 2),
   }) }, [settings])
   useEffect(() => { if (office) setO({
     name: office.name, latitude: String(office.latitude), longitude: String(office.longitude), radius_m: office.radius_m,
@@ -42,6 +57,18 @@ export function AttendanceSettingsSection() {
     if (!o.name || Number.isNaN(lat) || Number.isNaN(lng)) { toast.error('Enter office name + valid coordinates'); return }
     try { await upsertOffice.mutateAsync({ id: office?.id, name: o.name, latitude: lat, longitude: lng, radius_m: Number(o.radius_m) }); toast.success('Office geofence saved') }
     catch (e: any) { toast.error('Failed', e.message) }
+  }
+  const saveRules = async () => {
+    try {
+      await updateSettings.mutateAsync({
+        expected_start_time: s.expected_start_time,
+        expected_end_time: r.expected_end_time, grace_late_min: r.grace_late_min,
+        late_half_after: r.late_half_after, grace_early_min: r.grace_early_min,
+        early_half_before: r.early_half_before, half_day_hours: r.half_day_hours,
+        monthly_grace_count: r.monthly_grace_count, self_regularize_limit: r.self_regularize_limit,
+      } as any)
+      toast.success('Attendance rules saved', 'The calendar and payroll will use these on next calculation.')
+    } catch (e: any) { toast.error('Failed', e.message) }
   }
   const saveSettings = async () => {
     try { await updateSettings.mutateAsync({ expected_start_time: s.expected_start_time, standard_hours: s.standard_hours, selfie_required: s.selfie_required, accuracy_threshold_m: s.accuracy_threshold_m, face_match_required: s.face_match_required, face_match_threshold: s.face_match_threshold } as any); toast.success('Attendance settings saved') }
@@ -113,6 +140,26 @@ export function AttendanceSettingsSection() {
           </div>
           <div className="mt-3 flex justify-end">
             <button onClick={saveSettings} disabled={updateSettings.isPending} className="px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 disabled:opacity-50">Save Rules</button>
+          </div>
+        </div>
+
+        {/* Attendance rules → half-day / late / salary */}
+        <div className="pt-4 border-t border-border">
+          <p className="text-xs font-semibold text-brand-950 uppercase tracking-wide mb-2">Attendance Rules (half-day · late · salary)</p>
+          <div className="grid grid-cols-2 gap-3">
+            <L label="In time (start)"><input type="time" className={ic} value={s.expected_start_time} onChange={e=>setS({...s, expected_start_time:e.target.value})} /></L>
+            <L label="Out time (end)"><input type="time" className={ic} value={r.expected_end_time} onChange={e=>setR({...r, expected_end_time:e.target.value})} /></L>
+            <L label="Late grace (minutes)"><input type="number" className={ic} value={r.grace_late_min} onChange={e=>setR({...r, grace_late_min:Number(e.target.value)})} /></L>
+            <L label="Half-day if late after"><input type="time" className={ic} value={r.late_half_after} onChange={e=>setR({...r, late_half_after:e.target.value})} /></L>
+            <L label="Early grace (minutes)"><input type="number" className={ic} value={r.grace_early_min} onChange={e=>setR({...r, grace_early_min:Number(e.target.value)})} /></L>
+            <L label="Half-day if left before"><input type="time" className={ic} value={r.early_half_before} onChange={e=>setR({...r, early_half_before:e.target.value})} /></L>
+            <L label="Half-day under (hours)"><input type="number" step="0.5" className={ic} value={r.half_day_hours} onChange={e=>setR({...r, half_day_hours:Number(e.target.value)})} /></L>
+            <L label="Grace late allowed / month"><input type="number" className={ic} value={r.monthly_grace_count} onChange={e=>setR({...r, monthly_grace_count:Number(e.target.value)})} /></L>
+            <L label="Self miss-punch fixes / month" wide><input type="number" className={ic} value={r.self_regularize_limit} onChange={e=>setR({...r, self_regularize_limit:Number(e.target.value)})} /></L>
+          </div>
+          <p className="text-[11px] text-muted-foreground mt-2">Drives the attendance calendar and payroll LOP (per-day rate = monthly salary ÷ working days). Beyond the monthly self miss-punch limit, only admin/HR can regularise a punch.</p>
+          <div className="mt-3 flex justify-end">
+            <button onClick={saveRules} disabled={updateSettings.isPending} className="px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 disabled:opacity-50">Save Attendance Rules</button>
           </div>
         </div>
       </div>
