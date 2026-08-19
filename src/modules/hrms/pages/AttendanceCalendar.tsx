@@ -1,16 +1,13 @@
 // HRMS — reusable monthly attendance calendar for one employee.
-// The DB doesn't auto-evaluate daily status, so each day's category is DERIVED here:
-//   punch → present · approved leave → leave/half · holiday (hr_holidays) → holiday
-//   Sunday → weekly off · past working day with no punch → absent (only in months
-//   that have some activity, so pre-joining months stay blank).
-// Click a day to see its punch in/out and hours. Used on My Attendance + the muster.
+// Colours and units come from the rule-based evaluator (migration 106,
+// evaluate_attendance): In 09:00 / Out 18:00, <4.5h = half, late/early grace
+// (1/month) then half, >09:30 half, approved short leave excuses the penalty,
+// approved paid leave adjusts (no LOP). Click a day for punch in/out + reason.
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Sym } from '@/components/shared/Sym'
 import { fmtTime, fmtMinutes, istToday } from './attendanceShared'
-import { fetchEmployeeAttendanceDays, fetchHrAttendanceDays } from '../api/attendance'
-import { fetchMyLeaveRequests } from '../api/leave'
-import { useHolidays } from '../hooks/useLeaveConfig'
+import { fetchAttendanceEvaluation, type EvaluatedDay } from '../api/attendance'
 
 type Cat = 'present' | 'half' | 'absent' | 'leave' | 'holiday' | 'off' | 'wfh' | 'none'
 
@@ -24,12 +21,14 @@ const CAT: Record<Cat, { label: string; cls: string; sw: string }> = {
   wfh:     { label: 'WFH / OD',   cls: 'bg-teal-50 text-teal-700 border-teal-200',       sw: 'bg-teal-200' },
   none:    { label: 'No record',  cls: 'bg-white text-muted-foreground border-border',   sw: 'bg-white border border-border' },
 }
+const STATUS_CAT: Record<string, Cat> = {
+  present: 'present', half_day: 'half', absent: 'absent', on_leave: 'leave',
+  holiday: 'holiday', weekly_off: 'off', wfh: 'wfh', od: 'wfh', none: 'none', pending: 'none',
+}
 const LEGEND: Cat[] = ['present', 'half', 'absent', 'leave', 'holiday', 'off']
 const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const pad = (n: number) => String(n).padStart(2, '0')
 const monShort = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-
-interface DayInfo { cat: Cat; first_in: string | null; last_out: string | null; worked: number | null }
 
 export function AttendanceCalendar({ employeeId }: { employeeId: string }) {
   const now = new Date()
@@ -40,79 +39,33 @@ export function AttendanceCalendar({ employeeId }: { employeeId: string }) {
   const to = `${ym.y}-${pad(ym.m + 1)}-${pad(new Date(ym.y, ym.m + 1, 0).getDate())}`
   const today = istToday()
 
-  const { data: punch = [], isLoading: lp } = useQuery({
-    queryKey: ['hrms', 'cal', 'punch', employeeId, from],
-    queryFn: () => fetchEmployeeAttendanceDays(employeeId, from, to), enabled: !!employeeId,
+  const { data: evalDays = [], isLoading } = useQuery({
+    queryKey: ['hrms', 'cal', 'eval', employeeId, from],
+    queryFn: () => fetchAttendanceEvaluation(employeeId, from, to), enabled: !!employeeId,
   })
-  const { data: hr = [], isLoading: lh } = useQuery({
-    queryKey: ['hrms', 'cal', 'hr', employeeId, from],
-    queryFn: () => fetchHrAttendanceDays(employeeId, from, to), enabled: !!employeeId,
-  })
-  const { data: leaves = [], isLoading: ll } = useQuery({
-    queryKey: ['hrms', 'cal', 'leave', employeeId],
-    queryFn: () => fetchMyLeaveRequests(employeeId), enabled: !!employeeId,
-  })
-  const { data: holidays = [] } = useHolidays(null)
 
-  const days = useMemo(() => {
-    const punchMap = new Map<string, any>()
-    for (const p of punch as any[]) if (p.work_date) punchMap.set(p.work_date, p)
-    const hrMap = new Map<string, any>()
-    for (const h of hr as any[]) hrMap.set(h.work_date, h)
-    const holSet = new Set((holidays as any[]).filter(h => h.is_active).map(h => h.holiday_date))
+  const byDate = useMemo(() => {
+    const m = new Map<string, EvaluatedDay>()
+    for (const e of evalDays as EvaluatedDay[]) m.set(e.work_date, e)
+    return m
+  }, [evalDays])
 
-    // Dates covered by an approved leave, with half-day flag.
-    const leaveMap = new Map<string, { half: boolean }>()
-    for (const lv of (leaves as any[]).filter(l => l.status === 'approved')) {
-      const s = new Date(lv.from_date + 'T00:00:00'); const e = new Date(lv.to_date + 'T00:00:00')
-      for (let d = new Date(s); d <= e; d.setDate(d.getDate() + 1)) {
-        leaveMap.set(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
-          { half: !!lv.is_half_day && lv.from_date === lv.to_date })
-      }
-    }
-
-    const hasActivity = punchMap.size > 0 || hrMap.size > 0 ||
-      [...leaveMap.keys()].some(k => k >= from && k <= to)
-
-    const total = new Date(ym.y, ym.m + 1, 0).getDate()
-    const out = new Map<string, DayInfo>()
-    for (let dd = 1; dd <= total; dd++) {
-      const ds = `${ym.y}-${pad(ym.m + 1)}-${pad(dd)}`
-      const dow = new Date(ym.y, ym.m, dd).getDay()
-      const p = punchMap.get(ds); const h = hrMap.get(ds)
-      const first_in = p?.first_in ?? h?.first_in ?? null
-      const last_out = p?.last_out ?? h?.last_out ?? null
-      const worked = p?.worked_minutes ?? h?.worked_minutes ?? null
-
-      let cat: Cat = 'none'
-      const hs = h?.status as string | undefined
-      if (first_in) cat = 'present'
-      else if (holSet.has(ds)) cat = 'holiday'
-      else if (leaveMap.has(ds)) cat = leaveMap.get(ds)!.half ? 'half' : 'leave'
-      else if (hs === 'on_leave') cat = 'leave'
-      else if (hs === 'wfh' || hs === 'od') cat = 'wfh'
-      else if (hs === 'holiday') cat = 'holiday'
-      else if (hs === 'half_day') cat = 'half'
-      else if (hs === 'weekly_off' || dow === 0 || dow === 6) cat = 'off'
-      else if (ds <= today && hasActivity) cat = 'absent'
-      out.set(ds, { cat, first_in, last_out, worked })
-    }
-    return out
-  }, [punch, hr, leaves, holidays, ym, from, to, today])
+  const catOf = (e?: EvaluatedDay): Cat => (e ? STATUS_CAT[e.status] ?? 'none' : 'none')
 
   const counts = useMemo(() => {
     const c: Record<string, number> = {}
-    for (const info of days.values()) c[info.cat] = (c[info.cat] ?? 0) + 1
-    return c
-  }, [days])
+    let lop = 0
+    for (const e of evalDays as EvaluatedDay[]) { c[catOf(e)] = (c[catOf(e)] ?? 0) + 1; lop += Number(e.lop_units) }
+    return { c, lop }
+  }, [evalDays])
 
   const shift = (delta: number) => { setOpenDay(null); setYm(s => { const d = new Date(s.y, s.m + delta, 1); return { y: d.getFullYear(), m: d.getMonth() } }) }
   const monthLabel = new Intl.DateTimeFormat('en-IN', { month: 'long', year: 'numeric' }).format(new Date(ym.y, ym.m, 1))
   const firstDow = new Date(ym.y, ym.m, 1).getDay()
   const total = new Date(ym.y, ym.m + 1, 0).getDate()
-  const isLoading = lp || lh || ll
 
-  const sel = openDay ? days.get(openDay) : null
+  const sel = openDay ? byDate.get(openDay) : null
+  const selCat = catOf(sel ?? undefined)
 
   return (
     <div className="bg-white rounded-xl border border-border p-4">
@@ -122,6 +75,11 @@ export function AttendanceCalendar({ employeeId }: { employeeId: string }) {
           <span className="text-sm font-medium text-brand-950 min-w-[130px] text-center">{monthLabel}</span>
           <button onClick={() => shift(1)} className="p-1.5 rounded-lg border border-border hover:bg-[#F8FAFC]"><Sym name="chevron_right" size={16} /></button>
         </div>
+        {counts.lop > 0 && (
+          <span className="text-[11px] font-medium px-2 py-1 rounded-lg bg-red-50 text-red-700 border border-red-200">
+            LOP {counts.lop} day{counts.lop === 1 ? '' : 's'}
+          </span>
+        )}
       </div>
 
       {isLoading ? (
@@ -136,14 +94,15 @@ export function AttendanceCalendar({ employeeId }: { employeeId: string }) {
             {Array.from({ length: total }).map((_, i) => {
               const dd = i + 1
               const ds = `${ym.y}-${pad(ym.m + 1)}-${pad(dd)}`
-              const info = days.get(ds)!
-              const c = CAT[info.cat]
+              const e = byDate.get(ds)
+              const cat = catOf(e)
+              const c = CAT[cat]
               const isToday = ds === today
               return (
                 <button key={ds} onClick={() => setOpenDay(openDay === ds ? null : ds)}
                   className={`rounded-lg border min-h-[52px] p-1.5 text-left flex flex-col justify-between transition hover:ring-2 hover:ring-brand-600/20 ${c.cls} ${isToday ? 'ring-2 ring-brand-600' : ''}`}>
                   <span className="text-xs font-semibold">{dd}</span>
-                  {info.cat !== 'none' && <span className="text-[9px] leading-tight truncate">{c.label}</span>}
+                  {cat !== 'none' && <span className="text-[9px] leading-tight truncate">{c.label}</span>}
                 </button>
               )
             })}
@@ -157,11 +116,16 @@ export function AttendanceCalendar({ employeeId }: { employeeId: string }) {
                 <div className="text-[10px] uppercase text-muted-foreground">{monShort[ym.m]}</div>
               </div>
               <div className="flex-1 min-w-0">
-                <span className={`inline-block text-[11px] font-medium px-2 py-0.5 rounded border ${CAT[sel.cat].cls}`}>{CAT[sel.cat].label}</span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className={`inline-block text-[11px] font-medium px-2 py-0.5 rounded border ${CAT[selCat].cls}`}>{CAT[selCat].label}</span>
+                  {sel.penalty && <span className="text-[11px] text-amber-700">· {sel.penalty}</span>}
+                  {sel.late_minutes > 0 && <span className="text-[11px] text-muted-foreground">· {sel.late_minutes}m late</span>}
+                  {sel.covered === 'leave' && <span className="text-[11px] text-indigo-600">· leave-adjusted</span>}
+                </div>
                 <div className="mt-1 text-xs text-muted-foreground flex flex-wrap gap-x-4 gap-y-0.5">
                   <span>In: <span className="text-brand-950 font-medium">{fmtTime(sel.first_in)}</span></span>
-                  <span>Out: <span className="text-brand-950 font-medium">{fmtTime(sel.last_out)}</span></span>
-                  <span>Worked: <span className="text-brand-950 font-medium">{fmtMinutes(sel.worked)}</span></span>
+                  <span>Out: <span className="text-brand-950 font-medium">{sel.last_out && sel.last_out !== sel.first_in ? fmtTime(sel.last_out) : '—'}</span></span>
+                  <span>Worked: <span className="text-brand-950 font-medium">{fmtMinutes(sel.worked_minutes)}</span></span>
                 </div>
               </div>
               <button onClick={() => setOpenDay(null)} className="text-muted-foreground hover:text-foreground"><Sym name="close" size={15} /></button>
@@ -173,7 +137,7 @@ export function AttendanceCalendar({ employeeId }: { employeeId: string }) {
             {LEGEND.map(k => (
               <span key={k} className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
                 <span className={`w-3 h-3 rounded ${CAT[k].sw}`} />{CAT[k].label}
-                <span className="text-brand-950 font-medium">{counts[k] ?? 0}</span>
+                <span className="text-brand-950 font-medium">{counts.c[k] ?? 0}</span>
               </span>
             ))}
           </div>

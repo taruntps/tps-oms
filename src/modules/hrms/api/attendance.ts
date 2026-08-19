@@ -163,6 +163,34 @@ export async function fetchMyAttendanceDays(userId: string, limit = 60): Promise
   return (data ?? []) as AttendanceDay[]
 }
 
+// ── Rule-based evaluation (migration 106) ────────────────────────────────────
+export interface EvaluatedDay {
+  work_date: string
+  status: string
+  first_in: string | null
+  last_out: string | null
+  worked_minutes: number | null
+  late_minutes: number
+  early_minutes: number
+  penalty: string | null
+  worked_units: number
+  lop_units: number
+  covered: string | null
+}
+
+/** Per-day computed status/units for one employee over a range (in/out, late, half, LOP). */
+export async function fetchAttendanceEvaluation(
+  employeeId: string,
+  fromDate: string,
+  toDate: string,
+): Promise<EvaluatedDay[]> {
+  const { data, error } = await db.rpc('evaluate_attendance', {
+    p_employee: employeeId, p_from: fromDate, p_to: toDate,
+  })
+  if (error) throw error
+  return (data ?? []) as EvaluatedDay[]
+}
+
 /** Punch-derived days for one employee within a date range (RLS scopes to self/admin). */
 export async function fetchEmployeeAttendanceDays(
   employeeId: string,

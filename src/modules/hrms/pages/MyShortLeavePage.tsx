@@ -45,8 +45,9 @@ export default function MyShortLeavePage() {
             <Sym name="hourglass_bottom" size={24} />
           </div>
           <div>
-            <p className="text-sm text-muted-foreground">Remaining this month ({new Date(date + 'T00:00:00').toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })})</p>
-            <p className="text-2xl font-display font-semibold text-brand-950">{remaining} <span className="text-base font-normal text-muted-foreground">of 2 hours</span></p>
+            <p className="text-sm text-muted-foreground">Short leave left · {new Date(date + 'T00:00:00').toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}</p>
+            <p className="text-2xl font-display font-semibold text-brand-950">{remaining} <span className="text-base font-normal text-muted-foreground">hr{remaining === 1 ? '' : 's'} left</span></p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">{used} of 2 hours used this month · resets on the 1st</p>
           </div>
         </div>
 
