@@ -191,6 +191,25 @@ export async function fetchAttendanceEvaluation(
   return (data ?? []) as EvaluatedDay[]
 }
 
+export interface RawPunch { id: string; punch_at: string; within_fence: boolean; is_field: boolean }
+
+/** Every raw punch for one employee across a date range (IST day bounds). */
+export async function fetchEmployeePunches(
+  employeeId: string,
+  fromDate: string,
+  toDate: string,
+): Promise<RawPunch[]> {
+  const { data, error } = await db
+    .from('attendance_punches')
+    .select('id, punch_at, within_fence, is_field')
+    .eq('user_id', employeeId)
+    .gte('punch_at', `${fromDate}T00:00:00+05:30`)
+    .lte('punch_at', `${toDate}T23:59:59+05:30`)
+    .order('punch_at', { ascending: true })
+  if (error) throw error
+  return (data ?? []) as RawPunch[]
+}
+
 /** Punch-derived days for one employee within a date range (RLS scopes to self/admin). */
 export async function fetchEmployeeAttendanceDays(
   employeeId: string,

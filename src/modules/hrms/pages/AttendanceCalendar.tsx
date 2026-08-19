@@ -7,7 +7,7 @@ import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Sym } from '@/components/shared/Sym'
 import { fmtTime, fmtMinutes, istToday } from './attendanceShared'
-import { fetchAttendanceEvaluation, type EvaluatedDay } from '../api/attendance'
+import { fetchAttendanceEvaluation, fetchEmployeePunches, type EvaluatedDay } from '../api/attendance'
 
 type Cat = 'present' | 'half' | 'absent' | 'leave' | 'holiday' | 'off' | 'wfh' | 'none'
 
@@ -43,6 +43,20 @@ export function AttendanceCalendar({ employeeId }: { employeeId: string }) {
     queryKey: ['hrms', 'cal', 'eval', employeeId, from],
     queryFn: () => fetchAttendanceEvaluation(employeeId, from, to), enabled: !!employeeId,
   })
+  const { data: punches = [] } = useQuery({
+    queryKey: ['hrms', 'cal', 'punches', employeeId, from],
+    queryFn: () => fetchEmployeePunches(employeeId, from, to), enabled: !!employeeId,
+  })
+
+  // All raw punches grouped by their IST day (attendance still uses first + last).
+  const punchesByDate = useMemo(() => {
+    const m = new Map<string, string[]>()
+    for (const p of punches) {
+      const ds = new Date(p.punch_at).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
+      ;(m.get(ds) ?? m.set(ds, []).get(ds)!).push(fmtTime(p.punch_at))
+    }
+    return m
+  }, [punches])
 
   const byDate = useMemo(() => {
     const m = new Map<string, EvaluatedDay>()
@@ -127,6 +141,12 @@ export function AttendanceCalendar({ employeeId }: { employeeId: string }) {
                   <span>Out: <span className="text-brand-950 font-medium">{sel.last_out && sel.last_out !== sel.first_in ? fmtTime(sel.last_out) : '—'}</span></span>
                   <span>Worked: <span className="text-brand-950 font-medium">{fmtMinutes(sel.worked_minutes)}</span></span>
                 </div>
+                {(punchesByDate.get(openDay)?.length ?? 0) > 0 && (
+                  <div className="mt-1 text-[11px] text-muted-foreground">
+                    All punches: <span className="text-brand-950">{punchesByDate.get(openDay)!.join(' · ')}</span>
+                    <span className="text-muted-foreground/70"> (first &amp; last used for attendance)</span>
+                  </div>
+                )}
               </div>
               <button onClick={() => setOpenDay(null)} className="text-muted-foreground hover:text-foreground"><Sym name="close" size={15} /></button>
             </div>

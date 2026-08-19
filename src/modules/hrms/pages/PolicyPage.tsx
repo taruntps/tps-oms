@@ -24,11 +24,13 @@ export default function PolicyPage() {
             <strong className="text-brand-950">Working hours:</strong> 9:00 AM – 6:00 PM ·
             <strong className="text-brand-950"> Weekly off:</strong> Saturday &amp; Sunday ·
             <strong className="text-brand-950"> Leave year:</strong> January–December (calendar year) · Minimum unit: half day.
+            <br /><strong className="text-brand-950">Lunch break:</strong> 30 minutes, taken anytime between 1:30 PM and 3:00 PM.
           </p>
 
           <Block icon="schedule" title="Attendance & punching">
             <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
               <li>Punch <strong className="text-brand-950">in and out</strong> daily; always punch out.</li>
+              <li>All your punches are <strong className="text-brand-950">recorded and visible</strong> to you; attendance is counted from your <strong className="text-brand-950">first and last</strong> punch of the day.</li>
               <li><strong className="text-brand-950">Late:</strong> up to 9:10 fine · 9:11–9:30 allowed once/month, then half day · after 9:30 = half day.</li>
               <li><strong className="text-brand-950">Early going:</strong> by 17:50 fine · 17:30–17:50 once/month · before 17:30 = half day.</li>
               <li><strong className="text-brand-950">Half day</strong> also if worked under 4.5 hours. <strong className="text-brand-950">Absent</strong> (no punch, no leave) = Loss of Pay.</li>
