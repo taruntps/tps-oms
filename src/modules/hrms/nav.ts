@@ -98,6 +98,13 @@ export const hrmsNav: NavEntry[] = [
     permission: 'hrms.leave.apply',
   },
   {
+    to: '/hrms/short-leave',
+    label: 'Short Leave',
+    icon: 'hourglass_bottom',
+    roles: HRMS_SELF_ROLES,
+    permission: 'hrms.ess.view',
+  },
+  {
     to: '/hrms/holidays',
     label: 'Holidays',
     icon: 'celebration',
@@ -115,6 +122,13 @@ export const hrmsNav: NavEntry[] = [
     to: '/hrms/leave/approvals',
     label: 'Leave Approvals',
     icon: 'how_to_reg',
+    roles: HRMS_ROLES,
+    permission: 'hrms.leave.approve',
+  },
+  {
+    to: '/hrms/short-leave/approvals',
+    label: 'Short Leave Approvals',
+    icon: 'hourglass_top',
     roles: HRMS_ROLES,
     permission: 'hrms.leave.approve',
   },

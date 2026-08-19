@@ -20,6 +20,7 @@ export default function MyHubPage() {
   const tiles: Tile[] = [
     { to: '/hrms/attendance/me', label: 'My Attendance', desc: 'Punch in/out & regularise', icon: 'schedule', perm: 'hrms.attendance.self' },
     { to: '/hrms/leave/me', label: 'My Leave', desc: 'Apply & track balances', icon: 'beach_access', perm: 'hrms.leave.apply' },
+    { to: '/hrms/short-leave', label: 'Short Leave', desc: '2 hours a month, on approval', icon: 'hourglass_bottom', perm: 'hrms.ess.view' },
     { to: '/hrms/holidays', label: 'Holidays', desc: 'Company holiday calendar', icon: 'celebration', perm: 'hrms.ess.view' },
     { to: '/hrms/profile', label: 'My Profile', desc: 'Fill your details for approval', icon: 'contact_page', perm: 'hrms.ess.view' },
     { to: '/hrms/payroll/payslips', label: 'My Payslips', desc: 'Download payslips', icon: 'description', perm: 'hrms.payslip.self' },
