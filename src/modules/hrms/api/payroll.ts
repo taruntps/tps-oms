@@ -412,6 +412,21 @@ export function daysInMonth(year: number, month: number): number {
   return new Date(Date.UTC(year, month, 0)).getUTCDate()
 }
 
+/** Working days in a month = calendar days − weekly offs (Sat/Sun) − holidays.
+ *  This is the LOP divisor so per-day rate = monthly salary ÷ working days. */
+export function workingDaysInMonth(year: number, month: number, holidayDates: Set<string>): number {
+  const total = daysInMonth(year, month)
+  let wd = 0
+  for (let d = 1; d <= total; d++) {
+    const dow = new Date(Date.UTC(year, month - 1, d)).getUTCDay()
+    if (dow === 0 || dow === 6) continue
+    const ds = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+    if (holidayDates.has(ds)) continue
+    wd++
+  }
+  return wd
+}
+
 /** Basis days for LOP proration from policy (`calendar` → month length, or a fixed number). */
 export function basisDaysFor(policy: PayrollPolicy, year: number, month: number): number {
   return policy.lopBasis === 'calendar' ? daysInMonth(year, month) : Number(policy.lopBasis) || 30
@@ -618,13 +633,20 @@ export async function computeRun(runId: string): Promise<number> {
   ).padStart(2, '0')}`
   const periodStart = `${run.period_year}-${String(run.period_month).padStart(2, '0')}-01`
 
-  const [master, config, policy] = await Promise.all([
+  const [master, config] = await Promise.all([
     fetchComponentMaster(true),
     fetchStatutoryConfig(periodEnd),
-    fetchPayrollPolicy(),
   ])
   const defByCode = new Map(master.map((m) => [m.code, m]))
-  const basisDays = basisDaysFor(policy, run.period_year, run.period_month)
+  // Working-days basis: month − weekly offs (Sat/Sun) − holidays. Per-day rate = monthly ÷ working days.
+  const { data: holRows } = await db
+    .from('hr_holidays')
+    .select('holiday_date')
+    .eq('is_active', true)
+    .gte('holiday_date', periodStart)
+    .lte('holiday_date', periodEnd)
+  const holidaySet = new Set(((holRows ?? []) as any[]).map((h) => h.holiday_date as string))
+  const basisDays = workingDaysInMonth(run.period_year, run.period_month, holidaySet)
 
   // Active salary assignments effective for the period.
   const { data: salaries, error: sErr } = await db
@@ -657,14 +679,12 @@ export async function computeRun(runId: string): Promise<number> {
       })
       .filter((c): c is EngineComponent => c !== null)
 
-    // Attendance-derived days (read-only from M2).
-    const { data: attRows } = await db
-      .from('hr_attendance_days')
-      .select('status')
-      .eq('employee_id', sal.employee_id)
-      .gte('work_date', periodStart)
-      .lte('work_date', periodEnd)
-    const lopDays = lopDaysFromAttendance((attRows ?? []) as any[])
+    // LOP from the rule-based evaluation (late/early/half/absent; short leave excused,
+    // paid leave adjusted) — lop_units already nets out paid-leave-covered days.
+    const { data: evalRows } = await db.rpc('evaluate_attendance', {
+      p_employee: sal.employee_id, p_from: periodStart, p_to: periodEnd,
+    })
+    const lopDays = ((evalRows ?? []) as any[]).reduce((s, r) => s + Number(r.lop_units ?? 0), 0)
     const payableDays = Math.max(0, basisDays - lopDays)
 
     // Variable earnings mapped to real master components (FK-safe). Read pending/included.
