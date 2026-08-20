@@ -69,6 +69,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function signOut() {
     await supabase.auth.signOut()
+    // Drop any 2FA verification so the next login must re-verify OTP.
+    try {
+      Object.keys(sessionStorage).filter(k => k.startsWith('twofa_ok:')).forEach(k => sessionStorage.removeItem(k))
+    } catch { /* ignore */ }
     setSession(null)
     setUser(null)
     setProfile(null)

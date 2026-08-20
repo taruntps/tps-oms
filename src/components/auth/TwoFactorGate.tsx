@@ -10,7 +10,7 @@ export function TwoFactorGate({ onVerified }: { onVerified: () => void }) {
   const { signOut } = useAuth()
   const [phase, setPhase] = useState<'sending' | 'ready' | 'verifying'>('sending')
   const [challengeId, setChallengeId] = useState<string | null>(null)
-  const [masked, setMasked] = useState('')
+  const [dest, setDest] = useState('')
   const [code, setCode] = useState('')
   const [error, setError] = useState<string | null>(null)
   const sentOnce = useRef(false)
@@ -26,7 +26,10 @@ export function TwoFactorGate({ onVerified }: { onVerified: () => void }) {
         : (data as any)?.detail || (data as any)?.error || error?.message || 'Could not send OTP.'
       setError(String(detail)); setPhase('ready'); return
     }
-    setChallengeId(data.challengeId); setMasked(data.masked ?? ''); setPhase('ready')
+    setChallengeId(data.challengeId)
+    const to = [data.sms && data.masked ? `SMS to ${data.masked}` : '', data.mail && data.maskedEmail ? `email ${data.maskedEmail}` : '']
+      .filter(Boolean).join(' and ')
+    setDest(to); setPhase('ready')
   }
 
   useEffect(() => {
@@ -56,9 +59,9 @@ export function TwoFactorGate({ onVerified }: { onVerified: () => void }) {
         </div>
         <h1 className="text-lg font-display font-semibold text-brand-950 text-center">Two-factor verification</h1>
         <p className="text-xs text-muted-foreground text-center mt-1 mb-5">
-          {phase === 'sending' ? 'Sending a one-time code to your mobile…'
-            : masked ? `Enter the 6-digit code sent to ${masked}.`
-            : 'Enter the code sent to your mobile.'}
+          {phase === 'sending' ? 'Sending a one-time code…'
+            : dest ? `Enter the code sent by ${dest}.`
+            : 'Enter the code sent to your mobile / email.'}
         </p>
 
         <input

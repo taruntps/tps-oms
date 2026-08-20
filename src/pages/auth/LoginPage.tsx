@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
+import { ForgotPasswordModal } from './ForgotPasswordModal'
 
 // Authentication is fully decoupled from Face Recognition (2026-07-22). Login is
 // standard email/User-ID + password only — no camera, no webcam, no biometric
@@ -135,13 +136,6 @@ export default function LoginPage() {
                 </button>
               </div>
 
-              {showForgot && (
-                <div className="bg-brand-50 border border-brand-200 rounded-lg px-3 py-2 text-xs text-brand-900">
-                  Please contact your administrator to reset your password. Admins can reset it from
-                  <span className="font-medium"> User Management → Reset Password</span>.
-                </div>
-              )}
-
               {error && (
                 <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm text-red-700">
                   {error}
@@ -172,6 +166,8 @@ export default function LoginPage() {
           TPS Xperts Group © {new Date().getFullYear()}
         </p>
       </div>
+
+      {showForgot && <ForgotPasswordModal onClose={() => setShowForgot(false)} />}
     </div>
   )
 }

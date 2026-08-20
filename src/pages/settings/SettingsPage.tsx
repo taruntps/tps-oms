@@ -9,6 +9,7 @@ import { AttendanceSettingsSection } from './AttendanceSettingsSection'
 import { ReminderSettingsSection } from './ReminderSettingsSection'
 import { NotificationControlsSection } from './NotificationControlsSection'
 import { WhatsAppTesterSection } from './WhatsAppTesterSection'
+import { SecuritySection } from './SecuritySection'
 
 interface AppSettings {
   whatsapp_enabled: string
@@ -115,6 +116,9 @@ export default function SettingsPage() {
       <TopBar title="Settings" subtitle="System configuration" />
 
       <div className="p-6 space-y-6 animate-fade-up max-w-2xl">
+
+        {/* Security — global two-factor login (admin) */}
+        <SecuritySection />
 
         {/* Attendance & Geofence */}
         <AttendanceSettingsSection />

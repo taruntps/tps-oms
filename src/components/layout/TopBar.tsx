@@ -22,22 +22,6 @@ export function TopBar({ title, subtitle, children }: TopBarProps) {
   const [pwOpen, setPwOpen] = useState(false)
   const [newPw, setNewPw] = useState('')
   const [savingPw, setSavingPw] = useState(false)
-  const [savingTwofa, setSavingTwofa] = useState(false)
-  const twofaOn = !!(profile as any)?.twofa_enabled
-
-  const toggleTwofa = async () => {
-    if (!user) return
-    try {
-      setSavingTwofa(true)
-      const { error } = await supabase.from('profiles').update({ twofa_enabled: !twofaOn } as any).eq('id', user.id)
-      if (error) throw error
-      await refreshProfile()
-      toast.success(twofaOn ? 'Two-factor login turned off'
-        : 'Two-factor login turned on', twofaOn ? undefined : 'You will get an SMS code at each login.')
-    } catch (e: any) {
-      toast.error('Failed', e.message)
-    } finally { setSavingTwofa(false); setMenuOpen(false) }
-  }
 
   const initials = profile?.name?.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() ?? '?'
   const avatarUrl = (profile as any)?.avatar_url as string | null | undefined
@@ -138,11 +122,6 @@ export function TopBar({ title, subtitle, children }: TopBarProps) {
               <button onClick={() => { setMenuOpen(false); setPwOpen(true); setNewPw('') }}
                 className="w-full text-left px-4 py-2.5 text-sm text-brand-950 hover:bg-[#F8FAFC] flex items-center gap-2.5">
                 <Sym name="lock" size={15} className="text-muted-foreground" /> Change password
-              </button>
-              <button onClick={toggleTwofa} disabled={savingTwofa}
-                className="w-full text-left px-4 py-2.5 text-sm text-brand-950 hover:bg-[#F8FAFC] flex items-center gap-2.5 disabled:opacity-50">
-                <Sym name="sms" size={15} className="text-muted-foreground" /> Two-factor login
-                <span className={`ml-auto text-[10px] font-medium px-1.5 py-0.5 rounded ${twofaOn ? 'bg-green-100 text-green-700' : 'bg-[#F1F5F9] text-muted-foreground'}`}>{twofaOn ? 'On' : 'Off'}</span>
               </button>
               <button onClick={() => { setMenuOpen(false); signOut() }}
                 className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2.5 border-t border-border">
