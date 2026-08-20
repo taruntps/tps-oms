@@ -11,6 +11,7 @@ export interface EmployeeProfile {
   name: string | null
   email: string | null
   phone: string | null
+  whatsapp_number: string | null
   employee_code: string | null
   designation: string | null // legacy free-text
   department: string | null // legacy free-text
@@ -56,7 +57,7 @@ export interface EmployeeListItem extends EmployeeProfile {
 }
 
 const PROFILE_COLS =
-  'id, name, email, phone, employee_code, designation, department, is_active, role, department_id, designation_id, grade_id, employment_type_id, branch_location_id, reports_to'
+  'id, name, email, phone, whatsapp_number, employee_code, designation, department, is_active, role, department_id, designation_id, grade_id, employment_type_id, branch_location_id, reports_to'
 
 /** Directory: all profiles + status/DOJ joined from employee_details. */
 export async function fetchEmployees(): Promise<EmployeeListItem[]> {
