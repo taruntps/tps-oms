@@ -49,6 +49,9 @@ export function useCreateTask() {
       // immediately, rather than waiting for the hourly cron. Best-effort: never
       // block or fail task creation on the notification.
       supabase.functions.invoke('urgent-alerts', { body: {} }).catch(() => {})
+      // Also dispatch the queued WhatsApp (the insert trigger enqueues a
+      // 'task_assigned' notification) so the assignee's WhatsApp is near-instant.
+      supabase.functions.invoke('notify-dispatch', { body: {} }).catch(() => {})
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['tasks'] }),
   })
