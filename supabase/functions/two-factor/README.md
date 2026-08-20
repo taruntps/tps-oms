@@ -1,0 +1,1 @@
+-- Repo record of the two-factor edge function (deployed via MCP). SMS OTP via 2Factor.in.

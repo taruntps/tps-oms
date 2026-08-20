@@ -33,6 +33,7 @@ export interface UserProfile {
   department?: string
   phone?: string
   joining_date?: string
+  twofa_enabled?: boolean
   created_at: string
 }
 

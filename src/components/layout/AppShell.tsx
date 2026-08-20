@@ -1,12 +1,23 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
 import { Sym } from '@/components/shared/Sym'
 import { IdleTimeout } from '@/components/shared/IdleTimeout'
 import { QuickPunchProvider, QuickPunchFab } from '@/components/attendance/QuickPunch'
+import { useAuth } from '@/contexts/AuthContext'
+import { TwoFactorGate } from '@/components/auth/TwoFactorGate'
 
 export function AppShell() {
   const [mobileOpen, setMobileOpen] = useState(false)
+  const { profile, user } = useAuth()
+  const uid = user?.id ?? ''
+  const [twofaOk, setTwofaOk] = useState(false)
+  useEffect(() => { setTwofaOk(sessionStorage.getItem('twofa_ok:' + uid) === '1') }, [uid])
+
+  // Opt-in login 2FA: block all content until the SMS OTP is verified this session.
+  if (profile?.twofa_enabled && !twofaOk) {
+    return <TwoFactorGate onVerified={() => { sessionStorage.setItem('twofa_ok:' + uid, '1'); setTwofaOk(true) }} />
+  }
 
   return (
     <QuickPunchProvider>
