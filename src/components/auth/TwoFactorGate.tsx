@@ -21,9 +21,12 @@ export function TwoFactorGate({ onVerified }: { onVerified: () => void }) {
       body: { action: 'send', purpose: 'login_2fa' },
     })
     if (error || !data?.challengeId) {
-      const detail = (data as any)?.error === 'no_phone'
-        ? 'No mobile number is set on your account. Ask your admin to add it.'
-        : (data as any)?.detail || (data as any)?.error || error?.message || 'Could not send OTP.'
+      const code = (data as any)?.error
+      const detail = code === 'no_contact' || code === 'no_phone'
+        ? 'No reachable mobile or email is on your account. Please ask your admin to add a valid number.'
+        : code === 'send_failed'
+        ? "Couldn't deliver the code (check your mobile number with admin). Try Resend, or ask admin to sign you in."
+        : (data as any)?.detail || error?.message || 'Could not send the code. Try Resend.'
       setError(String(detail)); setPhase('ready'); return
     }
     setChallengeId(data.challengeId)

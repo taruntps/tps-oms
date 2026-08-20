@@ -4,11 +4,13 @@ import { useAuth } from '@/contexts/AuthContext'
 import { Sym } from '@/components/shared/Sym'
 import { toast } from '@/components/shared/Toast'
 
-// Security (PR3 M3): sign the user out after 15 min of inactivity, with a warning
-// dialog at 13 min giving a 2-minute grace window to stay signed in. Idle logout
-// always applies while authenticated (independent of "Remember me").
-const WARN_AT_MS = 13 * 60 * 1000   // show warning after 13 min idle
-const LOGOUT_AT_MS = 15 * 60 * 1000 // hard sign-out at 15 min idle
+// Security: sign the user out after 30 min of inactivity, with a warning dialog at
+// 28 min giving a 2-minute grace window to stay. Applies whenever authenticated.
+// NOTE: callbacks are held in refs so the activity effect deps stay STABLE — otherwise
+// every background re-render (e.g. a react-query refetch) would re-arm and reset the
+// idle timer, so it would never actually fire.
+const WARN_AT_MS = 28 * 60 * 1000
+const LOGOUT_AT_MS = 30 * 60 * 1000
 const GRACE_SECONDS = Math.round((LOGOUT_AT_MS - WARN_AT_MS) / 1000) // 120s
 
 const ACTIVITY_EVENTS = ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart', 'click'] as const
@@ -24,43 +26,40 @@ export function IdleTimeout() {
   const logoutTimer = useRef<number | undefined>(undefined)
   const countdown = useRef<number | undefined>(undefined)
 
-  const clearAll = useCallback(() => {
+  // Latest values held in refs → stable callbacks below.
+  const signOutRef = useRef(signOut); signOutRef.current = signOut
+  const navRef = useRef(navigate); navRef.current = navigate
+  const warningRef = useRef(warning); warningRef.current = warning
+
+  const doLogout = useCallback(async () => {
     window.clearTimeout(warnTimer.current)
     window.clearTimeout(logoutTimer.current)
     window.clearInterval(countdown.current)
+    setWarning(false)
+    await signOutRef.current()
+    toast.info('Signed out', 'You were signed out after 30 minutes of inactivity.')
+    navRef.current('/login')
   }, [])
 
-  const doLogout = useCallback(async () => {
-    clearAll()
-    setWarning(false)
-    await signOut()
-    toast.info('Signed out', 'You were signed out after 15 minutes of inactivity.')
-    navigate('/login')
-  }, [clearAll, signOut, navigate])
-
-  // Arm the idle timers from "now". Called on activity while NOT warning.
+  // (Re)arm the idle timers from now. No-op while the warning is showing so that
+  // background activity can't silently cancel the countdown.
   const arm = useCallback(() => {
+    if (warningRef.current) return
     window.clearTimeout(warnTimer.current)
     window.clearTimeout(logoutTimer.current)
-    warnTimer.current = window.setTimeout(() => {
-      setSecondsLeft(GRACE_SECONDS)
-      setWarning(true)
-    }, WARN_AT_MS)
-    logoutTimer.current = window.setTimeout(doLogout, LOGOUT_AT_MS)
+    warnTimer.current = window.setTimeout(() => { setSecondsLeft(GRACE_SECONDS); setWarning(true) }, WARN_AT_MS)
+    logoutTimer.current = window.setTimeout(() => void doLogout(), LOGOUT_AT_MS)
   }, [doLogout])
 
-  // "Stay signed in" — reset everything and re-arm.
   const stay = useCallback(() => {
     setWarning(false)
     window.clearInterval(countdown.current)
     arm()
   }, [arm])
 
-  // Activity tracking (only while authenticated and not currently warning).
+  // Activity listeners — set up once per session (stable deps).
   useEffect(() => {
-    if (!session) { clearAll(); return }
-    if (warning) return // during the warning, ignore background activity — require an explicit choice
-
+    if (!session) return
     const onActivity = () => arm()
     ACTIVITY_EVENTS.forEach((e) => window.addEventListener(e, onActivity, { passive: true }))
     arm()
@@ -69,7 +68,7 @@ export function IdleTimeout() {
       window.clearTimeout(warnTimer.current)
       window.clearTimeout(logoutTimer.current)
     }
-  }, [session, warning, arm, clearAll])
+  }, [session, arm])
 
   // Countdown while the warning is showing.
   useEffect(() => {
