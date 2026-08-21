@@ -113,6 +113,15 @@ export default function AttendancePage() {
         {/* Punch card */}
         <div className="glass-panel-heavy rounded-2xl p-5 text-center">
           <p className="text-white/70 text-sm">{new Date().toLocaleDateString('en-IN', { weekday: 'long', day: '2-digit', month: 'long' })}</p>
+          {(settings as any)?.punch_source === 'device' ? (
+            <div className="my-4 flex flex-col items-center gap-2">
+              <div className="w-16 h-16 rounded-2xl bg-white/15 border border-white/30 flex items-center justify-center">
+                <Sym name="face" size={32} className="text-white" />
+              </div>
+              <p className="text-white text-sm font-semibold">Punch on the face terminal</p>
+              <p className="text-white/60 text-xs max-w-xs">Attendance is captured on the office face-recognition machine. In-app punching is turned off.</p>
+            </div>
+          ) : (
           <div className="my-3 flex items-center justify-center">
             <button onClick={onPunchClick} disabled={busy}
               className="w-24 h-24 rounded-full bg-white/15 border-2 border-white/40 hover:bg-white/25 transition-all flex flex-col items-center justify-center gap-0.5 disabled:opacity-60">
@@ -120,6 +129,7 @@ export default function AttendancePage() {
               <span className="text-white font-semibold text-xs">{busy ? 'Working…' : today.length === 0 ? 'Punch In' : 'Punch'}</span>
             </button>
           </div>
+          )}
           <div className="flex items-center justify-center gap-6 text-white">
             <Stat label="First In" value={firstIn ? fmtTime(firstIn.punch_at) : '—'} sub={isLate ? 'late' : undefined} />
             <Stat label="Last Punch" value={lastPunch ? fmtTime(lastPunch.punch_at) : '—'} />

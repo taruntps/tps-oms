@@ -19,6 +19,18 @@ export function AttendanceSettingsSection() {
     grace_early_min: 10, early_half_before: '17:30', half_day_hours: 4.5,
     monthly_grace_count: 1, self_regularize_limit: 2,
   })
+  const [source, setSource] = useState<'portal' | 'device'>('portal')
+
+  useEffect(() => { if (settings) setSource((settings as any).punch_source === 'device' ? 'device' : 'portal') }, [settings])
+
+  const saveSource = async (v: 'portal' | 'device') => {
+    setSource(v)
+    try {
+      await updateSettings.mutateAsync({ punch_source: v } as any)
+      toast.success(v === 'device' ? 'Switched to face terminal' : 'Switched to portal app',
+        v === 'device' ? 'In-app GPS + selfie punching is now hidden.' : 'Employees punch in the app with GPS + selfie.')
+    } catch (e: any) { toast.error('Failed', e.message) }
+  }
 
   useEffect(() => { if (settings) setS({
     expected_start_time: (settings.expected_start_time ?? '09:30').slice(0,5),
@@ -95,6 +107,24 @@ export function AttendanceSettingsSection() {
       </div>
 
       <div className="p-5 space-y-5">
+        {/* Attendance capture source */}
+        <div>
+          <p className="text-xs font-semibold text-brand-950 uppercase tracking-wide mb-2">Attendance Capture</p>
+          <div className="flex rounded-lg border border-border overflow-hidden text-sm max-w-md">
+            {([['portal', 'Portal app (GPS + selfie)'], ['device', 'Face terminal (device)']] as const).map(([v, lbl]) => (
+              <button key={v} type="button" onClick={() => saveSource(v)}
+                className={`flex-1 py-2 px-3 font-medium transition-colors ${source === v ? 'bg-brand-600 text-white' : 'bg-white text-muted-foreground hover:bg-[#F8FAFC]'}`}>
+                {lbl}
+              </button>
+            ))}
+          </div>
+          <p className="text-[11px] text-muted-foreground mt-1.5">
+            {source === 'device'
+              ? 'In-app punching is hidden — attendance comes from the office face terminal.'
+              : 'Employees punch in the app with GPS + selfie. Switch to “Face terminal” once the device is live.'}
+          </p>
+        </div>
+
         {/* Office geofence */}
         <div>
           <p className="text-xs font-semibold text-brand-950 uppercase tracking-wide mb-2">Office Location</p>
