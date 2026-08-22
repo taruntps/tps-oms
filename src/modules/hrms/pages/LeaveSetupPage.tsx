@@ -16,6 +16,9 @@ import {
   useHolidays,
   useUpsertHoliday,
   useDeactivateHoliday,
+  useDayOverrides,
+  useUpsertDayOverride,
+  useDeleteDayOverride,
 } from '../hooks/useLeaveConfig'
 import {
   useActiveLeaveTypes,
@@ -26,16 +29,17 @@ import {
 } from '../hooks/useLeave'
 import { EncashmentStatusPill, fmtDays, istToday, istYear } from './leaveShared'
 import type { LeaveType } from '../api/leave'
-import type { Holiday } from '../api/leaveConfig'
+import type { Holiday, DayOverride, DayOverrideType } from '../api/leaveConfig'
 
 const ic =
   'w-full px-3 py-2 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-600/20 focus:border-brand-600'
 
-const SECTIONS = ['types', 'holidays', 'balances', 'encashments'] as const
+const SECTIONS = ['types', 'holidays', 'day_overrides', 'balances', 'encashments'] as const
 type SectionId = (typeof SECTIONS)[number]
 const SECTION_META: Record<SectionId, { label: string; icon: string }> = {
   types: { label: 'Leave Types', icon: 'category' },
   holidays: { label: 'Holidays', icon: 'event' },
+  day_overrides: { label: 'Calendar Exceptions', icon: 'edit_calendar' },
   balances: { label: 'Balance Admin', icon: 'account_balance_wallet' },
   encashments: { label: 'Encashments', icon: 'payments' },
 }
@@ -71,6 +75,7 @@ export default function LeaveSetupPage() {
 
         {section === 'types' && <LeaveTypesSection canManage={canManage} />}
         {section === 'holidays' && <HolidaysSection canManage={canManage} />}
+        {section === 'day_overrides' && <DayOverridesSection canManage={canManage} />}
         {section === 'balances' && <BalanceAdminSection canManage={canManage} />}
         {section === 'encashments' && <EncashmentsSection canManage={canManage} />}
       </div>
@@ -312,6 +317,126 @@ function HolidaysSection({ canManage }: { canManage: boolean }) {
                 </select>
               </div>
               <label className="flex items-center gap-2 text-sm text-brand-950"><input type="checkbox" checked={!!form.is_active} onChange={e => set('is_active', e.target.checked)} /> Active</label>
+            </form>
+            <div className="px-6 py-4 border-t border-border flex justify-end gap-3">
+              <button onClick={() => setEditing(null)} type="button" className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-[#F8FAFC]">Cancel</button>
+              <button onClick={submit} disabled={!canSave || upsert.isPending} className="px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 disabled:opacity-50">{upsert.isPending ? 'Saving…' : 'Save'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Calendar exceptions (day-type switch: Working / Holiday / Off) ─────────────────
+const DAY_TYPE_META: Record<DayOverrideType, { label: string; cls: string }> = {
+  working: { label: 'Working', cls: 'bg-blue-50 border-blue-200 text-blue-700' },
+  holiday: { label: 'Holiday', cls: 'bg-purple-50 border-purple-200 text-purple-700' },
+  off: { label: 'Off', cls: 'bg-gray-50 border-gray-200 text-gray-600' },
+}
+const weekdayOf = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short' })
+
+function DayOverridesSection({ canManage }: { canManage: boolean }) {
+  const { user } = useAuth()
+  const { data: rows = [], isLoading } = useDayOverrides()
+  const upsert = useUpsertDayOverride()
+  const remove = useDeleteDayOverride()
+  const [editing, setEditing] = useState<DayOverride | 'new' | null>(null)
+  const [form, setForm] = useState<Record<string, any>>({})
+
+  const openNew = () => { setForm({ work_date: istToday(), day_type: 'working', label: '' }); setEditing('new') }
+  const openEdit = (r: DayOverride) => { setForm({ ...r }); setEditing(r) }
+  const set = (k: string, v: any) => setForm(f => ({ ...f, [k]: v }))
+  const canSave = String(form.work_date ?? '').trim() && !!form.day_type
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!canSave) return
+    try {
+      await upsert.mutateAsync({
+        work_date: String(form.work_date),
+        day_type: form.day_type as DayOverrideType,
+        label: String(form.label ?? '').trim() || null,
+        created_by: user?.id,
+      })
+      setEditing(null)
+    } catch { /* toast surfaced by hook */ }
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-border overflow-hidden">
+      <div className="flex items-center justify-between px-5 py-3 border-b border-border gap-3">
+        <div>
+          <p className="text-sm font-semibold text-brand-950">Calendar Exceptions</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">Switch any date — make a Sunday/holiday a <b>Working</b> day, or a weekday a <b>Holiday</b>/<b>Off</b> day. Applies to everyone and affects payroll working-days.</p>
+        </div>
+        {canManage && <button onClick={openNew} className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium border border-border rounded-lg hover:bg-[#F8FAFC] shrink-0"><Sym name="add" size={14} /> Switch a Day</button>}
+      </div>
+
+      {isLoading ? (
+        <div className="p-5 space-y-2">{[...Array(3)].map((_, i) => <div key={i} className="h-10 bg-[#F8FAFC] rounded animate-pulse" />)}</div>
+      ) : rows.length === 0 ? (
+        <p className="text-sm text-muted-foreground text-center py-10">No calendar exceptions set. Use “Switch a Day” to make a date Working, Holiday, or Off.</p>
+      ) : (
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-border text-left text-[11px] uppercase tracking-wide text-muted-foreground">
+              <th className="px-5 py-2.5 font-medium">Date</th>
+              <th className="px-5 py-2.5 font-medium">Day</th>
+              <th className="px-5 py-2.5 font-medium">Switch to</th>
+              <th className="px-5 py-2.5 font-medium">Note</th>
+              {canManage && <th className="px-5 py-2.5" />}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(r => (
+              <tr key={r.id} className="border-b border-border last:border-0">
+                <td className="px-5 py-2.5 font-medium text-brand-950">{formatDate(r.work_date)}</td>
+                <td className="px-5 py-2.5 text-muted-foreground">{weekdayOf(r.work_date)}</td>
+                <td className="px-5 py-2.5">
+                  <span className={`text-[11px] font-medium px-2 py-0.5 rounded border ${DAY_TYPE_META[r.day_type].cls}`}>{DAY_TYPE_META[r.day_type].label}</span>
+                </td>
+                <td className="px-5 py-2.5 text-muted-foreground">{r.label || '—'}</td>
+                {canManage && (
+                  <td className="px-5 py-2.5 text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      <button onClick={() => openEdit(r)} title="Edit" className="p-1.5 rounded-lg text-muted-foreground hover:bg-[#F8FAFC] hover:text-brand-950"><Sym name="edit" size={14} /></button>
+                      <button onClick={() => remove.mutate(r.id)} title="Remove" className="p-1.5 rounded-lg text-muted-foreground hover:bg-red-50 hover:text-red-600"><Sym name="delete" size={14} /></button>
+                    </div>
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {editing && (
+        <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+              <h2 className="font-display font-semibold text-brand-950">{editing === 'new' ? 'Switch a Day' : 'Edit Exception'}</h2>
+              <button onClick={() => setEditing(null)} className="text-muted-foreground hover:text-foreground"><Sym name="close" size={16} /></button>
+            </div>
+            <form onSubmit={submit} className="px-6 py-5 space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-brand-950 mb-1">Date *</label>
+                <input type="date" className={ic} value={form.work_date ?? ''} onChange={e => set('work_date', e.target.value)} />
+                {form.work_date && <p className="text-[11px] text-muted-foreground mt-1">{weekdayOf(String(form.work_date))}</p>}
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-brand-950 mb-1">Switch this day to *</label>
+                <select className={ic} value={form.day_type ?? 'working'} onChange={e => set('day_type', e.target.value)}>
+                  <option value="working">Working — evaluate from punches (present/late/half)</option>
+                  <option value="holiday">Holiday — paid, no work expected</option>
+                  <option value="off">Off — paid weekly-off style</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-brand-950 mb-1">Note (optional)</label>
+                <input className={ic} value={form.label ?? ''} onChange={e => set('label', e.target.value)} placeholder="e.g. Compensatory working day, Founders Day" />
+              </div>
             </form>
             <div className="px-6 py-4 border-t border-border flex justify-end gap-3">
               <button onClick={() => setEditing(null)} type="button" className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-[#F8FAFC]">Cancel</button>

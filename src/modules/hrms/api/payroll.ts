@@ -413,14 +413,25 @@ export function daysInMonth(year: number, month: number): number {
 }
 
 /** Working days in a month = calendar days − weekly offs (Sat/Sun) − holidays.
- *  This is the LOP divisor so per-day rate = monthly salary ÷ working days. */
-export function workingDaysInMonth(year: number, month: number, holidayDates: Set<string>): number {
+ *  This is the LOP divisor so per-day rate = monthly salary ÷ working days.
+ *  `dayOverrides` (date → 'working'|'holiday'|'off') applies company day-switches with the
+ *  same precedence as evaluate_attendance: 'working' counts even on a weekend/holiday;
+ *  'holiday'/'off' drop the day even on a weekday — keeping salary and attendance in sync. */
+export function workingDaysInMonth(
+  year: number,
+  month: number,
+  holidayDates: Set<string>,
+  dayOverrides?: Map<string, string>,
+): number {
   const total = daysInMonth(year, month)
   let wd = 0
   for (let d = 1; d <= total; d++) {
+    const ds = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+    const ov = dayOverrides?.get(ds)
+    if (ov === 'working') { wd++; continue }
+    if (ov === 'holiday' || ov === 'off') continue
     const dow = new Date(Date.UTC(year, month - 1, d)).getUTCDay()
     if (dow === 0 || dow === 6) continue
-    const ds = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`
     if (holidayDates.has(ds)) continue
     wd++
   }
@@ -646,7 +657,16 @@ export async function computeRun(runId: string): Promise<number> {
     .gte('holiday_date', periodStart)
     .lte('holiday_date', periodEnd)
   const holidaySet = new Set(((holRows ?? []) as any[]).map((h) => h.holiday_date as string))
-  const basisDays = workingDaysInMonth(run.period_year, run.period_month, holidaySet)
+  // Company day-switches (working/holiday/off) — applied to the working-days basis so a
+  // switched day changes pay the same way it changes attendance (evaluate_attendance).
+  const { data: ovrRows } = await db
+    .from('hr_day_overrides')
+    .select('work_date, day_type')
+    .eq('is_active', true)
+    .gte('work_date', periodStart)
+    .lte('work_date', periodEnd)
+  const overrideMap = new Map(((ovrRows ?? []) as any[]).map((o) => [o.work_date as string, o.day_type as string]))
+  const basisDays = workingDaysInMonth(run.period_year, run.period_month, holidaySet, overrideMap)
 
   // Active salary assignments effective for the period.
   const { data: salaries, error: sErr } = await db

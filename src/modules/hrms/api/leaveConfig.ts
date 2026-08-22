@@ -99,6 +99,51 @@ export async function deactivateHoliday(id: string): Promise<void> {
   if (error) throw error
 }
 
+// ── Calendar exceptions (day-type switch: Working / Holiday / Off) ────────────────
+export type DayOverrideType = 'working' | 'holiday' | 'off'
+export interface DayOverride {
+  id: string
+  work_date: string
+  day_type: DayOverrideType
+  label: string | null
+  is_active: boolean
+}
+export interface DayOverrideInput {
+  work_date: string
+  day_type: DayOverrideType
+  label?: string | null
+  is_active?: boolean
+  created_by?: string
+}
+
+export async function fetchDayOverrides(fromDate?: string | null, toDate?: string | null): Promise<DayOverride[]> {
+  let q = db.from('hr_day_overrides').select('*')
+  if (fromDate) q = q.gte('work_date', fromDate)
+  if (toDate) q = q.lte('work_date', toDate)
+  const { data, error } = await q.order('work_date')
+  if (error) throw error
+  return (data ?? []) as DayOverride[]
+}
+
+/** Add or change the switch for a date. Upserts on work_date (one override per date). */
+export async function upsertDayOverride(input: DayOverrideInput): Promise<void> {
+  const row: Record<string, unknown> = {
+    work_date: input.work_date,
+    day_type: input.day_type,
+    label: input.label ?? null,
+    is_active: input.is_active ?? true,
+  }
+  if (input.created_by) row.created_by = input.created_by
+  const { error } = await db.from('hr_day_overrides').upsert(row, { onConflict: 'work_date' })
+  if (error) throw error
+}
+
+/** Remove a switch (hard delete so the date reverts to normal and can be re-added). */
+export async function deleteDayOverride(id: string): Promise<void> {
+  const { error } = await db.from('hr_day_overrides').delete().eq('id', id)
+  if (error) throw error
+}
+
 // ── Status masters (M3 configurability) ───────────────────────────────────────────
 export interface AttendanceStatusMaster {
   id: string

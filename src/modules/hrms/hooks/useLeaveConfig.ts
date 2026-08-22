@@ -9,6 +9,9 @@ import {
   fetchRestrictedHolidays,
   upsertHoliday,
   deactivateHoliday,
+  fetchDayOverrides,
+  upsertDayOverride,
+  deleteDayOverride,
   fetchAttendanceStatuses,
   upsertAttendanceStatus,
   deactivateAttendanceStatus,
@@ -19,6 +22,7 @@ import {
   type HolidayInput,
   type AttendanceStatusInput,
   type DayTypeInput,
+  type DayOverrideInput,
 } from '../api/leaveConfig'
 
 const CFG = ['hrms', 'leave-config'] as const
@@ -26,6 +30,7 @@ const LEAVE_TYPES_KEY = [...CFG, 'leave-types']
 const HOLIDAYS_KEY = [...CFG, 'holidays']
 const STATUSES_KEY = [...CFG, 'attendance-statuses']
 const DAY_TYPES_KEY = [...CFG, 'day-types']
+const DAY_OVERRIDES_KEY = [...CFG, 'day-overrides']
 
 // ── Leave types ────────────────────────────────────────────────────────────────
 export function useAllLeaveTypes() {
@@ -94,6 +99,41 @@ export function useDeactivateHoliday() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: HOLIDAYS_KEY })
       toast.success('Holiday deactivated')
+    },
+    onError: (e: Error) => toast.error('Failed', e.message),
+  })
+}
+
+// ── Calendar exceptions (day-type switch) ─────────────────────────────────────────
+export function useDayOverrides(fromDate?: string | null, toDate?: string | null) {
+  return useQuery({
+    queryKey: [...DAY_OVERRIDES_KEY, fromDate ?? 'all', toDate ?? 'all'],
+    queryFn: () => fetchDayOverrides(fromDate, toDate),
+    staleTime: 60_000,
+  })
+}
+
+export function useUpsertDayOverride() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: DayOverrideInput) => upsertDayOverride(input),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: DAY_OVERRIDES_KEY })
+      qc.invalidateQueries({ queryKey: ['hrms', 'attendance'] }) // muster/calendar are engine-driven
+      toast.success('Day switched')
+    },
+    onError: (e: Error) => toast.error('Save failed', e.message),
+  })
+}
+
+export function useDeleteDayOverride() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => deleteDayOverride(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: DAY_OVERRIDES_KEY })
+      qc.invalidateQueries({ queryKey: ['hrms', 'attendance'] })
+      toast.success('Switch removed')
     },
     onError: (e: Error) => toast.error('Failed', e.message),
   })
