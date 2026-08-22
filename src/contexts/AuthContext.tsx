@@ -8,7 +8,9 @@ interface AuthContextValue {
   user: User | null
   profile: UserProfile | null
   loading: boolean
-  signOut: () => Promise<void>
+  /** Sign out. Pass { keepTwofa: true } for the automatic 6h session cap so a same-day
+   *  re-login skips OTP; a manual sign-out (default) clears it and re-asks OTP. */
+  signOut: (opts?: { keepTwofa?: boolean }) => Promise<void>
   refreshProfile: () => Promise<void>
 }
 
@@ -67,14 +69,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe()
   }, [])
 
-  async function signOut() {
+  async function signOut(opts?: { keepTwofa?: boolean }) {
     await supabase.auth.signOut()
     try {
       // Reset the 6h session anchor so the next login starts a fresh window.
       Object.keys(localStorage).filter(k => k.startsWith('login_at:')).forEach(k => localStorage.removeItem(k))
-      // NOTE: the daily 2FA record (twofa_until:*) is intentionally KEPT so OTP is
-      // required only once per day — not on every manual sign-out + re-login.
-      // (Legacy per-session flag cleanup.)
+      // Manual sign-out clears the daily 2FA record so the next login re-asks OTP.
+      // The automatic 6h cap passes keepTwofa:true, so a same-day re-login stays
+      // within "once per calendar day" and does not re-send an OTP.
+      if (!opts?.keepTwofa) {
+        Object.keys(localStorage).filter(k => k.startsWith('twofa_day:')).forEach(k => localStorage.removeItem(k))
+      }
+      // Legacy per-session flag cleanup.
       Object.keys(sessionStorage).filter(k => k.startsWith('twofa_ok:')).forEach(k => sessionStorage.removeItem(k))
     } catch { /* ignore */ }
     setSession(null)

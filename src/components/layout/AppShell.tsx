@@ -6,7 +6,7 @@ import { IdleTimeout } from '@/components/shared/IdleTimeout'
 import { QuickPunchProvider, QuickPunchFab } from '@/components/attendance/QuickPunch'
 import { useAuth } from '@/contexts/AuthContext'
 import { TwoFactorGate } from '@/components/auth/TwoFactorGate'
-import { TWOFA_TTL_MS, twofaKey } from '@/core/auth/session'
+import { twofaDayKey, istDateStr } from '@/core/auth/session'
 
 export function AppShell() {
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -15,20 +15,19 @@ export function AppShell() {
   // Bumping this re-checks the localStorage 2FA record after a fresh verification.
   const [twofaVer, setTwofaVer] = useState(0)
 
-  // Opt-in login 2FA: require an SMS/email OTP once per day per device. Computed
-  // SYNCHRONOUSLY from localStorage (not a delayed effect) so a verified device never
-  // flashes the gate — which would fire (and bill) a spurious OTP on hard refresh.
+  // Opt-in login 2FA: require an SMS/email OTP once per IST calendar day per device.
+  // Computed SYNCHRONOUSLY from localStorage (not a delayed effect) so a verified device
+  // never flashes the gate — which would fire (and bill) a spurious OTP on hard refresh.
   const twofaOk = useMemo(() => {
     if (!uid) return true // auth still loading — don't gate (and don't send) yet
-    const until = Number(localStorage.getItem(twofaKey(uid)))
-    return !!until && until > Date.now()
+    return localStorage.getItem(twofaDayKey(uid)) === istDateStr()
   }, [uid, twofaVer])
 
   if (profile?.twofa_enabled && !twofaOk) {
     return (
       <TwoFactorGate
         onVerified={() => {
-          localStorage.setItem(twofaKey(uid), String(Date.now() + TWOFA_TTL_MS))
+          localStorage.setItem(twofaDayKey(uid), istDateStr())
           setTwofaVer(v => v + 1)
         }}
       />

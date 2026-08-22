@@ -139,7 +139,7 @@ export function Sidebar() {
               )}
             </NavLink>
             <button
-              onClick={signOut}
+              onClick={() => signOut()}
               className="text-white/60 hover:text-white text-[10px] shrink-0 transition-colors"
               title="Sign out"
             >

@@ -88,7 +88,7 @@ export function TwoFactorGate({ onVerified }: { onVerified: () => void }) {
         <div className="flex items-center justify-between mt-4 text-xs">
           <button onClick={send} disabled={phase === 'sending'}
             className="text-brand-600 hover:underline disabled:opacity-50">Resend code</button>
-          <button onClick={signOut} className="text-muted-foreground hover:text-foreground">Sign out</button>
+          <button onClick={() => signOut()} className="text-muted-foreground hover:text-foreground">Sign out</button>
         </div>
       </div>
     </div>

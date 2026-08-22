@@ -32,7 +32,8 @@ export function IdleTimeout() {
     window.clearTimeout(logoutTimer.current)
     window.clearInterval(countdown.current)
     setWarning(false)
-    await signOutRef.current()
+    // Automatic cap → keep the daily 2FA record so a same-day re-login skips OTP.
+    await signOutRef.current({ keepTwofa: true })
     toast.info('Signed out', 'Your 6-hour session has ended. Please sign in again.')
     navRef.current('/login')
   }, [])
