@@ -77,7 +77,7 @@ export function QuickPunchProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <Ctx.Provider value={{ open: start, label, punchedIn, ready: !!user && (settings as any)?.punch_source !== 'device' }}>
+    <Ctx.Provider value={{ open: start, label, punchedIn, ready: !!user && !!settings && (settings as any).punch_source !== 'device' }}>
       {children}
       {modal && (
         <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
