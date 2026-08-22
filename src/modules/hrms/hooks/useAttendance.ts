@@ -16,6 +16,11 @@ import {
   decideApproval,
   correctAttendanceDay,
   fetchAttendancePolicy,
+  fetchEmployeePunches,
+  fetchCorrectedDayKeys,
+  adminAddPunch,
+  adminEditPunch,
+  adminDeletePunch,
   type RegularizationInput,
   type OutdoorDutyInput,
   type OvertimeInput,
@@ -153,4 +158,44 @@ export function useCorrectAttendanceDay() {
     },
     onError: (e: Error) => toast.error('Correction failed', e.message),
   })
+}
+
+// ── Admin punch editing (raw In/Out timing) ───────────────────────────────────
+/** Raw punches for one employee on a single day (for the correction editor). */
+export function useEmployeeDayPunches(employeeId?: string, date?: string) {
+  return useQuery({
+    queryKey: [...ATT, 'day-punches', employeeId, date],
+    enabled: !!employeeId && !!date,
+    queryFn: () => fetchEmployeePunches(employeeId!, date!, date!),
+  })
+}
+
+/** Keys (employee|date) with a recorded correction — drives the muster "edited" badge. */
+export function useCorrectedDayKeys(fromDate: string, toDate: string) {
+  return useQuery({
+    queryKey: [...ATT, 'corrected-keys', fromDate, toDate],
+    queryFn: () => fetchCorrectedDayKeys(fromDate, toDate),
+  })
+}
+
+/** Add / edit / delete a raw punch. All invalidate the attendance tree so the muster,
+ *  calendar and (evaluate_attendance-backed) payroll views refresh. */
+export function useAdminPunchEdit() {
+  const qc = useQueryClient()
+  const done = (msg: string) => { qc.invalidateQueries({ queryKey: ATT }); toast.success(msg) }
+  const fail = (e: Error) => toast.error('Punch update failed', e.message)
+  return {
+    add: useMutation({
+      mutationFn: (v: { employeeId: string; atISO: string; reason?: string | null }) => adminAddPunch(v.employeeId, v.atISO, v.reason),
+      onSuccess: () => done('Punch added'), onError: fail,
+    }),
+    edit: useMutation({
+      mutationFn: (v: { punchId: string; newTimeISO: string; reason?: string | null }) => adminEditPunch(v.punchId, v.newTimeISO, v.reason),
+      onSuccess: () => done('Punch time updated'), onError: fail,
+    }),
+    remove: useMutation({
+      mutationFn: (v: { punchId: string; reason?: string | null }) => adminDeletePunch(v.punchId, v.reason),
+      onSuccess: () => done('Punch removed'), onError: fail,
+    }),
+  }
 }

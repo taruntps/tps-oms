@@ -10,10 +10,13 @@ import { useCan } from '@/core/access/useCan'
 import { useAuth } from '@/contexts/AuthContext'
 import { useEmployees } from '../hooks/useEmployees'
 import { useDepartments } from '../hooks/useMasters'
-import { useAttendanceDaysRange, useHrDaysRange, useCorrectAttendanceDay } from '../hooks/useAttendance'
+import {
+  useAttendanceDaysRange, useHrDaysRange, useCorrectAttendanceDay,
+  useCorrectedDayKeys, useEmployeeDayPunches, useAdminPunchEdit,
+} from '../hooks/useAttendance'
 import { AttendanceStatusPill, fmtMinutes, fmtTime, monthRange, istToday } from './attendanceShared'
 import { AttendanceCalendar } from './AttendanceCalendar'
-import type { AttendanceDay, AttendanceStatus, HrAttendanceDay } from '../api/attendance'
+import { istTimestamp, type AttendanceDay, type AttendanceStatus, type HrAttendanceDay, type RawPunch } from '../api/attendance'
 
 interface Cell {
   employee_id: string
@@ -38,6 +41,8 @@ export default function AttendancePage() {
   const { data: departments = [] } = useDepartments()
   const { data: punchDays = [], isLoading: lp } = useAttendanceDaysRange(from, to)
   const { data: hrDays = [], isLoading: lh } = useHrDaysRange(from, to)
+  const { data: correctedKeys = [] } = useCorrectedDayKeys(from, to)
+  const editedSet = useMemo(() => new Set(correctedKeys), [correctedKeys])
 
   const [deptFilter, setDeptFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
@@ -234,7 +239,16 @@ export default function AttendancePage() {
                     <td className="px-4 py-2.5 text-muted-foreground">{fmtTime(cell.first_in)}</td>
                     <td className="px-4 py-2.5 text-muted-foreground">{fmtTime(cell.last_out)}</td>
                     <td className="px-4 py-2.5 text-muted-foreground">{fmtMinutes(cell.worked_minutes)}</td>
-                    <td className="px-4 py-2.5"><AttendanceStatusPill status={cell.status} /></td>
+                    <td className="px-4 py-2.5">
+                      <div className="flex items-center gap-1.5">
+                        <AttendanceStatusPill status={cell.status} />
+                        {editedSet.has(`${emp.id}|${cell.work_date}`) && (
+                          <span title="Timing corrected by admin" className="inline-flex items-center gap-0.5 text-[10px] font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded px-1 py-0.5">
+                            <Sym name="edit" size={10} /> edited
+                          </span>
+                        )}
+                      </div>
+                    </td>
                     {canManage && (
                       <td className="px-4 py-2.5 text-right">
                         <button onClick={() => setEditCell({ employeeId: emp.id, workDate: cell.work_date, hr: cell.hr })} title="Correct" className="p-1.5 rounded-lg text-muted-foreground hover:bg-white hover:text-brand-950">
@@ -267,15 +281,34 @@ export default function AttendancePage() {
 const ic =
   'w-full px-3 py-2 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-600/20 focus:border-brand-600'
 
+// Format an ISO timestamp as IST "HH:MM" for a <input type="time">.
+function toHHMM(iso: string): string {
+  return new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Kolkata' }).format(new Date(iso))
+}
+
 function CorrectionModal({ employeeId, workDate, hr, correctedBy, onClose }: {
   employeeId: string; workDate: string; hr: HrAttendanceDay | null; correctedBy: string; onClose: () => void
 }) {
   const correct = useCorrectAttendanceDay()
+  const { data: punches = [], isLoading: lpunch } = useEmployeeDayPunches(employeeId, workDate)
+  const punchEdit = useAdminPunchEdit()
   const [status, setStatus] = useState<AttendanceStatus>((hr?.status as AttendanceStatus) ?? 'present')
   const [remarks, setRemarks] = useState(hr?.remarks ?? '')
   const [reason, setReason] = useState('')
+  const [addTime, setAddTime] = useState('')
 
-  const submit = async (e: React.FormEvent) => {
+  const reasonOrNull = () => reason.trim() || null
+  const busy = punchEdit.add.isPending || punchEdit.edit.isPending || punchEdit.remove.isPending
+
+  const addPunch = () => {
+    if (!addTime) return
+    punchEdit.add.mutate(
+      { employeeId, atISO: istTimestamp(workDate, addTime), reason: reasonOrNull() },
+      { onSuccess: () => setAddTime('') },
+    )
+  }
+
+  const submitStatus = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
       await correct.mutateAsync({
@@ -283,7 +316,7 @@ function CorrectionModal({ employeeId, workDate, hr, correctedBy, onClose }: {
         field: 'status',
         oldValue: hr?.status ?? null,
         newValue: status,
-        reason: reason.trim() || null,
+        reason: reasonOrNull(),
         patch: { status, remarks: remarks.trim() || null, evaluated_at: new Date().toISOString() },
         correctedBy,
       })
@@ -292,8 +325,8 @@ function CorrectionModal({ employeeId, workDate, hr, correctedBy, onClose }: {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl">
+    <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4 overflow-y-auto">
+      <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl my-8">
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <div>
             <h2 className="font-display font-semibold text-brand-950">Correct Attendance</h2>
@@ -301,29 +334,89 @@ function CorrectionModal({ employeeId, workDate, hr, correctedBy, onClose }: {
           </div>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><Sym name="close" size={16} /></button>
         </div>
-        <form onSubmit={submit} className="px-6 py-5 space-y-4">
+
+        <div className="px-6 py-5 space-y-5">
+          {/* ── Punch times: correcting these recomputes status/late/half + payroll ── */}
           <div>
-            <label className="block text-xs font-medium text-brand-950 mb-1">Status</label>
-            <select className={ic} value={status} onChange={e => setStatus(e.target.value as AttendanceStatus)}>
-              {STATUS_OPTIONS.map(s => <option key={s} value={s} className="capitalize">{s.replace('_', ' ')}</option>)}
-            </select>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-medium text-brand-950">Punch times (IST)</label>
+              <span className="text-[10px] text-muted-foreground">In = earliest · Out = latest</span>
+            </div>
+
+            {lpunch ? (
+              <div className="h-9 bg-[#F8FAFC] rounded animate-pulse" />
+            ) : punches.length === 0 ? (
+              <p className="text-xs text-muted-foreground py-1">No punches recorded for this day.</p>
+            ) : (
+              <div className="space-y-2">
+                {punches.map(p => (
+                  <PunchRow key={p.id} punch={p} workDate={workDate} reason={reasonOrNull} edit={punchEdit.edit} remove={punchEdit.remove} />
+                ))}
+              </div>
+            )}
+
+            <div className="flex items-center gap-2 mt-2">
+              <input type="time" className={ic} value={addTime} onChange={e => setAddTime(e.target.value)} />
+              <button type="button" onClick={addPunch} disabled={!addTime || busy}
+                className="shrink-0 flex items-center gap-1 px-3 py-2 text-xs font-medium border border-border rounded-lg hover:bg-[#F8FAFC] disabled:opacity-50">
+                <Sym name="add" size={13} /> Add
+              </button>
+            </div>
           </div>
-          <div>
-            <label className="block text-xs font-medium text-brand-950 mb-1">Remarks</label>
-            <input className={ic} value={remarks} onChange={e => setRemarks(e.target.value)} />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-brand-950 mb-1">Reason for correction</label>
-            <textarea className={ic} rows={2} value={reason} onChange={e => setReason(e.target.value)} placeholder="Audit trail note" />
-          </div>
-        </form>
-        <div className="px-6 py-4 border-t border-border flex justify-end gap-3">
-          <button onClick={onClose} type="button" className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-[#F8FAFC]">Cancel</button>
-          <button onClick={submit} disabled={correct.isPending} className="px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 disabled:opacity-50">
-            {correct.isPending ? 'Saving…' : 'Save Correction'}
+
+          {/* ── Force status (for no-punch days or overrides) ── */}
+          <form onSubmit={submitStatus} className="space-y-4 border-t border-border pt-4">
+            <div>
+              <label className="block text-xs font-medium text-brand-950 mb-1">Force status <span className="font-normal text-muted-foreground">(overrides the computed value)</span></label>
+              <select className={ic} value={status} onChange={e => setStatus(e.target.value as AttendanceStatus)}>
+                {STATUS_OPTIONS.map(s => <option key={s} value={s} className="capitalize">{s.replace('_', ' ')}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-brand-950 mb-1">Remarks</label>
+              <input className={ic} value={remarks} onChange={e => setRemarks(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-brand-950 mb-1">Reason for correction</label>
+              <textarea className={ic} rows={2} value={reason} onChange={e => setReason(e.target.value)} placeholder="Audit trail note (applies to punch edits too)" />
+            </div>
+          </form>
+        </div>
+
+        <div className="px-6 py-4 border-t border-border flex justify-between gap-3">
+          <button onClick={onClose} type="button" className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-[#F8FAFC]">Close</button>
+          <button onClick={submitStatus} disabled={correct.isPending} className="px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 disabled:opacity-50">
+            {correct.isPending ? 'Saving…' : 'Save Status'}
           </button>
         </div>
       </div>
+    </div>
+  )
+}
+
+// A single editable punch row: change the time (Save) or delete it.
+function PunchRow({ punch, workDate, reason, edit, remove }: {
+  punch: RawPunch
+  workDate: string
+  reason: () => string | null
+  edit: ReturnType<typeof useAdminPunchEdit>['edit']
+  remove: ReturnType<typeof useAdminPunchEdit>['remove']
+}) {
+  const [time, setTime] = useState(toHHMM(punch.punch_at))
+  const dirty = time !== toHHMM(punch.punch_at)
+  return (
+    <div className="flex items-center gap-2">
+      <input type="time" className={ic} value={time} onChange={e => setTime(e.target.value)} />
+      <button type="button" title="Save time" disabled={!dirty || edit.isPending}
+        onClick={() => edit.mutate({ punchId: punch.id, newTimeISO: istTimestamp(workDate, time), reason: reason() })}
+        className="shrink-0 p-2 rounded-lg text-brand-700 hover:bg-brand-50 disabled:opacity-40">
+        <Sym name="check" size={15} />
+      </button>
+      <button type="button" title="Delete punch" disabled={remove.isPending}
+        onClick={() => remove.mutate({ punchId: punch.id, reason: reason() })}
+        className="shrink-0 p-2 rounded-lg text-muted-foreground hover:bg-red-50 hover:text-red-600 disabled:opacity-40">
+        <Sym name="delete" size={15} />
+      </button>
     </div>
   )
 }

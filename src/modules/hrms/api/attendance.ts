@@ -462,3 +462,37 @@ export async function correctAttendanceDay(input: HrDayCorrectionInput): Promise
     )
   if (uErr) throw uErr
 }
+
+// ── Admin punch corrections (raw In/Out timing) ───────────────────────────────
+// These call SECURITY DEFINER RPCs (migration admin_punch_corrections) that role-gate
+// to super_admin/director/hr and write an audit row. evaluate_attendance recomputes
+// status/late/half from the punches, so payroll follows automatically.
+
+/** Build an IST timestamptz ISO string from a work date + "HH:MM" clock time. */
+export function istTimestamp(workDate: string, hhmm: string): string {
+  return new Date(`${workDate}T${hhmm}:00+05:30`).toISOString()
+}
+
+export async function adminAddPunch(employeeId: string, atISO: string, reason?: string | null): Promise<void> {
+  const { error } = await db.rpc('admin_add_punch', { p_employee: employeeId, p_at: atISO, p_reason: reason ?? null })
+  if (error) throw error
+}
+export async function adminEditPunch(punchId: string, newTimeISO: string, reason?: string | null): Promise<void> {
+  const { error } = await db.rpc('admin_edit_punch', { p_punch_id: punchId, p_new_time: newTimeISO, p_reason: reason ?? null })
+  if (error) throw error
+}
+export async function adminDeletePunch(punchId: string, reason?: string | null): Promise<void> {
+  const { error } = await db.rpc('admin_delete_punch', { p_punch_id: punchId, p_reason: reason ?? null })
+  if (error) throw error
+}
+
+/** employee_id|work_date keys that have at least one correction (for an "edited" badge). */
+export async function fetchCorrectedDayKeys(fromDate: string, toDate: string): Promise<string[]> {
+  const { data, error } = await db
+    .from('hr_attendance_corrections')
+    .select('employee_id, work_date')
+    .gte('work_date', fromDate)
+    .lte('work_date', toDate)
+  if (error) throw error
+  return (data ?? []).map((r: { employee_id: string; work_date: string }) => `${r.employee_id}|${r.work_date}`)
+}
