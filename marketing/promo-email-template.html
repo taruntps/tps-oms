@@ -1,0 +1,122 @@
+<!--
+  TPS Xperts Group — reusable promotional email template (for Zoho Campaigns)
+  ------------------------------------------------------------------------------
+  HOW TO USE (one time):
+    Zoho Campaigns → Templates → Create Template → "Code your own" / HTML editor
+    → paste this whole file → Save as "TPS Promo — Master".
+  FOR EACH NEW PROMO:
+    Create Campaign → pick "TPS Promo — Master" → edit only the blocks marked
+    <!-- EDIT ... --> below → update the brochure button link → send test → send.
+
+  EDIT ZONES are marked with  <!-- EDIT: xxx -->  comments. Change ONLY those.
+  Personalisation: put your cursor where you want the name and use Zoho's
+  "Insert Merge Tag → First Name" button (don't hand-type merge codes).
+  Unsubscribe + your postal address are REQUIRED by law and by Zoho — they are
+  in the footer below; keep them. Zoho fills $[UNSUBSCRIBE]$ automatically.
+-->
+<div style="margin:0;padding:0;background:#F3F4F6;">
+  <!-- EDIT: preview text (shows next to the subject in the inbox, ~90 chars) -->
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;">
+    New from TPS Xperts Group — see what's inside.
+  </div>
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F3F4F6;">
+    <tr>
+      <td align="center" style="padding:28px 16px;">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;font-family:Arial,Helvetica,sans-serif;">
+
+          <!-- Header (brand) — usually leave as-is -->
+          <tr>
+            <td style="background:#1E3A5F;border-radius:12px 12px 0 0;padding:20px 32px;">
+              <table role="presentation" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="padding-right:12px;">
+                    <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+                      <td style="width:46px;height:46px;background:#ffffff;border-radius:10px;text-align:center;vertical-align:middle;">
+                        <img src="https://portal.tpsxpert.com/logo.png" width="36" height="36" alt="TPS Xperts Group" style="display:inline-block;vertical-align:middle;" />
+                      </td>
+                    </tr></table>
+                  </td>
+                  <td style="vertical-align:middle;">
+                    <span style="color:#ffffff;font-size:19px;font-weight:bold;letter-spacing:.3px;">TPS Xperts Group</span><br>
+                    <span style="color:#AECBEB;font-size:11px;">Pharma &amp; Nutraceutical Regulatory Consultancy</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Optional hero banner image (a wide promo image). Delete this row if not used.
+               Host the image somewhere public and put its URL in src. Recommended width 600px. -->
+          <tr>
+            <td style="background:#ffffff;">
+              <!-- EDIT: hero image URL (or delete this <a>…</a> line to skip) -->
+              <a href="#"><img src="https://portal.tpsxpert.com/logo.png" width="600" alt="" style="display:none;width:100%;max-width:600px;height:auto;border:0;" /></a>
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td style="background:#ffffff;padding:28px 32px 8px;">
+              <!-- EDIT: headline -->
+              <h1 style="margin:0 0 6px;color:#1E3A5F;font-size:24px;line-height:1.25;">
+                Your headline goes here
+              </h1>
+              <!-- EDIT: sub-headline (optional) -->
+              <p style="margin:0 0 18px;color:#6B7280;font-size:14px;">A short supporting line about the offer.</p>
+
+              <!-- EDIT: greeting — use Zoho "Insert Merge Tag → First Name" in place of the name -->
+              <p style="margin:0 0 14px;color:#374151;font-size:15px;line-height:1.6;">Dear Sir/Madam,</p>
+
+              <!-- EDIT: main content. Keep paragraphs short. -->
+              <p style="margin:0 0 14px;color:#374151;font-size:15px;line-height:1.6;">
+                Write your main message here — what you're offering, why it matters to the client,
+                and any dates or terms. Keep it to 2–3 short paragraphs.
+              </p>
+
+              <!-- EDIT: bullet highlights (optional — delete the whole list if not needed) -->
+              <ul style="margin:0 0 20px;padding-left:20px;color:#374151;font-size:15px;line-height:1.7;">
+                <li>Key benefit or service one</li>
+                <li>Key benefit or service two</li>
+                <li>Key benefit or service three</li>
+              </ul>
+
+              <!-- CTA button (bulletproof, table-based) -->
+              <table role="presentation" cellpadding="0" cellspacing="0" style="margin:6px 0 24px;">
+                <tr>
+                  <td align="center" bgcolor="#1E3A5F" style="border-radius:8px;">
+                    <!-- EDIT: brochure link (href) and button label -->
+                    <a href="https://REPLACE-WITH-YOUR-BROCHURE-LINK"
+                       style="display:inline-block;padding:13px 30px;color:#ffffff;font-size:15px;font-weight:bold;text-decoration:none;border-radius:8px;">
+                      Download Brochure
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- EDIT: sign-off -->
+              <p style="margin:0;color:#374151;font-size:15px;line-height:1.6;">
+                Warm regards,<br>
+                <strong>Tarun Pratap Singh</strong><br>
+                Founder &amp; CEO, TPS Xperts Group
+              </p>
+            </td>
+          </tr>
+
+          <!-- Footer (compliance) — keep the address + unsubscribe -->
+          <tr>
+            <td style="background:#ffffff;border-radius:0 0 12px 12px;padding:18px 32px 26px;">
+              <p style="margin:20px 0 0;padding-top:14px;border-top:1px solid #EFF1F4;color:#9CA3AF;font-size:12px;line-height:1.6;">
+                TPS Xperts Group · 723, Imperial Tower, CP 67, Sector-67, Mohali-160062, Punjab, India<br>
+                tarun@tpsxpert.com · <a href="https://tpsxperts.com" style="color:#1E3A5F;">tpsxperts.com</a><br><br>
+                You are receiving this because you are a client/contact of TPS Xperts Group.
+                <a href="$[UNSUBSCRIBE]$" style="color:#1E3A5F;">Unsubscribe</a>
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</div>
