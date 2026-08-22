@@ -69,8 +69,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function signOut() {
     await supabase.auth.signOut()
-    // Drop any 2FA verification so the next login must re-verify OTP.
     try {
+      // Reset the 6h session anchor so the next login starts a fresh window.
+      Object.keys(localStorage).filter(k => k.startsWith('login_at:')).forEach(k => localStorage.removeItem(k))
+      // NOTE: the daily 2FA record (twofa_until:*) is intentionally KEPT so OTP is
+      // required only once per day — not on every manual sign-out + re-login.
+      // (Legacy per-session flag cleanup.)
       Object.keys(sessionStorage).filter(k => k.startsWith('twofa_ok:')).forEach(k => sessionStorage.removeItem(k))
     } catch { /* ignore */ }
     setSession(null)
