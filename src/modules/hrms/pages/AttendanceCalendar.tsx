@@ -48,12 +48,15 @@ export function AttendanceCalendar({ employeeId }: { employeeId: string }) {
     queryFn: () => fetchEmployeePunches(employeeId, from, to), enabled: !!employeeId,
   })
 
-  // All raw punches grouped by their IST day (attendance still uses first + last).
+  // Punches grouped by their IST day, collapsed to one entry per minute (seconds ignored).
+  // `punches` is time-ordered, so same-minute repeats are adjacent — skip the repeat.
   const punchesByDate = useMemo(() => {
     const m = new Map<string, string[]>()
     for (const p of punches) {
       const ds = new Date(p.punch_at).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
-      ;(m.get(ds) ?? m.set(ds, []).get(ds)!).push(fmtTime(p.punch_at))
+      const t = fmtTime(p.punch_at)
+      const arr = m.get(ds) ?? m.set(ds, []).get(ds)!
+      if (arr[arr.length - 1] !== t) arr.push(t)
     }
     return m
   }, [punches])
