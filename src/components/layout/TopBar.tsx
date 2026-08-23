@@ -78,7 +78,7 @@ export function TopBar({ title, subtitle, children }: TopBarProps) {
   }
 
   return (
-    <header className="glass-panel border-x-0 border-t-0 border-b border-white/10 px-6 py-4 flex items-center justify-between sticky top-0 z-10">
+    <header className="glass-header border-x-0 border-t-0 border-b border-white/10 px-6 py-4 flex items-center justify-between sticky top-0 z-10">
       <div>
         <h1 className="text-lg font-display font-semibold text-white">{title}</h1>
         {subtitle && <p className="text-xs text-white/60 mt-0.5">{subtitle}</p>}

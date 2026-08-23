@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
-import { greetWord, thoughtOfTheDay } from '@/data/dailyThoughts'
+import { greetWord, thoughtOfTheDay, warmLine } from '@/data/dailyThoughts'
 import { Sym } from '@/components/shared/Sym'
 
 // Shown once per login session: a warm greeting + the day's rotating thought.
@@ -77,6 +77,7 @@ export function GreetingModal() {
             {firstName} 👋
           </h2>
           <p className="mt-1 text-sm text-white/70">{dateStr}</p>
+          <p className="mt-2 text-sm text-white/90">{warmLine()}</p>
         </div>
 
         {/* Thought of the day */}

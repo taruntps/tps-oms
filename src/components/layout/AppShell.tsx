@@ -79,7 +79,7 @@ export function AppShell() {
       {/* Main content (transparent so the mesh-gradient body shows through) */}
       <main className="flex-1 min-w-0 overflow-y-auto">
         {/* Mobile top strip with hamburger */}
-        <div className="md:hidden flex items-center gap-3 px-4 py-3 glass-panel sticky top-0 z-30">
+        <div className="md:hidden flex items-center gap-3 px-4 py-3 glass-header sticky top-0 z-30">
           <button
             onClick={() => setMobileOpen(true)}
             className="text-white"

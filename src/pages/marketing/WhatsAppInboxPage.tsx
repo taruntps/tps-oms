@@ -7,6 +7,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { TopBar } from '@/components/layout/TopBar'
 import { toast } from '@/components/shared/Toast'
+import { Sym } from '@/components/shared/Sym'
+import { cn } from '@/lib/utils'
 
 const db = supabase as any
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -96,8 +98,8 @@ export default function WhatsAppInboxPage() {
       <TopBar title="WhatsApp Inbox" subtitle="Replies to your WhatsApp campaigns" />
       <div className="p-6 animate-fade-up">
         <div className="flex bg-white rounded-xl border border-border overflow-hidden" style={{ height: 'calc(100vh - 220px)', minHeight: 460 }}>
-          {/* Conversation list */}
-          <div className="w-[300px] shrink-0 border-r border-border overflow-y-auto">
+          {/* Conversation list — full width on mobile; hidden there once a chat is open */}
+          <div className={cn('w-full md:w-[300px] shrink-0 border-r border-border overflow-y-auto', active && 'hidden md:block')}>
             {isLoading ? (
               <div className="p-4 space-y-2">{[...Array(5)].map((_, i) => <div key={i} className="h-14 bg-[#F8FAFC] rounded animate-pulse" />)}</div>
             ) : conversations.length === 0 ? (
@@ -115,15 +117,21 @@ export default function WhatsAppInboxPage() {
             ))}
           </div>
 
-          {/* Thread */}
-          <div className="flex-1 flex flex-col min-w-0">
+          {/* Thread — hidden on mobile until a chat is selected */}
+          <div className={cn('flex-1 flex-col min-w-0', active ? 'flex' : 'hidden md:flex')}>
             {!active ? (
-              <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">Select a conversation to read and reply.</div>
+              <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground p-6 text-center">Select a conversation to read and reply.</div>
             ) : (
               <>
-                <div className="px-5 py-3 border-b border-border">
-                  <p className="font-medium text-brand-950">{activeConv ? displayName(activeConv) : `+${active}`}</p>
-                  <p className="text-[11px] text-muted-foreground">+{active}</p>
+                <div className="px-5 py-3 border-b border-border flex items-center gap-3">
+                  <button onClick={() => setActive(null)} aria-label="Back to conversations"
+                    className="md:hidden shrink-0 text-muted-foreground hover:text-brand-950">
+                    <Sym name="arrow_back" size={18} />
+                  </button>
+                  <div className="min-w-0">
+                    <p className="font-medium text-brand-950 truncate">{activeConv ? displayName(activeConv) : `+${active}`}</p>
+                    <p className="text-[11px] text-muted-foreground truncate">+{active}</p>
+                  </div>
                 </div>
                 <div className="flex-1 overflow-y-auto px-5 py-4 space-y-2 bg-[#F8FAFC]">
                   {messages.map(m => (

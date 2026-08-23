@@ -106,6 +106,18 @@
     border: 1px solid rgba(255, 255, 255, 0.2);
     box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
   }
+  /* Sticky top bars: a near-solid surface promoted to its own GPU layer.
+     Deliberately NO backdrop-filter — a blurred sticky element forces the browser
+     to re-rasterise every scroll frame, which made the header visibly shake. A
+     solid-ish background over the mesh looks clean and stays perfectly still. */
+  .glass-header {
+    background: rgba(11, 21, 38, 0.88);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.18);
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+    will-change: transform;
+  }
   /* Readable surface for forms / dropdowns / dense tables (dark text) */
   .glass-readable {
     background: rgba(255, 255, 255, 0.96);

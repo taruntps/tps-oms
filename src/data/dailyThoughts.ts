@@ -125,3 +125,19 @@ export function greetWord(): 'morning' | 'afternoon' | 'evening' {
   if (h < 17) return 'afternoon'
   return 'evening'
 }
+
+// A short, warm well-wish shown under the name in the greeting — rotates by day.
+const warmLines: string[] = [
+  'Hope you’re doing well today.',
+  'Wishing you a productive day ahead.',
+  'Hope you’re having a wonderful day.',
+  'Here’s to a calm, focused day.',
+  'Hope everything’s going smoothly.',
+  'May today bring good progress.',
+  'Glad to have you here — let’s make today count.',
+]
+
+/** The day's warm well-wish line for the greeting modal. */
+export function warmLine(): string {
+  return warmLines[dayOfYear(istNow()) % warmLines.length]
+}
