@@ -1,7 +1,8 @@
 // WhatsApp inbound webhook. Meta calls this for every reply to the campaign number and for
 // delivery/read statuses. Stores inbound messages in wa_messages (shown in the portal Inbox),
-// auto-adds STOP repliers to wa_opt_outs, and fires new-reply alerts to the team (email now;
-// WhatsApp/SMS once the notify_reply_* settings are filled). verify_jwt is OFF - Meta calls it
+// auto-adds STOP repliers to wa_opt_outs, and fires new-reply alerts to the team (in-portal
+// bell + desktop pop-up and email now; WhatsApp/SMS once the notify_reply_* settings are
+// filled). verify_jwt is OFF - Meta calls it
 // with no Supabase JWT; the GET handshake is guarded by our own verify token.
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
@@ -49,6 +50,25 @@ async function alertNewReply(admin: any, waPhone: string, name: string | null, b
         })
       }
     } catch (e) { console.error('alert email', String(e)) }
+  }
+
+  // In-portal bell + desktop pop-up: create a notification row for the teammate the
+  // reply-alert email is addressed to (matched on their profile email). Distinct type
+  // ('whatsapp_reply', NOT in notify-dispatch's WA_TYPES) so it drives the bell/desktop
+  // pop-up only and does not trigger a second outbound WhatsApp. Same throttle as above.
+  if (cfg.notify_reply_email) {
+    try {
+      const { data: prof } = await admin.from('profiles').select('id')
+        .ilike('email', cfg.notify_reply_email).eq('is_active', true).limit(1).maybeSingle()
+      if (prof?.id) {
+        await admin.from('notifications').insert({
+          user_id: prof.id,
+          type: 'whatsapp_reply',
+          title: 'New WhatsApp reply from ' + who,
+          body: preview,
+        })
+      }
+    } catch (e) { console.error('alert notif', String(e)) }
   }
 
   // WhatsApp - active once notify_reply_wa is set AND tps_new_reply is approved.

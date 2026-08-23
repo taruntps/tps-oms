@@ -6,6 +6,22 @@ const cors = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// ZeptoMail (India DC) for the email leg: every event notification also emails its
+// recipient, respecting the per-employee notify_email toggle.
+const ZEPTO_URL = 'https://api.zeptomail.in/v1.1/email'
+const RAW_ZEPTO = Deno.env.get('ZEPTOMAIL_TOKEN') ?? ''
+const ZEPTO_AUTH = RAW_ZEPTO.startsWith('Zoho-enczapikey') ? RAW_ZEPTO : `Zoho-enczapikey ${RAW_ZEPTO}`
+const MAIL_FROM = Deno.env.get('MAIL_FROM') ?? 'noreply@tpsxpert.com'
+
+// Event notifications that ALSO go out by email. Excludes stage_overdue (high-volume —
+// the daily digest covers it) and whatsapp_reply (the inbound webhook already emails it).
+const EMAIL_TYPES = [
+  'task_assigned', 'project_assigned', 'project_completed',
+  'block_request', 'unblock_request', 'cancel_request',
+  'block_approved', 'block_rejected', 'cancel_approved', 'cancel_rejected',
+  'payment_overdue', 'license_expiring',
+]
+
 // All notification types that send a WhatsApp push
 const WA_TYPES = [
   'stage_overdue',
@@ -112,11 +128,10 @@ serve(async (req) => {
       .limit(50)
 
     if (error) return json({ error: error.message }, 500)
-    if (!pending?.length) return json({ dispatched: 0 })
 
     const results: { id: string; status: string; reason?: string }[] = []
 
-    for (const n of pending as NotifRow[]) {
+    for (const n of (pending ?? []) as NotifRow[]) {
       const profile = n.profiles
       const rawPhone = profile?.whatsapp_number ?? profile?.phone
       if (!rawPhone) {
@@ -142,7 +157,39 @@ serve(async (req) => {
       results.push({ id: n.id, status: res.ok ? 'sent' : 'failed' })
     }
 
-    return json({ dispatched: results.filter(r => r.status === 'sent').length, results })
+    // ── Email leg: one email per new event notification (respects notify_email) ──
+    let emailed = 0
+    const { data: pendingEmail } = await supabase
+      .from('notifications')
+      .select('id, type, title, body, profiles:user_id(name, email, notify_email)')
+      .in('type', EMAIL_TYPES)
+      .is('email_sent_at', null)
+      .order('created_at', { ascending: true })
+      .limit(50)
+
+    for (const n of (pendingEmail ?? []) as any[]) {
+      const p = n.profiles
+      const to = p?.email as string | undefined
+      if (RAW_ZEPTO && to && p?.notify_email !== false) {
+        try {
+          await fetch(ZEPTO_URL, {
+            method: 'POST',
+            headers: { 'Authorization': ZEPTO_AUTH, 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({
+              from: { address: MAIL_FROM, name: 'TPS Xperts Group' },
+              to: [{ email_address: { address: to, name: p?.name ?? to } }],
+              subject: `[TPS Xperts Group] ${n.title}`,
+              htmlbody: emailBox(p?.name ?? '', n.title, n.body ?? ''),
+            }),
+          })
+          emailed++
+        } catch (e) { console.error('email leg', String(e)) }
+      }
+      // Mark once regardless (sent / opted-out / no address) so it is not reprocessed.
+      await supabase.from('notifications').update({ email_sent_at: new Date().toISOString() }).eq('id', n.id)
+    }
+
+    return json({ dispatched: results.filter(r => r.status === 'sent').length, emailed, results })
   } catch (err) {
     return json({ error: err instanceof Error ? err.message : String(err) }, 500)
   }
@@ -157,4 +204,14 @@ function json(body: unknown, status = 200) {
     status,
     headers: { ...cors, 'Content-Type': 'application/json' },
   })
+}
+
+function esc(s: unknown) {
+  return String(s ?? '').replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]!))
+}
+
+// Branded email wrapper (mirrors the urgent-alerts / digest look).
+function emailBox(name: string, title: string, inner: string) {
+  const header = `<tr><td style='background:#1E3A5F;border-radius:12px 12px 0 0;padding:18px 28px;'><span style='color:#ffffff;font-size:18px;font-weight:bold;'>TPS Xperts Group</span></td></tr>`
+  return `<!DOCTYPE html><html><body style='margin:0;background:#F3F4F6;font-family:Arial,sans-serif;'><table width='100%' cellpadding='0' cellspacing='0'><tr><td align='center' style='padding:28px 16px;'><table width='540' cellpadding='0' cellspacing='0' style='max-width:540px;'>${header}<tr><td style='background:#fff;border-radius:0 0 12px 12px;padding:22px 28px;'><p style='margin:0 0 12px;color:#374151;font-size:15px;'>Dear <strong>${esc(name)}</strong>,</p><h3 style='margin:0 0 10px;color:#1E3A5F;'>${esc(title)}</h3><p style='color:#374151;margin:0;line-height:1.6;'>${esc(inner)}</p><p style='margin:24px 0 0;padding-top:12px;border-top:1px solid #f0f0f0;color:#9CA3AF;font-size:12px;'>Automated message from TPS Xperts Group · <a href='https://portal.tpsxpert.com' style='color:#1E3A5F;'>portal.tpsxpert.com</a></p></td></tr></table></td></tr></table></body></html>`
 }

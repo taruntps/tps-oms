@@ -1,8 +1,8 @@
 // Supabase Edge Function: urgent-alerts  (ZeptoMail / India DC)
-// Cron: hourly. Fires immediate emails (deduped once-ever per ref+recipient):
-//   • New task (created in the last ~2h) → assignee + assigner
-// Licences are handled by the daily digest (consolidated, one email) to avoid a
-// per-licence email burst.
+// Cron: hourly. Emails (deduped once-ever per ref+recipient) only the alerts that have
+// NO other channel: completed tasks, and task-extension requests / decisions.
+// New task / new project / approvals now fire instantly on bell + WhatsApp + email via
+// notify-dispatch; licences are handled by the daily digest.
 //
 // Manual test (no real emails, no logging):  POST { 'test': true, 'to': '...', 'name': '...' }
 // Secrets: ZEPTOMAIL_TOKEN, MAIL_FROM, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY.
@@ -45,22 +45,11 @@ serve(async (req) => {
 
   const sent: any[] = []
   const since = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
-  const { data: newTasks } = await supabase.from('tasks')
-    .select('id, title, priority, due_date, assigned_to, assigned_by, project:projects(project_code), client:clients(company_name)')
-    .gte('created_at', since)
-  for (const t of newTasks ?? []) {
-    const recips = Array.from(new Set([t.assigned_to, t.assigned_by].filter(Boolean))) as string[]
-    for (const uid of recips) {
-      const email = emailMap[uid]
-      if (!email) continue
-      if (await sentEver(supabase, 'task_new', t.id, uid)) continue
-      const role = uid === t.assigned_to ? 'assigned to you' : 'you assigned'
-      const html = box(nameById[uid] ?? '', '📋 New task ' + role, `<b>${esc(t.title)}</b><br>${t.project?.project_code ? 'Project ' + esc(t.project.project_code) + '<br>' : ''}${t.client?.company_name ? 'Client ' + esc(t.client.company_name) + '<br>' : ''}Priority: ${esc(t.priority)}${t.due_date ? '<br>Due: ' + t.due_date : ''}<br>For: ${esc(nameById[t.assigned_to] ?? '—')}`)
-      const ok = await sendMail(email, nameById[uid] ?? '', `[TPS Xperts Group] New task: ${t.title}`, html)
-      await logSent(supabase, 'task_new', t.id, uid)
-      sent.push({ kind: 'task_new', task: t.id, uid, ok })
-    }
-  }
+
+  // New-task and new-project alerts now fire instantly on ALL channels (bell + WhatsApp
+  // + email) via the notifications dispatcher, so they were removed from here to avoid
+  // duplicate emails. This job keeps only the alerts that have no other channel:
+  // completed tasks, and task-extension requests / decisions.
 
   // ── Completed tasks (last 2h) → notify assigner ──
   const { data: doneTasks } = await supabase.from('tasks')
@@ -104,30 +93,6 @@ serve(async (req) => {
     const ok = await sendMail(email, nameById[uid] ?? '', `[TPS Xperts Group] Extension ${r.status}: ${(r as any).task?.title}`, html)
     await logSent(supabase, 'ext_dec', r.id, uid)
     sent.push({ kind: 'ext_dec', req: r.id, uid, ok })
-  }
-
-  // ── New projects created (last 2h) → email assigned executive + manager ──
-  const { data: newProjects } = await supabase.from('projects')
-    .select('id, project_code, project_name, service_type, target_date, assigned_to, manager_id, client:clients(company_name)')
-    .gte('created_at', since)
-  for (const p of newProjects ?? []) {
-    const recips = Array.from(new Set([p.assigned_to, p.manager_id].filter(Boolean))) as string[]
-    for (const uid of recips) {
-      const email = emailMap[uid]; if (!email) continue
-      if (await sentEver(supabase, 'project_new', p.id, uid)) continue
-      const role = uid === p.assigned_to ? 'assigned to you' : 'assigned under your management'
-      const html = box(
-        nameById[uid] ?? '',
-        '📁 New project ' + role,
-        `<b>${esc(p.project_code)}</b> — ${esc(p.service_type ?? '')}<br>` +
-        `Client: ${esc((p as any).client?.company_name ?? '—')}<br>` +
-        (p.target_date ? `Target date: ${p.target_date}<br>` : '') +
-        `Assigned executive: ${esc(nameById[p.assigned_to] ?? '—')}`
-      )
-      const ok = await sendMail(email, nameById[uid] ?? '', `[TPS Xperts Group] New project: ${p.project_code}`, html)
-      await logSent(supabase, 'project_new', p.id, uid)
-      sent.push({ kind: 'project_new', project: p.id, uid, ok })
-    }
   }
 
   return j({ ok: true, sent: sent.length, results: sent })
