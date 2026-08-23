@@ -1,7 +1,7 @@
 // WhatsApp Campaigns (/marketing/whatsapp) — send Meta-approved template messages via the
 // org's OWN Cloud API (no platform fees). Create a campaign, paste opted-in numbers, start;
 // a throttled cron worker (wa-campaign-worker) drains it and skips opted-out numbers.
-import { useState } from 'react'
+import { useState, useRef, type ChangeEvent } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
@@ -25,16 +25,18 @@ const STATUS_CLS: Record<string, string> = {
   sent: 'bg-green-50 border-green-200 text-green-700',
 }
 
-// Parse a textarea of "phone" or "phone,name" per line → {phone,name}[] (digits only).
+// Parse a textarea/CSV of "phone" or "phone,name" per line → {phone,name}[] (digits only).
+// Accepts comma OR tab separators (so pasting two Excel columns works) and CRLF line ends;
+// header rows and blanks are skipped automatically (any line whose first cell has <10 digits).
 function parseRecipients(text: string): { phone: string; name: string | null }[] {
   const out: { phone: string; name: string | null }[] = []
   const seen = new Set<string>()
-  for (const line of text.split('\n')) {
-    const [rawPhone, ...rest] = line.split(',')
+  for (const rawLine of text.split(/\r?\n/)) {
+    const [rawPhone, ...rest] = rawLine.split(/[,\t]/)
     const phone = (rawPhone ?? '').replace(/\D/g, '')
     if (phone.length < 10 || seen.has(phone)) continue
     seen.add(phone)
-    out.push({ phone, name: rest.join(',').trim() || null })
+    out.push({ phone, name: rest.join(' ').replace(/\s+/g, ' ').trim() || null })
   }
   return out
 }
@@ -127,13 +129,34 @@ export default function WhatsAppCampaignsPage() {
 
 function NewCampaignModal({ createdBy, onClose, onCreated }: { createdBy: string; onClose: () => void; onCreated: () => void }) {
   const [form, setForm] = useState<Record<string, string>>({ name: '', template_name: '', header_image_url: DEFAULT_BANNER, body_params: '', numbers: '' })
+  const [personalize, setPersonalize] = useState(false)
+  const [fallback, setFallback] = useState('Sir/Madam')
+  const fileRef = useRef<HTMLInputElement>(null)
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }))
   const recipients = parseRecipients(form.numbers)
+  const withNames = recipients.filter(r => r.name).length
   const canSave = form.name.trim() && form.template_name.trim() && recipients.length > 0
+
+  // Read an uploaded CSV/TXT and append its rows to the numbers box (phone in the first
+  // column, optional name in the second). parseRecipients handles the live parsing/dedup.
+  const onCsv = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => {
+      const text = String(reader.result ?? '')
+      setForm(f => ({ ...f, numbers: f.numbers.trim() ? `${f.numbers.trim()}\n${text}` : text }))
+    }
+    reader.readAsText(file)
+    e.target.value = '' // allow re-selecting the same file
+  }
 
   const create = useMutation({
     mutationFn: async () => {
-      const bodyParams = form.body_params.split(',').map(s => s.trim()).filter(Boolean)
+      const fb = fallback.trim() || 'Sir/Madam'
+      // When personalizing, {{1}} = each recipient's name (fallback for blanks) and the
+      // campaign-level default mirrors the fallback. Otherwise use the manual variables.
+      const bodyParams = personalize ? [fb] : form.body_params.split(',').map(s => s.trim()).filter(Boolean)
       const { data: camp, error } = await db.from('wa_campaigns').insert({
         name: form.name.trim(),
         template_name: form.template_name.trim(),
@@ -143,8 +166,11 @@ function NewCampaignModal({ createdBy, onClose, onCreated }: { createdBy: string
         created_by: createdBy,
       }).select('id').single()
       if (error) throw error
-      // Insert recipients in chunks (queued).
-      const rows = recipients.map(r => ({ campaign_id: camp.id, phone: r.phone, name: r.name }))
+      // Insert recipients in chunks (queued). Personalized sends carry per-recipient params.
+      const rows = recipients.map(r => ({
+        campaign_id: camp.id, phone: r.phone, name: r.name,
+        ...(personalize ? { params: [r.name || fb] } : {}),
+      }))
       for (let i = 0; i < rows.length; i += 500) {
         const { error: rErr } = await db.from('wa_campaign_recipients').insert(rows.slice(i, i + 500))
         if (rErr) throw rErr
@@ -175,15 +201,46 @@ function NewCampaignModal({ createdBy, onClose, onCreated }: { createdBy: string
             <label className="block text-xs font-medium text-brand-950 mb-1">Header image URL <span className="font-normal text-muted-foreground">(if the template has an image header)</span></label>
             <input className={ic} value={form.header_image_url} onChange={e => set('header_image_url', e.target.value)} />
           </div>
-          <div>
-            <label className="block text-xs font-medium text-brand-950 mb-1">Body variables <span className="font-normal text-muted-foreground">(comma-separated, in order — leave blank if none)</span></label>
-            <input className={ic} value={form.body_params} onChange={e => set('body_params', e.target.value)} placeholder="e.g. Sir/Madam" />
+
+          <div className="rounded-lg border border-border bg-[#F8FAFC] px-3 py-3 space-y-3">
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input type="checkbox" checked={personalize} onChange={e => setPersonalize(e.target.checked)} className="mt-0.5" />
+              <span className="text-xs text-brand-950">
+                <b>Personalize with recipient name</b>
+                <span className="block text-muted-foreground font-normal mt-0.5">
+                  Sends each contact’s name as the template’s first variable <code>{'{{1}}'}</code>. Use an approved template whose body starts with a name variable (e.g. <code>tps_marketing_intro_named</code>).
+                </span>
+              </span>
+            </label>
+            {personalize && (
+              <div>
+                <label className="block text-xs font-medium text-brand-950 mb-1">Fallback name <span className="font-normal text-muted-foreground">(used when a row has no name)</span></label>
+                <input className={ic} value={fallback} onChange={e => setFallback(e.target.value)} placeholder="Sir/Madam" />
+              </div>
+            )}
           </div>
+
+          {!personalize && (
+            <div>
+              <label className="block text-xs font-medium text-brand-950 mb-1">Body variables <span className="font-normal text-muted-foreground">(comma-separated, in order — leave blank if none)</span></label>
+              <input className={ic} value={form.body_params} onChange={e => set('body_params', e.target.value)} placeholder="e.g. Sir/Madam" />
+            </div>
+          )}
+
           <div>
-            <label className="block text-xs font-medium text-brand-950 mb-1">Phone numbers *</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-medium text-brand-950">Phone numbers *</label>
+              <button type="button" onClick={() => fileRef.current?.click()} className="flex items-center gap-1 text-[11px] font-medium text-brand-600 hover:text-brand-700">
+                <Sym name="upload_file" size={14} /> Upload CSV
+              </button>
+              <input ref={fileRef} type="file" accept=".csv,text/csv,text/plain" onChange={onCsv} className="hidden" />
+            </div>
             <textarea className={ic} rows={6} value={form.numbers} onChange={e => set('numbers', e.target.value)}
-              placeholder={'One per line, with country code. Optionally add a name:\n919876543210\n919812345678, Acme Foods'} />
-            <p className="text-[11px] text-muted-foreground mt-1">{recipients.length} valid number{recipients.length === 1 ? '' : 's'} detected · only send to opted-in contacts.</p>
+              placeholder={'One per line, with country code. Add a name after a comma (or paste two Excel columns):\n919876543210\n919812345678, Acme Foods'} />
+            <p className="text-[11px] text-muted-foreground mt-1">
+              {recipients.length} valid number{recipients.length === 1 ? '' : 's'} detected
+              {personalize && recipients.length > 0 ? ` · ${withNames} with a name, ${recipients.length - withNames} will use “${fallback.trim() || 'Sir/Madam'}”` : ''} · only send to opted-in contacts.
+            </p>
           </div>
         </div>
         <div className="px-6 py-4 border-t border-border flex justify-end gap-3">

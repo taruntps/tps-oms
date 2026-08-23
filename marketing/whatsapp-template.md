@@ -59,10 +59,15 @@ Hello {{1}}, greetings from *TPS Xperts Group*!
 
 ## After approval
 1. Portal → **WhatsApp Campaigns** → New Campaign.
-2. Enter the **template name** exactly (`tps_marketing_intro`), the **header image URL**
-   (`https://portal.tpsxpert.com/tps-signature.jpg`), and any body variables.
-3. Upload a **CSV of phone numbers** (country code, e.g. `9198…`) of **opted-in** contacts.
-4. Send — the portal throttles and skips opted-out numbers.
+2. Enter the **template name** exactly (`tps_marketing_intro`) and the **header image URL**
+   (`https://portal.tpsxpert.com/tps-signature.jpg`).
+3. Add phone numbers: **paste** them (one per line, country code e.g. `9198…`) or click
+   **Upload CSV** — first column = phone, optional second column = name. Only **opted-in** contacts.
+   (Two Excel columns pasted directly also work.)
+4. To greet each contact by name, tick **Personalize with recipient name** — this needs a
+   template with a `{{1}}` name variable (e.g. `tps_marketing_intro_named`). Set a **fallback**
+   like "Sir/Madam" for rows without a name.
+5. Send — the portal throttles and skips opted-out numbers.
 
 ## Compliance
 - Only message contacts who consented. Honour STOP replies (added to the suppression list).
