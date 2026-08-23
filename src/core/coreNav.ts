@@ -12,5 +12,6 @@ export const coreNav: NavEntry[] = [
   { to: '/clients', label: 'Clients', icon: 'apartment', roles: ['super_admin', 'director', 'manager', 'executive', 'accounts', 'auditor'], group: 'Business', order: 1 },
   { to: '/tasks', label: 'Tasks', icon: 'task_alt', roles: ALL_ROLES, group: 'Business', order: 4 },
   { to: '/marketing/whatsapp', label: 'WhatsApp Campaigns', icon: 'campaign', roles: ['super_admin', 'director', 'hr'], group: 'Business', order: 6 },
+  { to: '/marketing/whatsapp-inbox', label: 'WhatsApp Inbox', icon: 'forum', roles: ['super_admin', 'director', 'hr'], group: 'Business', order: 7 },
   { to: '/reports/performance', label: 'Reports', icon: 'bar_chart', roles: ['super_admin', 'director', 'manager'], group: 'Reports', order: 0 },
 ]

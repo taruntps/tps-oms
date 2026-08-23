@@ -29,6 +29,7 @@ const ReferralsPage = lazy(() => import('@/pages/referrals/ReferralsPage'))
 const TasksPage = lazy(() => import('@/pages/tasks/TasksPage'))
 const NotificationsPage = lazy(() => import('@/pages/notifications/NotificationsPage'))
 const WhatsAppCampaignsPage = lazy(() => import('@/pages/marketing/WhatsAppCampaignsPage'))
+const WhatsAppInboxPage = lazy(() => import('@/pages/marketing/WhatsAppInboxPage'))
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -139,6 +140,11 @@ export default function App() {
               <Route path="marketing/whatsapp" element={
                 <ProtectedRoute allowedRoles={['super_admin','director','hr']}>
                   <WhatsAppCampaignsPage />
+                </ProtectedRoute>
+              } />
+              <Route path="marketing/whatsapp-inbox" element={
+                <ProtectedRoute allowedRoles={['super_admin','director','hr']}>
+                  <WhatsAppInboxPage />
                 </ProtectedRoute>
               } />
             </Route>
