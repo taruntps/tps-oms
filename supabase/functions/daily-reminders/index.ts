@@ -5,7 +5,7 @@
 // Also sends WhatsApp morning digest via Meta Cloud API (tps_morning_digest template).
 //
 // Manual test (no staff emailed, nothing logged):
-//   POST { "test": true, "to": "tarun@tpsxpert.com", "name": "Tarun" }
+//   POST { 'test': true, 'to': 'tarun@tpsxpert.com', 'name': 'Tarun' }
 //
 // Secrets: ZEPTOMAIL_TOKEN, MAIL_FROM, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY.
 
@@ -39,7 +39,10 @@ serve(async (req) => {
   const emailMap: Record<string, string> = {}
   for (const u of au?.users ?? []) if (u.email) emailMap[u.id] = u.email
 
-  const { data: staff } = await supabase.from('profiles').select('id, name, role, whatsapp_number, phone').eq('is_active', true)
+  const { data: staff } = await supabase.from('profiles').select('id, name, role, whatsapp_number, phone, notify_email').eq('is_active', true)
+  // Per-employee email opt-out (User Management): drop them so no digest email fires.
+  // (The WhatsApp morning digest below routes through send-whatsapp, which enforces notify_whatsapp.)
+  for (const s of staff ?? []) if ((s as any).notify_email === false) delete emailMap[s.id]
 
   const { data: tasks } = await supabase.from('tasks')
     .select('id, title, priority, status, due_date, assigned_to, project:projects(project_code), client:clients(company_name)')
@@ -121,7 +124,7 @@ serve(async (req) => {
       .eq('projects.status', 'active')
       .in('status', ['pending', 'in_progress'])
 
-    // Per-user project rows (active, NOT blocked) — a project is "mine" if I'm
+    // Per-user project rows (active, NOT blocked) — a project is 'mine' if I'm
     // the assignee OR the manager. Excluding blocked matches the Projects page
     // Active tab (blocked projects live under the Blocked tab, clock stopped).
     const { data: projRows } = await supabase
@@ -134,12 +137,12 @@ serve(async (req) => {
       if (!phone) continue
       // The morning digest is a personal work reminder for people who do project
       // work. Admins (super_admin/director) oversee everything via the Dashboard,
-      // so a "your pending work" digest is just the whole company — skip them.
+      // so a 'your pending work' digest is just the whole company — skip them.
       if (['super_admin', 'director'].includes(s.role)) continue
       if (await alreadySent(supabase, 'wa_morning_digest', null, s.id, today)) continue
 
       const myStages = (stageRows ?? []).filter((r: any) => r.assigned_to === s.id)
-      // "Pending stages" = stages actively in this person's hands (in_progress).
+      // 'Pending stages' = stages actively in this person's hands (in_progress).
       // Not-yet-started future stages (status 'pending') are queued backlog, not
       // today's work, so they're excluded from the headline number.
       const pending  = myStages.filter((r: any) => r.status === 'in_progress').length
@@ -196,39 +199,39 @@ function splitDue(items: any[], today: string) {
 function esc(s: any) { return String(s ?? '').replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]!)) }
 function taskRows(items: any[], overdue: boolean) {
   return items.map(t => `<tr>
-    <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;font-weight:600;color:#1E3A5F;">${esc(t.title)}</td>
-    <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;color:#6B7280;">${esc(t.project?.project_code ?? t.client?.company_name ?? '—')}</td>
-    <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;color:#6B7280;text-transform:capitalize;">${esc(t.priority)}</td>
-    <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;color:${overdue ? '#DC2626' : '#374151'};">${t.due_date ?? 'No date'}${overdue ? ' ⚠️' : ''}</td>
+    <td style='padding:8px 12px;border-bottom:1px solid #f0f0f0;font-weight:600;color:#1E3A5F;'>${esc(t.title)}</td>
+    <td style='padding:8px 12px;border-bottom:1px solid #f0f0f0;color:#6B7280;'>${esc(t.project?.project_code ?? t.client?.company_name ?? '—')}</td>
+    <td style='padding:8px 12px;border-bottom:1px solid #f0f0f0;color:#6B7280;text-transform:capitalize;'>${esc(t.priority)}</td>
+    <td style='padding:8px 12px;border-bottom:1px solid #f0f0f0;color:${overdue ? '#DC2626' : '#374151'};'>${t.due_date ?? 'No date'}${overdue ? ' ⚠️' : ''}</td>
   </tr>`).join('')
 }
 function taskTable(title: string, color: string, bg: string, rows: string) {
-  return `<h3 style="color:${color};margin:20px 0 8px;">${title}</h3>
-  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;border:1px solid ${bg};border-radius:8px;overflow:hidden;">
-    <thead><tr style="background:${bg};"><th style="padding:9px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:${color};">Task</th><th style="padding:9px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:${color};">Ref</th><th style="padding:9px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:${color};">Priority</th><th style="padding:9px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:${color};">Due</th></tr></thead>
+  return `<h3 style='color:${color};margin:20px 0 8px;'>${title}</h3>
+  <table width='100%' cellpadding='0' cellspacing='0' style='border-collapse:collapse;background:#fff;border:1px solid ${bg};border-radius:8px;overflow:hidden;'>
+    <thead><tr style='background:${bg};'><th style='padding:9px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:${color};'>Task</th><th style='padding:9px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:${color};'>Ref</th><th style='padding:9px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:${color};'>Priority</th><th style='padding:9px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:${color};'>Due</th></tr></thead>
     <tbody>${rows}</tbody></table>`
 }
 function brandHeader(subtitle: string) {
-  return `<tr><td style="background:#1E3A5F;border-radius:12px 12px 0 0;padding:18px 28px;">
-  <table cellpadding="0" cellspacing="0"><tr>
-  <td style="padding-right:12px;"><table cellpadding="0" cellspacing="0"><tr><td style="width:42px;height:42px;background:#ffffff;border-radius:10px;text-align:center;vertical-align:middle;"><img src="https://portal.tpsxpert.com/logo.png" width="34" height="34" alt="TPS" style="display:inline-block;vertical-align:middle;" /></td></tr></table></td>
-  <td style="vertical-align:middle;"><span style="color:#ffffff;font-size:18px;font-weight:bold;">TPS Xperts Group</span>${subtitle ? `<br><span style="color:#93C5FD;font-size:12px;">${subtitle}</span>` : ''}</td>
+  return `<tr><td style='background:#1E3A5F;border-radius:12px 12px 0 0;padding:18px 28px;'>
+  <table cellpadding='0' cellspacing='0'><tr>
+  <td style='padding-right:12px;'><table cellpadding='0' cellspacing='0'><tr><td style='width:42px;height:42px;background:#ffffff;border-radius:10px;text-align:center;vertical-align:middle;'><img src='https://portal.tpsxpert.com/logo.png' width='34' height='34' alt='TPS' style='display:inline-block;vertical-align:middle;' /></td></tr></table></td>
+  <td style='vertical-align:middle;'><span style='color:#ffffff;font-size:18px;font-weight:bold;'>TPS Xperts Group</span>${subtitle ? `<br><span style='color:#93C5FD;font-size:12px;'>${subtitle}</span>` : ''}</td>
   </tr></table></td></tr>`
 }
 function shell(name: string, intro: string, body: string) {
-  return `<!DOCTYPE html><html><body style="margin:0;background:#F3F4F6;font-family:Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:28px 16px;">
-  <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;">
+  return `<!DOCTYPE html><html><body style='margin:0;background:#F3F4F6;font-family:Arial,sans-serif;'>
+  <table width='100%' cellpadding='0' cellspacing='0'><tr><td align='center' style='padding:28px 16px;'>
+  <table width='600' cellpadding='0' cellspacing='0' style='max-width:600px;'>
   ${brandHeader('Daily Summary')}
-  <tr><td style="background:#fff;border-radius:0 0 12px 12px;padding:24px 30px;">
-  <p style="color:#374151;margin:0 0 6px;">Dear <strong>${esc(name)}</strong>,</p><p style="color:#374151;margin:0 0 4px;">${intro}</p>${body}
-  <p style="margin:28px 0 0;padding-top:14px;border-top:1px solid #f0f0f0;color:#9CA3AF;font-size:12px;">Automated message from TPS Xperts Group · <a href="https://portal.tpsxpert.com" style="color:#1E3A5F;">portal.tpsxpert.com</a></p>
+  <tr><td style='background:#fff;border-radius:0 0 12px 12px;padding:24px 30px;'>
+  <p style='color:#374151;margin:0 0 6px;'>Dear <strong>${esc(name)}</strong>,</p><p style='color:#374151;margin:0 0 4px;'>${intro}</p>${body}
+  <p style='margin:28px 0 0;padding-top:14px;border-top:1px solid #f0f0f0;color:#9CA3AF;font-size:12px;'>Automated message from TPS Xperts Group · <a href='https://portal.tpsxpert.com' style='color:#1E3A5F;'>portal.tpsxpert.com</a></p>
   </td></tr></table></td></tr></table></body></html>`
 }
 function taskDigestHtml(name: string, d: { overdue: any[]; upcoming: any[] }) {
   const body = (d.overdue.length ? taskTable(`⚠️ Overdue (${d.overdue.length})`, '#DC2626', '#FEF2F2', taskRows(d.overdue, true)) : '')
     + (d.upcoming.length ? taskTable(`📋 Open (${d.upcoming.length})`, '#1E3A8A', '#EFF6FF', taskRows(d.upcoming, false)) : '')
-    + (!d.overdue.length && !d.upcoming.length ? '<p style="color:#6B7280;">No open tasks. 🎉</p>' : '')
+    + (!d.overdue.length && !d.upcoming.length ? `<p style='color:#6B7280;'>No open tasks. 🎉</p>` : '')
   return shell(name, `You have <strong>${d.overdue.length + d.upcoming.length}</strong> open task(s).`, body)
 }
 function licenceHtml(lic: any[], today: string) {
@@ -237,14 +240,14 @@ function licenceHtml(lic: any[], today: string) {
     const exp = l.expiry_date as string
     const expired = exp < today
     return `<tr>
-      <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;color:#374151;">${esc(l.client?.company_name ?? '—')}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;color:#374151;">${esc(l.license_type)}${l.license_number ? ' · ' + esc(l.license_number) : ''}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;color:${expired ? '#DC2626' : '#B45309'};">${exp}${expired ? ' (expired)' : ''}</td>
+      <td style='padding:8px 12px;border-bottom:1px solid #f0f0f0;color:#374151;'>${esc(l.client?.company_name ?? '—')}</td>
+      <td style='padding:8px 12px;border-bottom:1px solid #f0f0f0;color:#374151;'>${esc(l.license_type)}${l.license_number ? ' · ' + esc(l.license_number) : ''}</td>
+      <td style='padding:8px 12px;border-bottom:1px solid #f0f0f0;color:${expired ? '#DC2626' : '#B45309'};'>${exp}${expired ? ' (expired)' : ''}</td>
     </tr>`
   }).join('')
-  return `<h3 style="color:#B45309;margin:20px 0 8px;">📜 Licences expiring (${lic.length})</h3>
-  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;border:1px solid #FDE68A;border-radius:8px;overflow:hidden;">
-  <thead><tr style="background:#FFFBEB;"><th style="padding:9px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#92400E;">Client</th><th style="padding:9px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#92400E;">Licence</th><th style="padding:9px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#92400E;">Expiry</th></tr></thead>
+  return `<h3 style='color:#B45309;margin:20px 0 8px;'>📜 Licences expiring (${lic.length})</h3>
+  <table width='100%' cellpadding='0' cellspacing='0' style='border-collapse:collapse;background:#fff;border:1px solid #FDE68A;border-radius:8px;overflow:hidden;'>
+  <thead><tr style='background:#FFFBEB;'><th style='padding:9px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#92400E;'>Client</th><th style='padding:9px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#92400E;'>Licence</th><th style='padding:9px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#92400E;'>Expiry</th></tr></thead>
   <tbody>${rows}</tbody></table>`
 }
 function queryHtml(qs: any[], today: string) {
@@ -253,15 +256,15 @@ function queryHtml(qs: any[], today: string) {
     const due = q.response_due as string
     const overdue = due < today
     return `<tr>
-      <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;color:#374151;">${esc(q.project?.client?.company_name ?? '—')}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;color:#374151;">${esc(q.project?.project_code ?? '—')}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;color:#6B7280;">${q.received_date}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;color:${overdue ? '#DC2626' : '#B45309'};">${due}${overdue ? ' (overdue)' : ''}</td>
+      <td style='padding:8px 12px;border-bottom:1px solid #f0f0f0;color:#374151;'>${esc(q.project?.client?.company_name ?? '—')}</td>
+      <td style='padding:8px 12px;border-bottom:1px solid #f0f0f0;color:#374151;'>${esc(q.project?.project_code ?? '—')}</td>
+      <td style='padding:8px 12px;border-bottom:1px solid #f0f0f0;color:#6B7280;'>${q.received_date}</td>
+      <td style='padding:8px 12px;border-bottom:1px solid #f0f0f0;color:${overdue ? '#DC2626' : '#B45309'};'>${due}${overdue ? ' (overdue)' : ''}</td>
     </tr>`
   }).join('')
-  return `<h3 style="color:#B45309;margin:20px 0 8px;">⏳ FSSAI query responses due (${qs.length})</h3>
-  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;border:1px solid #FDE68A;border-radius:8px;overflow:hidden;">
-  <thead><tr style="background:#FFFBEB;"><th style="padding:9px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#92400E;">Client</th><th style="padding:9px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#92400E;">Project</th><th style="padding:9px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#92400E;">Received</th><th style="padding:9px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#92400E;">Response due</th></tr></thead>
+  return `<h3 style='color:#B45309;margin:20px 0 8px;'>⏳ FSSAI query responses due (${qs.length})</h3>
+  <table width='100%' cellpadding='0' cellspacing='0' style='border-collapse:collapse;background:#fff;border:1px solid #FDE68A;border-radius:8px;overflow:hidden;'>
+  <thead><tr style='background:#FFFBEB;'><th style='padding:9px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#92400E;'>Client</th><th style='padding:9px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#92400E;'>Project</th><th style='padding:9px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#92400E;'>Received</th><th style='padding:9px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#92400E;'>Response due</th></tr></thead>
   <tbody>${rows}</tbody></table>`
 }
 function j(b: unknown, status = 200) { return new Response(JSON.stringify(b), { status, headers: { ...cors, 'Content-Type': 'application/json' } }) }

@@ -4,7 +4,7 @@
 // Licences are handled by the daily digest (consolidated, one email) to avoid a
 // per-licence email burst.
 //
-// Manual test (no real emails, no logging):  POST { "test": true, "to": "...", "name": "..." }
+// Manual test (no real emails, no logging):  POST { 'test': true, 'to': '...', 'name': '...' }
 // Secrets: ZEPTOMAIL_TOKEN, MAIL_FROM, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY.
 
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
@@ -33,8 +33,10 @@ serve(async (req) => {
   const { data: au } = await supabase.auth.admin.listUsers()
   const emailMap: Record<string, string> = {}
   for (const u of au?.users ?? []) if (u.email) emailMap[u.id] = u.email
-  const { data: staff } = await supabase.from('profiles').select('id, name, role').eq('is_active', true)
+  const { data: staff } = await supabase.from('profiles').select('id, name, role, notify_email').eq('is_active', true)
   const nameById: Record<string, string> = Object.fromEntries((staff ?? []).map(s => [s.id, s.name]))
+  // Per-employee email opt-out (User Management): drop them so no email fires.
+  for (const s of staff ?? []) if ((s as any).notify_email === false) delete emailMap[s.id]
 
   if (testTo) {
     const ok = await sendMail(testTo, opts.name ?? 'Tarun', '[TPS Xperts Group] Urgent alert (test)', box(opts.name ?? 'Tarun', '🔔 Urgent alerts test', `This confirms urgent alerts send correctly. Real alerts fire when a task is assigned.`))
@@ -147,7 +149,7 @@ async function logSent(sb: any, kind: string, ref: string, recipient: string) {
 }
 function esc(s: any) { return String(s ?? '').replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]!)) }
 function box(name: string, title: string, inner: string) {
-  const header = `<tr><td style="background:#1E3A5F;border-radius:12px 12px 0 0;padding:18px 28px;"><table cellpadding="0" cellspacing="0"><tr><td style="padding-right:12px;"><table cellpadding="0" cellspacing="0"><tr><td style="width:42px;height:42px;background:#ffffff;border-radius:10px;text-align:center;vertical-align:middle;"><img src="https://portal.tpsxpert.com/logo.png" width="34" height="34" alt="TPS" style="display:inline-block;vertical-align:middle;" /></td></tr></table></td><td style="vertical-align:middle;"><span style="color:#ffffff;font-size:18px;font-weight:bold;">TPS Xperts Group</span></td></tr></table></td></tr>`
-  return `<!DOCTYPE html><html><body style="margin:0;background:#F3F4F6;font-family:Arial,sans-serif;"><table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:28px 16px;"><table width="540" cellpadding="0" cellspacing="0" style="max-width:540px;">${header}<tr><td style="background:#fff;border-radius:0 0 12px 12px;padding:22px 28px;"><p style="margin:0 0 12px;color:#374151;font-size:15px;">Dear <strong>${esc(name)}</strong>,</p><h3 style="margin:0 0 10px;color:#1E3A5F;">${title}</h3><p style="color:#374151;margin:0;line-height:1.6;">${inner}</p><p style="margin:24px 0 0;padding-top:12px;border-top:1px solid #f0f0f0;color:#9CA3AF;font-size:12px;">Automated message from TPS Xperts Group · <a href="https://portal.tpsxpert.com" style="color:#1E3A5F;">portal.tpsxpert.com</a></p></td></tr></table></td></tr></table></body></html>`
+  const header = `<tr><td style='background:#1E3A5F;border-radius:12px 12px 0 0;padding:18px 28px;'><table cellpadding='0' cellspacing='0'><tr><td style='padding-right:12px;'><table cellpadding='0' cellspacing='0'><tr><td style='width:42px;height:42px;background:#ffffff;border-radius:10px;text-align:center;vertical-align:middle;'><img src='https://portal.tpsxpert.com/logo.png' width='34' height='34' alt='TPS' style='display:inline-block;vertical-align:middle;' /></td></tr></table></td><td style='vertical-align:middle;'><span style='color:#ffffff;font-size:18px;font-weight:bold;'>TPS Xperts Group</span></td></tr></table></td></tr>`
+  return `<!DOCTYPE html><html><body style='margin:0;background:#F3F4F6;font-family:Arial,sans-serif;'><table width='100%' cellpadding='0' cellspacing='0'><tr><td align='center' style='padding:28px 16px;'><table width='540' cellpadding='0' cellspacing='0' style='max-width:540px;'>${header}<tr><td style='background:#fff;border-radius:0 0 12px 12px;padding:22px 28px;'><p style='margin:0 0 12px;color:#374151;font-size:15px;'>Dear <strong>${esc(name)}</strong>,</p><h3 style='margin:0 0 10px;color:#1E3A5F;'>${title}</h3><p style='color:#374151;margin:0;line-height:1.6;'>${inner}</p><p style='margin:24px 0 0;padding-top:12px;border-top:1px solid #f0f0f0;color:#9CA3AF;font-size:12px;'>Automated message from TPS Xperts Group · <a href='https://portal.tpsxpert.com' style='color:#1E3A5F;'>portal.tpsxpert.com</a></p></td></tr></table></td></tr></table></body></html>`
 }
 function j(b: unknown, status = 200) { return new Response(JSON.stringify(b), { status, headers: { ...cors, 'Content-Type': 'application/json' } }) }

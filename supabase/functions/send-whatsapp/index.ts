@@ -7,7 +7,7 @@ const cors = {
 }
 
 interface Payload {
-  phone: string    // digits with country code, e.g. "919876543210"
+  phone: string    // digits with country code, e.g. 919876543210
   template: string // pre-approved Meta template name
   params: string[] // ordered body variable values
   refId?: string   // optional tracking ID
@@ -44,6 +44,18 @@ serve(async (req) => {
       return json({ error: 'Meta Phone Number ID not configured in Settings' }, 400)
     }
 
+    // Per-employee opt-out: skip if this number belongs to an employee who turned WhatsApp
+    // alerts off in User Management. Matched on the last 10 digits of whatsapp_number/phone.
+    // (Customer campaign/reply sends go direct to Meta, not through here, so they're unaffected.)
+    const last10 = String(phone).replace(/\D/g, '').slice(-10)
+    if (last10.length === 10) {
+      const { data: pr } = await supabase.from('profiles').select('notify_whatsapp')
+        .or(`whatsapp_number.ilike.%${last10},phone.ilike.%${last10}`).limit(1).maybeSingle()
+      if (pr && (pr as any).notify_whatsapp === false) {
+        return json({ skipped: 'recipient opted out of WhatsApp alerts' })
+      }
+    }
+
     const phoneNumberId = cfg.whatsapp_phone_number_id
     const accessToken   = cfg.whatsapp_api_key
 
@@ -62,18 +74,17 @@ serve(async (req) => {
           type: 'template',
           template: {
             name: template,
-            // Templates were created in "English" (en) in Meta WhatsApp Manager —
+            // Templates were created in English (en) in Meta WhatsApp Manager;
             // en_US fails with error 132001 (template does not exist in en_US).
             language: { code: 'en' },
             components: params.length > 0
               ? [{
                   type: 'body',
                   // Meta rejects any empty text value with error 131008
-                  // ("Parameter of type text is missing text value"), so never
-                  // send a blank — fall back to an em-dash.
+                  // (missing text value), so never send a blank; fall back to a dash.
                   parameters: params.map(text => ({
                     type: 'text',
-                    text: (text ?? '').toString().trim() || '—',
+                    text: (text ?? '').toString().trim() || '-',
                   })),
                 }]
               : [],

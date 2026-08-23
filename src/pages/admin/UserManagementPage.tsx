@@ -39,6 +39,8 @@ interface UserRow {
   email?: string
   phone?: string
   whatsapp_number?: string
+  notify_whatsapp?: boolean
+  notify_email?: boolean
   face_enrolled_at?: string | null
 }
 
@@ -68,6 +70,8 @@ interface InviteForm {
   password: string
   loginMethod: 'email' | 'code' | 'both'
   employee_code: string
+  notify_whatsapp: boolean
+  notify_email: boolean
 }
 
 export default function UserManagementPage() {
@@ -91,7 +95,7 @@ export default function UserManagementPage() {
     queryKey: ['profiles', 'all'],
     queryFn: async () => {
       const { data, error } = await (supabase.from('profiles') as any)
-        .select('id, name, email, role, is_active, can_edit_clients, can_be_assigned, can_assign, can_view_all_projects, report_permissions, phone, whatsapp_number, face_enrolled_at')
+        .select('id, name, email, role, is_active, can_edit_clients, can_be_assigned, can_assign, can_view_all_projects, report_permissions, phone, whatsapp_number, notify_whatsapp, notify_email, face_enrolled_at')
         .order('name')
       if (error) throw error
       return (data as unknown as UserRow[]).map(u => ({
@@ -401,6 +405,8 @@ function UserForm({ user, onClose, onSaved }: { user: UserRow | null; onClose: (
     password: '',
     loginMethod: 'email',
     employee_code: '',
+    notify_whatsapp: user?.notify_whatsapp ?? true,
+    notify_email: user?.notify_email ?? true,
   })
   const [loading, setLoading] = useState(false)
   const [showPass, setShowPass] = useState(false)
@@ -412,11 +418,13 @@ function UserForm({ user, onClose, onSaved }: { user: UserRow | null; onClose: (
     try {
       if (isEdit) {
         // Update profile details
-        const { error } = await supabase.from('profiles').update({
+        const { error } = await (supabase.from('profiles') as any).update({
           name: form.name,
           role: form.role,
           phone: form.phone || null,
           whatsapp_number: form.whatsapp_number || null,
+          notify_whatsapp: form.notify_whatsapp,
+          notify_email: form.notify_email,
         }).eq('id', user.id)
         if (error) throw error
         // If the login email changed, update the Auth sign-in identity via the admin function.
@@ -584,6 +592,24 @@ function UserForm({ user, onClose, onSaved }: { user: UserRow | null; onClose: (
               className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none"
               placeholder="91XXXXXXXXXX" />
           </div>
+
+          {/* Alert channels — per employee (edit mode). Bell (in-app) always stays on. */}
+          {isEdit && (
+            <div>
+              <label className="block text-xs font-medium text-brand-950 mb-1">Alert channels for this employee</label>
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setForm({...form, notify_whatsapp: !form.notify_whatsapp})}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium border ${form.notify_whatsapp ? 'bg-green-50 border-green-200 text-green-700' : 'bg-[#F8FAFC] border-border text-muted-foreground'}`}>
+                  📱 WhatsApp: {form.notify_whatsapp ? 'On' : 'Off'}
+                </button>
+                <button type="button" onClick={() => setForm({...form, notify_email: !form.notify_email})}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium border ${form.notify_email ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-[#F8FAFC] border-border text-muted-foreground'}`}>
+                  📧 Email: {form.notify_email ? 'On' : 'Off'}
+                </button>
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-1">Turn off to stop task / project / overdue alerts on that channel for this person. The in-app bell always stays on.</p>
+            </div>
+          )}
 
           {/* Password field — only in create mode */}
           {!isEdit && form.mode === 'create' && (
