@@ -83,10 +83,11 @@ export function useDesktopNotifications(opts?: {
     localStorage.removeItem(OFF_KEY)
     setOff(false)
     try {
+      // No tag: each test creates a fresh pop-up (a repeated tag would silently
+      // replace the previous one without re-alerting, looking like "nothing happened").
       const n = new Notification('TPS Portal — test', {
         body: 'Desktop notifications are working. You’ll get these for new alerts.',
         icon: import.meta.env.BASE_URL + 'logo.png',
-        tag: 'tps-test',
       })
       n.onclick = () => { window.focus(); n.close() }
       return 'sent'

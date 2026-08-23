@@ -121,8 +121,16 @@ export function NotificationPanel() {
               <Sym name="desktop_windows" size={14} className="text-muted-foreground shrink-0" />
               <span className="text-[11px] text-brand-950 truncate">
                 Desktop pop-ups
-                {desktop.supported && desktop.permission === 'denied' && (
-                  <span className="text-muted-foreground"> · blocked in browser</span>
+                {!desktop.supported ? (
+                  <span className="text-muted-foreground"> · not available here</span>
+                ) : desktop.permission === 'denied' ? (
+                  <span className="text-red-600"> · blocked in browser</span>
+                ) : desktop.permission === 'default' ? (
+                  <span className="text-amber-600"> · tap “Send test” to allow</span>
+                ) : desktop.enabled ? (
+                  <span className="text-green-600"> · on</span>
+                ) : (
+                  <span className="text-muted-foreground"> · off</span>
                 )}
               </span>
             </div>
