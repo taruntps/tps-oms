@@ -12,6 +12,8 @@ import { toast } from '@/components/shared/Toast'
 const db = supabase as any
 const ic = 'w-full px-3 py-2 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-600/20 focus:border-brand-600'
 const DEFAULT_BANNER = 'https://portal.tpsxpert.com/tps-signature.jpg'
+const DEFAULT_BROCHURE = 'https://portal.tpsxpert.com/tps-brochure.pdf'
+const DEFAULT_BROCHURE_NAME = 'TPS Xperts Group Profile.pdf'
 
 interface Campaign {
   id: string; name: string; template_name: string; header_image_url: string | null
@@ -128,14 +130,19 @@ export default function WhatsAppCampaignsPage() {
 }
 
 function NewCampaignModal({ createdBy, onClose, onCreated }: { createdBy: string; onClose: () => void; onCreated: () => void }) {
-  const [form, setForm] = useState<Record<string, string>>({ name: '', template_name: '', header_image_url: DEFAULT_BANNER, body_params: '', numbers: '' })
+  const [form, setForm] = useState<Record<string, string>>({
+    name: '', template_name: '', header_type: 'document',
+    header_image_url: DEFAULT_BANNER, header_doc_url: DEFAULT_BROCHURE, header_doc_filename: DEFAULT_BROCHURE_NAME,
+    body_params: '', extra_vars: '', numbers: '',
+  })
   const [personalize, setPersonalize] = useState(false)
   const [fallback, setFallback] = useState('Sir/Madam')
   const fileRef = useRef<HTMLInputElement>(null)
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }))
   const recipients = parseRecipients(form.numbers)
   const withNames = recipients.filter(r => r.name).length
-  const canSave = form.name.trim() && form.template_name.trim() && recipients.length > 0
+  const headerOk = form.header_type !== 'document' || form.header_doc_url.trim().length > 0
+  const canSave = form.name.trim() && form.template_name.trim() && recipients.length > 0 && headerOk
 
   // Read an uploaded CSV/TXT and append its rows to the numbers box (phone in the first
   // column, optional name in the second). parseRecipients handles the live parsing/dedup.
@@ -154,13 +161,20 @@ function NewCampaignModal({ createdBy, onClose, onCreated }: { createdBy: string
   const create = useMutation({
     mutationFn: async () => {
       const fb = fallback.trim() || 'Sir/Madam'
-      // When personalizing, {{1}} = each recipient's name (fallback for blanks) and the
-      // campaign-level default mirrors the fallback. Otherwise use the manual variables.
-      const bodyParams = personalize ? [fb] : form.body_params.split(',').map(s => s.trim()).filter(Boolean)
+      const ht = form.header_type
+      // Campaign-level variables after the name — {{2}}, {{3}}, … (e.g. the expo name).
+      // Split on "|" so an event that itself contains a comma stays one variable.
+      const extraVars = form.extra_vars.split('|').map(s => s.trim()).filter(Boolean)
+      // When personalizing, {{1}} = each recipient's name (fallback for blanks), then the
+      // extra variables. Otherwise all variables come from the manual field, in order.
+      const bodyParams = personalize ? [fb, ...extraVars] : form.body_params.split(',').map(s => s.trim()).filter(Boolean)
       const { data: camp, error } = await db.from('wa_campaigns').insert({
         name: form.name.trim(),
         template_name: form.template_name.trim(),
-        header_image_url: form.header_image_url.trim() || null,
+        header_type: ht,
+        header_image_url: ht === 'image' ? (form.header_image_url.trim() || null) : null,
+        header_doc_url: ht === 'document' ? (form.header_doc_url.trim() || null) : null,
+        header_doc_filename: ht === 'document' ? (form.header_doc_filename.trim() || DEFAULT_BROCHURE_NAME) : null,
         body_params: bodyParams,
         total: recipients.length,
         created_by: createdBy,
@@ -169,7 +183,7 @@ function NewCampaignModal({ createdBy, onClose, onCreated }: { createdBy: string
       // Insert recipients in chunks (queued). Personalized sends carry per-recipient params.
       const rows = recipients.map(r => ({
         campaign_id: camp.id, phone: r.phone, name: r.name,
-        ...(personalize ? { params: [r.name || fb] } : {}),
+        ...(personalize ? { params: [r.name || fb, ...extraVars] } : {}),
       }))
       for (let i = 0; i < rows.length; i += 500) {
         const { error: rErr } = await db.from('wa_campaign_recipients').insert(rows.slice(i, i + 500))
@@ -194,12 +208,29 @@ function NewCampaignModal({ createdBy, onClose, onCreated }: { createdBy: string
           </div>
           <div>
             <label className="block text-xs font-medium text-brand-950 mb-1">Approved template name *</label>
-            <input className={ic} value={form.template_name} onChange={e => set('template_name', e.target.value)} placeholder="e.g. tps_marketing_intro" />
+            <input className={ic} value={form.template_name} onChange={e => set('template_name', e.target.value)} placeholder="e.g. tps_intro_named" />
             <p className="text-[11px] text-muted-foreground mt-1">Must be an <b>approved</b> template in Meta WhatsApp Manager (language: English).</p>
           </div>
           <div>
-            <label className="block text-xs font-medium text-brand-950 mb-1">Header image URL <span className="font-normal text-muted-foreground">(if the template has an image header)</span></label>
-            <input className={ic} value={form.header_image_url} onChange={e => set('header_image_url', e.target.value)} />
+            <label className="block text-xs font-medium text-brand-950 mb-1">Header <span className="font-normal text-muted-foreground">(top of the message — must match the approved template)</span></label>
+            <div className="flex gap-2 mb-2">
+              {([['document', 'PDF brochure'], ['image', 'Image banner'], ['none', 'None']] as const).map(([val, lbl]) => (
+                <button key={val} type="button" onClick={() => set('header_type', val)}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-lg border ${form.header_type === val ? 'bg-brand-600 text-white border-brand-600' : 'border-border text-muted-foreground hover:bg-[#F8FAFC]'}`}>
+                  {lbl}
+                </button>
+              ))}
+            </div>
+            {form.header_type === 'document' && (
+              <div className="space-y-2">
+                <input className={ic} value={form.header_doc_url} onChange={e => set('header_doc_url', e.target.value)} placeholder="https://portal.tpsxpert.com/tps-brochure.pdf" />
+                <input className={ic} value={form.header_doc_filename} onChange={e => set('header_doc_filename', e.target.value)} placeholder="File name shown in WhatsApp, e.g. TPS Xperts Group Profile.pdf" />
+                <p className="text-[11px] text-muted-foreground">Direct link to a public PDF. To use a <b>different brochure</b>, just paste its URL here. The Meta template must have a <b>Document</b> header.</p>
+              </div>
+            )}
+            {form.header_type === 'image' && (
+              <input className={ic} value={form.header_image_url} onChange={e => set('header_image_url', e.target.value)} placeholder="https://portal.tpsxpert.com/tps-signature.jpg" />
+            )}
           </div>
 
           <div className="rounded-lg border border-border bg-[#F8FAFC] px-3 py-3 space-y-3">
@@ -208,15 +239,22 @@ function NewCampaignModal({ createdBy, onClose, onCreated }: { createdBy: string
               <span className="text-xs text-brand-950">
                 <b>Personalize with recipient name</b>
                 <span className="block text-muted-foreground font-normal mt-0.5">
-                  Sends each contact’s name as the template’s first variable <code>{'{{1}}'}</code>. Use an approved template whose body starts with a name variable (e.g. <code>tps_marketing_intro_named</code>).
+                  Sends each contact’s name as the template’s first variable <code>{'{{1}}'}</code>. Use an approved template whose body starts with a name variable (e.g. <code>tps_intro_named</code>).
                 </span>
               </span>
             </label>
             {personalize && (
-              <div>
-                <label className="block text-xs font-medium text-brand-950 mb-1">Fallback name <span className="font-normal text-muted-foreground">(used when a row has no name)</span></label>
-                <input className={ic} value={fallback} onChange={e => setFallback(e.target.value)} placeholder="Sir/Madam" />
-              </div>
+              <>
+                <div>
+                  <label className="block text-xs font-medium text-brand-950 mb-1">Fallback name <span className="font-normal text-muted-foreground">(used when a row has no name)</span></label>
+                  <input className={ic} value={fallback} onChange={e => setFallback(e.target.value)} placeholder="Sir/Madam" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-brand-950 mb-1">Event / extra variables <span className="font-normal text-muted-foreground">(fills <code>{'{{2}}'}</code>, <code>{'{{3}}'}</code>… — same for everyone; separate multiple with a <code>|</code>)</span></label>
+                  <input className={ic} value={form.extra_vars} onChange={e => set('extra_vars', e.target.value)} placeholder="e.g. IPHEX, Delhi 2026" />
+                  <p className="text-[11px] text-muted-foreground mt-1">Leave blank for a template that only has a name variable. For the expo thank-you, put the event here (it becomes <code>{'{{2}}'}</code>).</p>
+                </div>
+              </>
             )}
           </div>
 

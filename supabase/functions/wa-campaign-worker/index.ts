@@ -48,7 +48,12 @@ serve(async (req) => {
 
     const bodyParams: string[] = Array.isArray(r.params) && r.params.length ? r.params : (camp.body_params ?? [])
     const components: any[] = []
-    if (camp.header_image_url) components.push({ type: 'header', parameters: [{ type: 'image', image: { link: camp.header_image_url } }] })
+    // Header: a PDF document (brochure) or an image, per the campaign's header_type.
+    if (camp.header_type === 'document' && camp.header_doc_url) {
+      components.push({ type: 'header', parameters: [{ type: 'document', document: { link: camp.header_doc_url, filename: camp.header_doc_filename || 'Brochure.pdf' } }] })
+    } else if (camp.header_type !== 'none' && camp.header_image_url) {
+      components.push({ type: 'header', parameters: [{ type: 'image', image: { link: camp.header_image_url } }] })
+    }
     if (bodyParams.length) components.push({ type: 'body', parameters: bodyParams.map((t) => ({ type: 'text', text: (t ?? '').toString().trim() || '—' })) })
 
     try {
