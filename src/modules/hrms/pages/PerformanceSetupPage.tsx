@@ -218,7 +218,7 @@ function GoalsPanel({ cycleId, employeeId, canManage }: { cycleId: string; emplo
 
       {canManage && (
         <div className="border-t border-border pt-3 space-y-2">
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value as GoalCategory })} className={inputCls}>
               {(['KRA', 'KPI', 'goal'] as const).map(c => <option key={c} value={c}>{c}</option>)}
             </select>

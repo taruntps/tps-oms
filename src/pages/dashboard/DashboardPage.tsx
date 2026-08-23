@@ -5,7 +5,7 @@ import { TopBar } from '@/components/layout/TopBar'
 import { ClockBadge } from '@/components/shared/ClockBadge'
 import { computeStageClocks, clockBucket } from '@/lib/projectClock'
 import { Sym } from '@/components/shared/Sym'
-import { useMyProjects, useRecentNotifications, useDirectorStats } from '@/hooks/useDashboard'
+import { useMyProjects, useDirectorStats } from '@/hooks/useDashboard'
 import { useAuth } from '@/contexts/AuthContext'
 import { IncomingTransfers } from '@/pages/projects/ProjectTransfer'
 import { formatDate, formatRupees, daysUntil, cn } from '@/lib/utils'
@@ -16,8 +16,9 @@ import { useProjects } from '@/hooks/useProjects'
 import { supabase } from '@/lib/supabase'
 
 // Decluttered dashboard on the app's glass theme (consistent with every other page).
-// Uses the standard TopBar (name / photo / bell / sign-out). Pending Payments and
-// Today's Punches were removed; the admin business KPIs live in a collapsible strip.
+// Uses the standard TopBar (name / photo / bell / sign-out). Pending Payments, Today's
+// Punches and the in-body Notifications panel were removed (the bell covers alerts);
+// the admin business KPIs live in a collapsible strip.
 export default function DashboardPage() {
   const { profile } = useAuth()
   const navigate = useNavigate()
@@ -26,7 +27,6 @@ export default function DashboardPage() {
   const [showSnapshot, setShowSnapshot] = useState(false)
 
   const { data: myProjects = [], isLoading: loadingProjects } = useMyProjects()
-  const { data: notifications = [], isLoading: loadingNotif } = useRecentNotifications()
   const { data: stats } = useDirectorStats()
   const { data: clients = [] } = useClients()
   const { data: allProjects = [] } = useProjects()
@@ -46,11 +46,6 @@ export default function DashboardPage() {
   const overdue      = activeProjects.filter(p => { const d = daysUntil(p.target_date); return d !== null && d < 0 })
   const dueToday     = activeProjects.filter(p => daysUntil(p.target_date) === 0)
   const dueThisWeek  = activeProjects.filter(p => { const d = daysUntil(p.target_date); return d !== null && d >= 0 && d <= 7 })
-
-  // Dashboard shows only today's or unread notifications
-  const todayStr  = new Date().toISOString().split('T')[0]
-  const dashNotifs = notifications.filter(n => !n.is_read || n.created_at.startsWith(todayStr)).slice(0, 5)
-  const unread = notifications.filter(n => !n.is_read).length
 
   const firstName = profile?.name?.split(' ')[0] ?? 'there'
   const dateStr = new Date().toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })
@@ -124,114 +119,69 @@ export default function DashboardPage() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-
-          {/* Left: Active projects */}
-          <div className="lg:col-span-2 space-y-5">
-            <div>
-              <SectionHeader
-                title="My Active Projects"
-                count={activeProjects.length}
-                onViewAll={() => navigate('/projects')}
-              />
-              {loadingProjects ? (
-                <SkeletonList rows={3} />
-              ) : activeProjects.length === 0 ? (
-                <EmptyState message="No active projects assigned to you." />
-              ) : (
-                <div className="space-y-2 lg:max-h-[calc(100vh-320px)] lg:min-h-[220px] lg:overflow-y-auto lg:pr-1">
-                  {activeProjects.map(p => {
-                    const days = daysUntil(p.target_date)
-                    const isOverdue = days !== null && days < 0
-                    const chips = computeStageClocks(p as any)
-                    const bucket = clockBucket(p as any)
-                    const cardBg =
-                      bucket === 'authority' ? 'bg-blue-50 border-blue-200 hover:border-blue-300' :
-                      bucket === 'client'    ? 'bg-amber-50 border-amber-200 hover:border-amber-300' :
-                                              'bg-green-50 border-green-200 hover:border-green-300'
-                    return (
-                      <div
-                        key={p.id}
-                        onClick={() => navigate(`/projects/${p.id}`)}
-                        className={cn('rounded-xl border px-3.5 py-2.5 cursor-pointer hover:shadow-sm transition-all', cardBg)}
-                      >
-                        {/* Line 1: code (left) · clock (right) */}
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className="font-mono text-[11px] text-muted-foreground shrink-0">{p.project_code}</span>
-                            {p.is_blocked && (
-                              <span className="text-[10px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded-full font-medium shrink-0">BLOCKED</span>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            {chips.map((chip, i) => (
-                              <ClockBadge key={chip.clock + i} clock={chip.clock} since={chip.since}
-                                isBlocked={(p.is_blocked ?? false) && i === 0} personName={(p as any).profiles_assigned?.name ?? ''} />
-                            ))}
-                          </div>
-                        </div>
-                        {/* Line 2: company (left) · due (right) */}
-                        <div className="flex items-center justify-between gap-3 mt-1">
-                          <p className="text-sm font-medium text-brand-950 truncate">
-                            {(p as any).clients?.company_name}
-                            {p.service_type ? <span className="text-muted-foreground font-normal"> — {p.service_type}</span> : null}
-                          </p>
-                          {p.target_date && (
-                            <span className={cn(
-                              'text-[11px] font-medium shrink-0',
-                              isOverdue ? 'text-red-600' : days !== null && days <= 7 ? 'text-amber-600' : 'text-muted-foreground'
-                            )}>
-                              {isOverdue ? `${Math.abs(days!)}d overdue` : days === 0 ? 'Due today' : `Due ${formatDate(p.target_date)}`}
-                            </span>
-                          )}
-                        </div>
+        {/* My Active Projects — the focus, full width */}
+        <div>
+          <SectionHeader
+            title="My Active Projects"
+            count={activeProjects.length}
+            onViewAll={() => navigate('/projects')}
+          />
+          {loadingProjects ? (
+            <SkeletonList rows={3} />
+          ) : activeProjects.length === 0 ? (
+            <EmptyState message="No active projects assigned to you." />
+          ) : (
+            <div className="space-y-2 lg:max-h-[calc(100vh-300px)] lg:overflow-y-auto lg:pr-1">
+              {activeProjects.map(p => {
+                const days = daysUntil(p.target_date)
+                const isOverdue = days !== null && days < 0
+                const chips = computeStageClocks(p as any)
+                const bucket = clockBucket(p as any)
+                const cardBg =
+                  bucket === 'authority' ? 'bg-blue-50 border-blue-200 hover:border-blue-300' :
+                  bucket === 'client'    ? 'bg-amber-50 border-amber-200 hover:border-amber-300' :
+                                          'bg-green-50 border-green-200 hover:border-green-300'
+                return (
+                  <div
+                    key={p.id}
+                    onClick={() => navigate(`/projects/${p.id}`)}
+                    className={cn('rounded-xl border px-3.5 py-2.5 cursor-pointer hover:shadow-sm transition-all', cardBg)}
+                  >
+                    {/* Line 1: code (left) · clock (right) */}
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="font-mono text-[11px] text-muted-foreground shrink-0">{p.project_code}</span>
+                        {p.is_blocked && (
+                          <span className="text-[10px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded-full font-medium shrink-0">BLOCKED</span>
+                        )}
                       </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Right: Notifications */}
-          <div className="space-y-5">
-            <div>
-              <SectionHeader
-                title="Notifications"
-                count={unread}
-                countLabel="unread"
-                icon="notifications"
-                onViewAll={() => navigate('/notifications')}
-              />
-              {loadingNotif ? (
-                <SkeletonList rows={3} />
-              ) : dashNotifs.length === 0 ? (
-                <EmptyState message="No unread notifications." />
-              ) : (
-                <div className="space-y-1.5">
-                  {dashNotifs.map(n => (
-                    <div
-                      key={n.id}
-                      onClick={() => navigate('/notifications')}
-                      className={cn(
-                        'glass-panel rounded-xl px-4 py-3 cursor-pointer hover:bg-white/[0.15] transition-all',
-                        !n.is_read && '!border-white/30 !bg-white/[0.16]'
-                      )}
-                    >
-                      <div className="flex items-start gap-2 min-w-0">
-                        {!n.is_read && <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-primary-fixed-dim shrink-0" />}
-                        <div className={cn('flex-1 min-w-0 overflow-hidden', n.is_read && 'ml-3.5')}>
-                          <p className="text-xs font-medium text-white break-words">{n.title}</p>
-                          {n.body && <p className="text-[11px] text-white/60 mt-0.5 line-clamp-2 break-words">{n.body}</p>}
-                          <p className="text-[10px] text-white/45 mt-1">{formatDate(n.created_at)}</p>
-                        </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {chips.map((chip, i) => (
+                          <ClockBadge key={chip.clock + i} clock={chip.clock} since={chip.since}
+                            isBlocked={(p.is_blocked ?? false) && i === 0} personName={(p as any).profiles_assigned?.name ?? ''} />
+                        ))}
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
+                    {/* Line 2: company (left) · due (right) */}
+                    <div className="flex items-center justify-between gap-3 mt-1">
+                      <p className="text-sm font-medium text-brand-950 truncate">
+                        {(p as any).clients?.company_name}
+                        {p.service_type ? <span className="text-muted-foreground font-normal"> — {p.service_type}</span> : null}
+                      </p>
+                      {p.target_date && (
+                        <span className={cn(
+                          'text-[11px] font-medium shrink-0',
+                          isOverdue ? 'text-red-600' : days !== null && days <= 7 ? 'text-amber-600' : 'text-muted-foreground'
+                        )}>
+                          {isOverdue ? `${Math.abs(days!)}d overdue` : days === 0 ? 'Due today' : `Due ${formatDate(p.target_date)}`}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
             </div>
-          </div>
+          )}
         </div>
       </div>
 

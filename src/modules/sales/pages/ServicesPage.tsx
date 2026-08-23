@@ -176,7 +176,7 @@ function ServiceForm({
               className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-600/20"
               placeholder="Service name" />
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className="block text-xs font-medium text-brand-950 mb-1">Default Fee (₹)</label>
               <input type="number" min="0" step="0.01" value={feeRupees} onChange={e => setFeeRupees(e.target.value)}

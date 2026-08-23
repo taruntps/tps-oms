@@ -69,6 +69,32 @@ export function useDesktopNotifications(opts?: {
     return () => window.removeEventListener('tps:new-notification', handler as EventListener)
   }, [opts?.listen, fire])
 
+  // Fire a sample pop-up so the user can confirm permission + rendering work.
+  // Returns a status the caller can surface: 'sent' | 'blocked' | 'unsupported'.
+  const test = useCallback(async (): Promise<'sent' | 'blocked' | 'unsupported'> => {
+    if (!supported) return 'unsupported'
+    let perm = Notification.permission
+    if (perm === 'default') {
+      perm = await Notification.requestPermission().catch(() => 'denied' as NotificationPermission)
+      setPermission(perm)
+    }
+    if (perm !== 'granted') return 'blocked'
+    // A test explicitly opts back in (so it actually shows even if previously off).
+    localStorage.removeItem(OFF_KEY)
+    setOff(false)
+    try {
+      const n = new Notification('TPS Portal — test', {
+        body: 'Desktop notifications are working. You’ll get these for new alerts.',
+        icon: import.meta.env.BASE_URL + 'logo.png',
+        tag: 'tps-test',
+      })
+      n.onclick = () => { window.focus(); n.close() }
+      return 'sent'
+    } catch {
+      return 'blocked'
+    }
+  }, [supported])
+
   // Toggle used by the settings UI. Turning on also (re)requests permission.
   const setEnabled = useCallback(async (want: boolean) => {
     if (want) {
@@ -84,5 +110,5 @@ export function useDesktopNotifications(opts?: {
     }
   }, [supported])
 
-  return { supported, permission, enabled, setEnabled }
+  return { supported, permission, enabled, setEnabled, test }
 }

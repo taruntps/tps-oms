@@ -84,7 +84,7 @@ export default function AssetsPage() {
               <input className={inputCls} placeholder="Serial no" value={form.serial_no} onChange={(e) => setForm((f) => ({ ...f, serial_no: e.target.value }))} />
             </div>
             <input className={inputCls} placeholder="Description" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div><label className="text-[11px] text-muted-foreground">Purchased</label><input type="date" className={inputCls} value={form.purchase_date} onChange={(e) => setForm((f) => ({ ...f, purchase_date: e.target.value }))} /></div>
               <div><label className="text-[11px] text-muted-foreground">Cost ₹</label><input type="number" className={inputCls} value={form.cost_rupees} onChange={(e) => setForm((f) => ({ ...f, cost_rupees: e.target.value }))} /></div>
               <div><label className="text-[11px] text-muted-foreground">Lic. expiry</label><input type="date" className={inputCls} value={form.license_expiry} onChange={(e) => setForm((f) => ({ ...f, license_expiry: e.target.value }))} /></div>

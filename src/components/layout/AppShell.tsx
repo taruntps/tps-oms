@@ -76,8 +76,10 @@ export function AppShell() {
         </div>
       )}
 
-      {/* Main content (transparent so the mesh-gradient body shows through) */}
-      <main className="flex-1 min-w-0 overflow-y-auto">
+      {/* Main content (transparent so the mesh-gradient body shows through).
+          overscroll-none stops the rubber-band bounce that made the sticky header
+          spring on over-pull. */}
+      <main className="flex-1 min-w-0 overflow-y-auto overscroll-none">
         {/* Mobile top strip with hamburger */}
         <div className="md:hidden flex items-center gap-3 px-4 py-3 glass-header sticky top-0 z-30">
           <button

@@ -106,17 +106,23 @@
     border: 1px solid rgba(255, 255, 255, 0.2);
     box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
   }
-  /* Sticky top bars: a near-solid surface promoted to its own GPU layer.
-     Deliberately NO backdrop-filter — a blurred sticky element forces the browser
-     to re-rasterise every scroll frame, which made the header visibly shake. A
-     solid-ish background over the mesh looks clean and stays perfectly still. */
+  /* Sticky top bars: paint the SAME theme mesh as the body (with a light dark
+     overlay for text contrast) so the header blends into the page instead of
+     reading as a black bar. Deliberately NO backdrop-filter — a blurred sticky
+     element re-rasterises every scroll frame and visibly shook; an opaque mesh
+     that is `fixed` to the viewport aligns with the body and stays perfectly still. */
   .glass-header {
-    background: rgba(11, 21, 38, 0.88);
-    border: 1px solid rgba(255, 255, 255, 0.10);
-    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.18);
-    transform: translateZ(0);
-    -webkit-transform: translateZ(0);
-    will-change: transform;
+    background-color: var(--theme-base, #004c6e);
+    background-image:
+      linear-gradient(rgba(3, 10, 20, 0.26), rgba(3, 10, 20, 0.34)),
+      radial-gradient(at 0% 0%, var(--theme-tl, #006591) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, var(--theme-tr, #10B981) 0px, transparent 50%),
+      radial-gradient(at 100% 100%, var(--theme-br, #004c6e) 0px, transparent 50%),
+      radial-gradient(at 0% 100%, var(--theme-bl, #6366F1) 0px, transparent 50%);
+    background-attachment: fixed;
+    background-size: cover;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.14);
   }
   /* Readable surface for forms / dropdowns / dense tables (dark text) */
   .glass-readable {

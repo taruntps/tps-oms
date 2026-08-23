@@ -5,6 +5,7 @@ import { useNotifications } from '@/hooks/useNotifications'
 import { useDesktopNotifications } from '@/hooks/useDesktopNotifications'
 import { formatDate } from '@/lib/utils'
 import { Sym } from '@/components/shared/Sym'
+import { toast } from '@/components/shared/Toast'
 
 const TYPE_COLOR: Record<string, string> = {
   stage_overdue:    'bg-red-100 text-red-700',
@@ -125,24 +126,39 @@ export function NotificationPanel() {
                 )}
               </span>
             </div>
-            {desktop.supported && desktop.permission !== 'denied' ? (
-              <button
-                onClick={() => desktop.setEnabled(!desktop.enabled)}
-                role="switch"
-                aria-checked={desktop.enabled}
-                className={cn(
-                  'relative w-9 h-5 rounded-full transition-colors shrink-0',
-                  desktop.enabled ? 'bg-brand-600' : 'bg-gray-300'
-                )}
-              >
-                <span className={cn(
-                  'absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all',
-                  desktop.enabled ? 'left-[18px]' : 'left-0.5'
-                )} />
-              </button>
-            ) : (
-              <span className="text-[10px] text-muted-foreground shrink-0">unavailable</span>
-            )}
+            <div className="flex items-center gap-2.5 shrink-0">
+              {desktop.supported && desktop.permission !== 'denied' && (
+                <button
+                  onClick={async () => {
+                    const r = await desktop.test()
+                    if (r === 'sent') toast.success('Test sent', 'Check your desktop for the pop-up.')
+                    else if (r === 'blocked') toast.error('Notifications blocked', 'Click the lock icon in the address bar → allow Notifications, then retry.')
+                    else toast.error('Not supported', 'This browser can’t show desktop notifications.')
+                  }}
+                  className="text-[11px] font-medium text-brand-600 hover:text-brand-700"
+                >
+                  Send test
+                </button>
+              )}
+              {desktop.supported && desktop.permission !== 'denied' ? (
+                <button
+                  onClick={() => desktop.setEnabled(!desktop.enabled)}
+                  role="switch"
+                  aria-checked={desktop.enabled}
+                  className={cn(
+                    'relative w-9 h-5 rounded-full transition-colors shrink-0',
+                    desktop.enabled ? 'bg-brand-600' : 'bg-gray-300'
+                  )}
+                >
+                  <span className={cn(
+                    'absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all',
+                    desktop.enabled ? 'left-[18px]' : 'left-0.5'
+                  )} />
+                </button>
+              ) : (
+                <span className="text-[10px] text-muted-foreground">unavailable</span>
+              )}
+            </div>
           </div>
         </div>
       )}

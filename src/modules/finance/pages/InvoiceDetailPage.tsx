@@ -74,7 +74,7 @@ export default function InvoiceDetailPage() {
               <p className="text-sm text-muted-foreground">{clientLabel}</p>
               {invoice.client_gstin && <p className="text-xs text-muted-foreground font-mono">GSTIN {invoice.client_gstin}</p>}
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-2">
               {invoice.pdf_url && (
                 <a href={invoice.pdf_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-sm text-brand-700 border border-border rounded-lg px-3 py-1.5 hover:bg-[#F8FAFC]">
                   <Sym name="picture_as_pdf" size={15} /> Open PDF

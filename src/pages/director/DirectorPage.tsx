@@ -39,7 +39,7 @@ export default function DirectorPage() {
             {/* ── Clock distribution ── */}
             <div className="bg-white rounded-xl border border-border p-5">
               <h3 className="font-display font-semibold text-brand-950 text-sm mb-4">Active Project Clock Distribution</h3>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <ClockBar label="🟢 Employee" value={stats.onEmployee}  total={stats.active} color="bg-green-500" />
                 <ClockBar label="🟡 Client"   value={stats.onClient}    total={stats.active} color="bg-amber-400" />
                 <ClockBar label="🔵 FSSAI"    value={stats.onAuthority} total={stats.active} color="bg-blue-500"  />
