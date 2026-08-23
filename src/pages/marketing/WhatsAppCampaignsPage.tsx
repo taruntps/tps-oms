@@ -89,7 +89,7 @@ export default function WhatsAppCampaignsPage() {
           ) : campaigns.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-10">No campaigns yet. Click “New Campaign” to create one.</p>
           ) : (
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto"><table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-[11px] uppercase tracking-wide text-muted-foreground">
                   <th className="px-5 py-2.5 font-medium">Campaign</th>
@@ -119,7 +119,7 @@ export default function WhatsAppCampaignsPage() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           )}
         </div>
       </div>

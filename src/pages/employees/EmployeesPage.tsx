@@ -54,7 +54,7 @@ export default function EmployeesPage() {
             <p className="text-sm text-white/60">No employees found.</p>
           </div>
         ) : (
-          <div className="bg-white rounded-xl border border-border overflow-hidden">
+          <div className="bg-white rounded-xl border border-border overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-[#F8FAFC] border-b border-border">
                 <tr>

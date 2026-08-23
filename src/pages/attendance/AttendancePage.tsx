@@ -185,7 +185,7 @@ export default function AttendancePage() {
                 <p className="text-sm text-white/60">No one has punched in yet today.</p>
               </div>
             ) : (
-              <div className="bg-white rounded-xl border border-border overflow-hidden">
+              <div className="bg-white rounded-xl border border-border overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-[#F8FAFC] border-b border-border">
                     <tr>{['Emp ID','Name','First In','Last Punch','Punches','Status'].map(h =>
@@ -226,7 +226,7 @@ export default function AttendancePage() {
               <p className="text-sm text-white/60">No attendance recorded yet.</p>
             </div>
           ) : (
-            <div className="bg-white rounded-xl border border-border overflow-hidden">
+            <div className="bg-white rounded-xl border border-border overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-[#F8FAFC] border-b border-border">
                   <tr>{['Date','First In','Last Out','Hours','Punches'].map(h =>

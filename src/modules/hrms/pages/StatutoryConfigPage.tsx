@@ -75,7 +75,7 @@ export default function StatutoryConfigPage() {
           STATUTES.filter(s => grouped.has(s)).map(statute => (
             <div key={statute} className="bg-white rounded-xl border border-border overflow-hidden">
               <div className="px-4 py-2.5 border-b border-border bg-[#F8FAFC] font-medium text-brand-950">{statute}</div>
-              <table className="w-full text-sm">
+              <div className="overflow-x-auto"><table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border text-left text-[11px] uppercase tracking-wide text-muted-foreground">
                     <th className="px-4 py-2 font-medium">Param</th>
@@ -96,7 +96,7 @@ export default function StatutoryConfigPage() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </table></div>
             </div>
           ))
         )}

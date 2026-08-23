@@ -97,7 +97,7 @@ export default function HrSettingsPage() {
             <p className="text-sm text-muted-foreground">No policy settings configured yet.</p>
           </div>
         ) : (
-          <div className="bg-white rounded-xl border border-border overflow-hidden">
+          <div className="bg-white rounded-xl border border-border overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-[11px] uppercase tracking-wide text-muted-foreground">

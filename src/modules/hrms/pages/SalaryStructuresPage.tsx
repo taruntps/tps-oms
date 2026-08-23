@@ -99,7 +99,7 @@ function StructuresTab({ canManage }: { canManage: boolean }) {
                 </div>
               )}
             </div>
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto"><table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-[11px] uppercase tracking-wide text-muted-foreground">
                   <th className="py-2 font-medium">Component</th>
@@ -138,7 +138,7 @@ function StructuresTab({ canManage }: { canManage: boolean }) {
                 ))}
                 {rows.length === 0 && <tr><td colSpan={4} className="py-8 text-center text-muted-foreground">No component lines.</td></tr>}
               </tbody>
-            </table>
+            </table></div>
           </div>
         ) : (
           <div className="bg-white rounded-xl border border-dashed border-border p-12 text-center">
@@ -234,7 +234,7 @@ function AssignmentTab({ canManage }: { canManage: boolean }) {
               <>
                 <div className="flex justify-between text-sm mb-1"><span className="text-muted-foreground">CTC (annual)</span><span className="font-medium text-brand-950">{fmtPaise(current.ctc)}</span></div>
                 <div className="flex justify-between text-sm mb-3"><span className="text-muted-foreground">Effective from</span><span className="text-brand-950">{formatDate(current.effective_from)}</span></div>
-                <table className="w-full text-sm">
+                <div className="overflow-x-auto"><table className="w-full text-sm">
                   <thead><tr className="text-left text-[11px] uppercase tracking-wide text-muted-foreground border-b border-border"><th className="py-1.5 font-medium">Component</th><th className="py-1.5 font-medium">Value</th></tr></thead>
                   <tbody>
                     {curComps.map(c => (
@@ -245,7 +245,7 @@ function AssignmentTab({ canManage }: { canManage: boolean }) {
                     ))}
                     {curComps.length === 0 && <tr><td colSpan={2} className="py-4 text-center text-muted-foreground">No resolved components.</td></tr>}
                   </tbody>
-                </table>
+                </table></div>
               </>
             ) : <p className="text-sm text-muted-foreground py-4">No active salary assigned.</p>}
           </div>

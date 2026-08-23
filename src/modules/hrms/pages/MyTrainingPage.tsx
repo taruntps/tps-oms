@@ -19,7 +19,7 @@ export default function MyTrainingPage() {
       <div className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="border border-border rounded-xl bg-white overflow-hidden">
           <div className="px-4 py-2 bg-[#F8FAFC] text-xs font-semibold text-brand-950">My Trainings</div>
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto"><table className="w-full text-sm">
             <tbody className="divide-y divide-border">
               {(enrolments as any[]).length === 0 && <tr><td className="px-4 py-4 text-center text-muted-foreground">No enrolments.</td></tr>}
               {(enrolments as any[]).map((en) => (
@@ -30,11 +30,11 @@ export default function MyTrainingPage() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         </div>
         <div className="border border-border rounded-xl bg-white overflow-hidden">
           <div className="px-4 py-2 bg-[#F8FAFC] text-xs font-semibold text-brand-950">My Certifications</div>
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto"><table className="w-full text-sm">
             <tbody className="divide-y divide-border">
               {(certs as any[]).length === 0 && <tr><td className="px-4 py-4 text-center text-muted-foreground">No certifications.</td></tr>}
               {(certs as any[]).map((c) => (
@@ -44,7 +44,7 @@ export default function MyTrainingPage() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         </div>
       </div>
     </div>

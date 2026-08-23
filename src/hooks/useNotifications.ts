@@ -46,6 +46,11 @@ export function useNotifications() {
         const newNotif = payload.new as Notification
         setNotifications(prev => [newNotif, ...prev.slice(0, 19)])
         setUnreadCount(prev => prev + 1)
+        // Bridge to the desktop-notification layer (useDesktopNotifications listens).
+        // Duplicate events from multiple hook instances collapse via the id `tag`.
+        window.dispatchEvent(new CustomEvent('tps:new-notification', {
+          detail: { id: newNotif.id, title: newNotif.title, body: newNotif.body },
+        }))
       })
       .subscribe()
 

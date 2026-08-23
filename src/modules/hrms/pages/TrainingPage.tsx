@@ -51,7 +51,7 @@ export default function TrainingPage() {
       <div className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="border border-border rounded-xl bg-white overflow-hidden">
           <div className="px-4 py-2 bg-[#F8FAFC] text-xs font-semibold text-brand-950">Trainings</div>
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto"><table className="w-full text-sm">
             <tbody className="divide-y divide-border">
               {isLoading && <tr><td className="px-4 py-6 text-center text-muted-foreground">Loading…</td></tr>}
               {!isLoading && trainings.length === 0 && <tr><td className="px-4 py-6 text-center text-muted-foreground">No trainings.</td></tr>}
@@ -66,7 +66,7 @@ export default function TrainingPage() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         </div>
         {selected && <EnrolmentPanel training={selected} canManage={canManage} onSetStatus={(s) => setStatus.mutate({ id: selected.id, status: s })} />}
       </div>
@@ -120,7 +120,7 @@ function EnrolmentPanel({ training, canManage, onSetStatus }: { training: Traini
           <button onClick={() => { if (pick) { nominate.mutate({ training_id: training.id, employee_id: pick }); setPick('') } }} disabled={!pick} className="px-3 py-1.5 bg-brand-600 text-white text-xs rounded-lg disabled:opacity-50">Add</button>
         </div>
       )}
-      <table className="w-full text-sm">
+      <div className="overflow-x-auto"><table className="w-full text-sm">
         <tbody className="divide-y divide-border">
           {enrolments.length === 0 && <tr><td className="px-4 py-4 text-muted-foreground text-center">No enrolments.</td></tr>}
           {enrolments.map((en: any) => (
@@ -137,7 +137,7 @@ function EnrolmentPanel({ training, canManage, onSetStatus }: { training: Traini
             </tr>
           ))}
         </tbody>
-      </table>
+      </table></div>
     </div>
   )
 }

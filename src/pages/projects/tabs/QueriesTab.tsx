@@ -100,7 +100,7 @@ function RoundCard({ round, projectId, meId, isAdmin, closed }: { round: QueryRo
         )}
       </div>
 
-      <table className="w-full text-sm">
+      <div className="overflow-x-auto"><table className="w-full text-sm">
         <thead><tr className="text-[10px] text-muted-foreground uppercase tracking-wide bg-white">
           <th className="text-left px-4 py-2 w-12">S.No</th>
           <th className="text-left px-4 py-2">Query</th>
@@ -123,7 +123,7 @@ function RoundCard({ round, projectId, meId, isAdmin, closed }: { round: QueryRo
             </tr>
           ))}
         </tbody>
-      </table>
+      </table></div>
 
       <RoleGuard roles={['super_admin','director','manager','executive']}>
         <div className="px-4 py-2.5 border-t border-border flex items-center gap-2">

@@ -82,6 +82,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       // Legacy per-session flag cleanup.
       Object.keys(sessionStorage).filter(k => k.startsWith('twofa_ok:')).forEach(k => sessionStorage.removeItem(k))
+      // Re-show the morning greeting on the next fresh login.
+      sessionStorage.removeItem('greeted_session')
     } catch { /* ignore */ }
     setSession(null)
     setUser(null)

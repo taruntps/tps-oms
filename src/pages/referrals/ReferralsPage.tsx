@@ -73,7 +73,7 @@ export default function ReferralsPage() {
                 </div>
                 {open === r.id && r.clients.length > 0 && (
                   <div className="border-t border-border bg-[#F8FAFC] px-5 py-3">
-                    <table className="w-full text-sm">
+                    <div className="overflow-x-auto"><table className="w-full text-sm">
                       <thead><tr className="text-[10px] text-muted-foreground uppercase tracking-wide">
                         <th className="text-left py-1">Client</th><th className="text-right py-1">Received</th></tr></thead>
                       <tbody>
@@ -84,7 +84,7 @@ export default function ReferralsPage() {
                           </tr>
                         ))}
                       </tbody>
-                    </table>
+                    </table></div>
                   </div>
                 )}
               </div>

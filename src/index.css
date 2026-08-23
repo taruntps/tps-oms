@@ -35,6 +35,17 @@
     @apply border-border;
   }
 
+  /* Mobile safety net: never let a stray-wide element create a horizontal page
+     scroll, and keep media inside its column. Per-page wide content (tables) still
+     scrolls inside its own overflow-x-auto wrapper. */
+  html, body {
+    overflow-x: hidden;
+    max-width: 100%;
+  }
+  img, svg, video, canvas {
+    max-width: 100%;
+  }
+
   body {
     @apply text-foreground font-sans;
     /* Theme-aware mesh-gradient backdrop (fixed so it covers the viewport) */

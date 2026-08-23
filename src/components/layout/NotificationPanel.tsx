@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { useNotifications } from '@/hooks/useNotifications'
+import { useDesktopNotifications } from '@/hooks/useDesktopNotifications'
 import { formatDate } from '@/lib/utils'
 import { Sym } from '@/components/shared/Sym'
 
@@ -21,6 +22,7 @@ export function NotificationPanel() {
   const ref = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
   const { notifications, unreadCount, loading, markAllRead, markRead } = useNotifications()
+  const desktop = useDesktopNotifications()
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -109,6 +111,37 @@ export function NotificationPanel() {
                   </p>
                 </div>
               ))
+            )}
+          </div>
+
+          {/* Desktop pop-up toggle — on by default; per-device opt-out */}
+          <div className="flex items-center justify-between px-4 py-2.5 border-t border-border bg-[#F8FAFC]">
+            <div className="flex items-center gap-2 min-w-0">
+              <Sym name="desktop_windows" size={14} className="text-muted-foreground shrink-0" />
+              <span className="text-[11px] text-brand-950 truncate">
+                Desktop pop-ups
+                {desktop.supported && desktop.permission === 'denied' && (
+                  <span className="text-muted-foreground"> · blocked in browser</span>
+                )}
+              </span>
+            </div>
+            {desktop.supported && desktop.permission !== 'denied' ? (
+              <button
+                onClick={() => desktop.setEnabled(!desktop.enabled)}
+                role="switch"
+                aria-checked={desktop.enabled}
+                className={cn(
+                  'relative w-9 h-5 rounded-full transition-colors shrink-0',
+                  desktop.enabled ? 'bg-brand-600' : 'bg-gray-300'
+                )}
+              >
+                <span className={cn(
+                  'absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all',
+                  desktop.enabled ? 'left-[18px]' : 'left-0.5'
+                )} />
+              </button>
+            ) : (
+              <span className="text-[10px] text-muted-foreground shrink-0">unavailable</span>
             )}
           </div>
         </div>

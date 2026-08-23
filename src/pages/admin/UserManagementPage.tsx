@@ -191,7 +191,7 @@ export default function UserManagementPage() {
             {[1,2,3].map(i => <div key={i} className="h-16 glass-panel rounded-xl animate-pulse" />)}
           </div>
         ) : (
-          <div className="bg-white rounded-xl border border-border overflow-hidden">
+          <div className="bg-white rounded-xl border border-border overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-[#F8FAFC] border-b border-border">
                 <tr>
