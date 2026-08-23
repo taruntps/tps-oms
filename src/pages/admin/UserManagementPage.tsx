@@ -91,7 +91,7 @@ export default function UserManagementPage() {
     queryKey: ['profiles', 'all'],
     queryFn: async () => {
       const { data, error } = await (supabase.from('profiles') as any)
-        .select('id, name, role, is_active, can_edit_clients, can_be_assigned, can_assign, can_view_all_projects, report_permissions, phone, whatsapp_number, face_enrolled_at')
+        .select('id, name, email, role, is_active, can_edit_clients, can_be_assigned, can_assign, can_view_all_projects, report_permissions, phone, whatsapp_number, face_enrolled_at')
         .order('name')
       if (error) throw error
       return (data as unknown as UserRow[]).map(u => ({
@@ -392,7 +392,7 @@ export default function UserManagementPage() {
 
 function UserForm({ user, onClose, onSaved }: { user: UserRow | null; onClose: () => void; onSaved: () => void }) {
   const [form, setForm] = useState<InviteForm>({
-    email: '',
+    email: user?.email ?? '',
     name:  user?.name ?? '',
     role:  user?.role ?? 'executive',
     phone: user?.phone ?? '',
@@ -411,7 +411,7 @@ function UserForm({ user, onClose, onSaved }: { user: UserRow | null; onClose: (
     setLoading(true)
     try {
       if (isEdit) {
-        // Update profile details only
+        // Update profile details
         const { error } = await supabase.from('profiles').update({
           name: form.name,
           role: form.role,
@@ -419,6 +419,17 @@ function UserForm({ user, onClose, onSaved }: { user: UserRow | null; onClose: (
           whatsapp_number: form.whatsapp_number || null,
         }).eq('id', user.id)
         if (error) throw error
+        // If the login email changed, update the Auth sign-in identity via the admin function.
+        const newEmail = form.email.trim().toLowerCase()
+        if (newEmail && newEmail !== (user.email ?? '').toLowerCase()) {
+          const { data, error: emErr } = await supabase.functions.invoke('admin-update-email', { body: { userId: user.id, email: newEmail } })
+          if (emErr) {
+            let msg = emErr.message || 'Email update failed'
+            try { const b = await (emErr as any).context?.json?.(); if (b?.error) msg = b.error } catch { /* keep generic */ }
+            throw new Error(msg)
+          }
+          if (data?.error) throw new Error(data.error)
+        }
         toast.success('User updated')
       } else if (form.mode === 'create') {
         // Create directly (supports Employee Code login for non-email staff)
@@ -525,13 +536,14 @@ function UserForm({ user, onClose, onSaved }: { user: UserRow | null; onClose: (
             </div>
           )}
 
-          {/* Email — shown unless create + code-only */}
-          {!isEdit && (form.mode === 'invite' || form.loginMethod !== 'code') && (
+          {/* Email — creation: shown unless code-only. Edit: the login email (Super Admin/Director). */}
+          {(isEdit || form.mode === 'invite' || form.loginMethod !== 'code') && (
             <div>
-              <label className="block text-xs font-medium text-brand-950 mb-1">Email *</label>
+              <label className="block text-xs font-medium text-brand-950 mb-1">{isEdit ? 'Login email' : 'Email *'}</label>
               <input type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})}
                 className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-600/20"
                 placeholder="employee@tpsxperts.com" />
+              {isEdit && <p className="text-[11px] text-muted-foreground mt-1">The address they sign in with. Changing it updates their login immediately (no email sent).</p>}
             </div>
           )}
 
