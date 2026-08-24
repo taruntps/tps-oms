@@ -24,7 +24,7 @@ export function ManageAccessDrawer({ userId, userName, onClose }: {
   const { data: state, isLoading: ls } = useQuery({ queryKey: ['user-access-state', userId], queryFn: () => fetchUserAccessState(userId) })
 
   const tree = useMemo(
-    () => (catalog ? buildAccessTree(catalog.labels, catalog.keys) : []),
+    () => (catalog ? buildAccessTree(catalog.keys) : []),
     [catalog],
   )
   // Every controllable item, incl. each head's section item (e.g. Reports → reports.view).

@@ -80,8 +80,9 @@ export const REPORT_TABS: { key: string; label: string }[] = [
 ]
 const REPORTS_SECTION_KEY = 'reports.view'
 
-/** Build the Head → Sub-group → Page tree from the nav registry + report tabs. */
-export function buildAccessTree(catalogLabels: Map<string, string>, catalogKeys: Set<string>): AccessHead[] {
+/** Build the Head → Sub-group → Page tree from the nav registry + report tabs.
+ *  Rows are labelled with the exact SIDEBAR label so the panel reads 1:1 with the nav. */
+export function buildAccessTree(catalogKeys: Set<string>): AccessHead[] {
   const navEntries = [...coreNav, ...MODULES.flatMap(m => m.nav)].filter(e => !!e.permission)
   // head → subgroup → items (deduped by viewKey across the whole tree)
   const tree = new Map<NavGroup, Map<string, AccessItem[]>>()
@@ -102,7 +103,7 @@ export function buildAccessTree(catalogLabels: Map<string, string>, catalogKeys:
     const sub = SUBGROUP_MAP[e.to] ?? DEFAULT_SUB
     const manage = key.endsWith('.view') ? key.slice(0, -'.view'.length) + '.manage' : null
     add(head, sub, {
-      label: catalogLabels.get(key) ?? e.label,
+      label: e.label,
       viewKey: key,
       editKey: manage && catalogKeys.has(manage) ? manage : null,
     })
