@@ -6,6 +6,7 @@ import { toast } from '@/components/shared/Toast'
 import { useAuth } from '@/contexts/AuthContext'
 import { Sym } from '@/components/shared/Sym'
 import { cn } from '@/lib/utils'
+import { ManageAccessDrawer } from './ManageAccessDrawer'
 
 const ROLES = ['executive', 'manager', 'director', 'accounts', 'super_admin'] as const
 type Role = typeof ROLES[number]
@@ -81,6 +82,7 @@ export default function UserManagementPage() {
   const [editUser, setEditUser] = useState<UserRow | null>(null)
   const [resetUser, setResetUser] = useState<UserRow | null>(null)
   const [newPwd, setNewPwd] = useState('')
+  const [manageUser, setManageUser] = useState<UserRow | null>(null)
 
   const resetPassword = useMutation({
     mutationFn: async ({ id, password }: { id: string; password: string }) => {
@@ -310,6 +312,15 @@ export default function UserManagementPage() {
                         >
                           <Sym name="edit" size={13} />
                         </button>
+                        {(profile?.role === 'super_admin' || profile?.role === 'director') && u.id !== profile?.id && u.role !== 'super_admin' && (
+                          <button
+                            onClick={() => setManageUser(u)}
+                            className="p-1.5 text-muted-foreground hover:text-brand-600 hover:bg-brand-50 rounded-lg"
+                            title="Manage access (per-page view/edit)"
+                          >
+                            <Sym name="admin_panel_settings" size={14} />
+                          </button>
+                        )}
                         {profile?.role === 'super_admin' && (
                           <button
                             onClick={() => { setResetUser(u); setNewPwd('') }}
@@ -358,6 +369,10 @@ export default function UserManagementPage() {
           onClose={() => { setShowForm(false); setEditUser(null) }}
           onSaved={() => { qc.invalidateQueries({ queryKey: ['profiles'] }); setShowForm(false); setEditUser(null) }}
         />
+      )}
+
+      {manageUser && (
+        <ManageAccessDrawer userId={manageUser.id} userName={manageUser.name} onClose={() => setManageUser(null)} />
       )}
 
       {/* Reset password modal */}

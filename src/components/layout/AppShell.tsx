@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
-import { Outlet, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
+import { RoutePermissionGuard } from './RoutePermissionGuard'
 import { Sym } from '@/components/shared/Sym'
 import { IdleTimeout } from '@/components/shared/IdleTimeout'
 import { GreetingModal } from '@/components/shared/GreetingModal'
@@ -91,7 +92,7 @@ export function AppShell() {
           <span className="text-white font-display font-semibold text-sm">TPS Portal</span>
         </div>
 
-        <Outlet />
+        <RoutePermissionGuard />
       </main>
       <QuickPunchFab />
     </div>
