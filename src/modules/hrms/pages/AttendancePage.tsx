@@ -302,36 +302,50 @@ function CorrectionModal({ employeeId, workDate, hr, correctedBy, onClose }: {
   const correct = useCorrectAttendanceDay()
   const { data: punches = [], isLoading: lpunch } = useEmployeeDayPunches(employeeId, workDate)
   const punchEdit = useAdminPunchEdit()
-  const [status, setStatus] = useState<AttendanceStatus>((hr?.status as AttendanceStatus) ?? 'present')
+  // '' = keep the computed status (no manual override). Any real status = force it.
+  const initialStatus = (hr?.status as AttendanceStatus | undefined) ?? ''
+  const [status, setStatus] = useState<AttendanceStatus | ''>(initialStatus)
   const [remarks, setRemarks] = useState(hr?.remarks ?? '')
   const [reason, setReason] = useState('')
   const [addTime, setAddTime] = useState('')
+  const [times, setTimes] = useState<Record<string, string>>({}) // punchId → edited HH:MM
+  const [saving, setSaving] = useState(false)
 
   const reasonOrNull = () => reason.trim() || null
-  const busy = punchEdit.add.isPending || punchEdit.edit.isPending || punchEdit.remove.isPending
+  const curTime = (p: RawPunch) => times[p.id] ?? toHHMM(p.punch_at)
+  const dirtyPunches = punches.filter(p => curTime(p) !== toHHMM(p.punch_at))
+  const statusChanged = status !== initialStatus
+  const hasChanges = dirtyPunches.length > 0 || !!addTime || statusChanged
 
-  const addPunch = () => {
-    if (!addTime) return
-    punchEdit.add.mutate(
-      { employeeId, atISO: istTimestamp(workDate, addTime), reason: reasonOrNull() },
-      { onSuccess: () => setAddTime('') },
-    )
-  }
+  // Delete stays immediate (explicit, destructive).
+  const deletePunch = (id: string) => punchEdit.remove.mutate({ punchId: id, reason: reasonOrNull() })
 
-  const submitStatus = async (e: React.FormEvent) => {
-    e.preventDefault()
+  // ONE Save persists everything: edited punch times + a new punch + the status
+  // override (only when a concrete status is chosen). Punch-only edits let
+  // evaluate_attendance recompute the status.
+  const saveAll = async () => {
+    if (!hasChanges || saving) return
+    setSaving(true)
     try {
-      await correct.mutateAsync({
-        employeeId, workDate,
-        field: 'status',
-        oldValue: hr?.status ?? null,
-        newValue: status,
-        reason: reasonOrNull(),
-        patch: { status, remarks: remarks.trim() || null, evaluated_at: new Date().toISOString() },
-        correctedBy,
-      })
+      for (const p of dirtyPunches) {
+        await punchEdit.edit.mutateAsync({ punchId: p.id, newTimeISO: istTimestamp(workDate, curTime(p)), reason: reasonOrNull() })
+      }
+      if (addTime) {
+        await punchEdit.add.mutateAsync({ employeeId, atISO: istTimestamp(workDate, addTime), reason: reasonOrNull() })
+      }
+      if (statusChanged) {
+        await correct.mutateAsync({
+          employeeId, workDate, field: 'status',
+          oldValue: hr?.status ?? null,
+          newValue: status || null,
+          reason: reasonOrNull(),
+          patch: { status: status || null, remarks: remarks.trim() || null, evaluated_at: new Date().toISOString() },
+          correctedBy,
+        })
+      }
       onClose()
-    } catch { /* toast surfaced by the hook */ }
+    } catch { /* per-hook toasts surface errors; keep the modal open */ }
+    finally { setSaving(false) }
   }
 
   return (
@@ -360,25 +374,38 @@ function CorrectionModal({ employeeId, workDate, hr, correctedBy, onClose }: {
             ) : (
               <div className="space-y-2">
                 {punches.map(p => (
-                  <PunchRow key={p.id} punch={p} workDate={workDate} reason={reasonOrNull} edit={punchEdit.edit} remove={punchEdit.remove} />
+                  <div key={p.id} className="flex items-center gap-2">
+                    <input type="time" className={ic} value={curTime(p)}
+                      onChange={e => setTimes(t => ({ ...t, [p.id]: e.target.value }))} />
+                    <button type="button" title="Delete punch" disabled={saving || punchEdit.remove.isPending}
+                      onClick={() => deletePunch(p.id)}
+                      className="shrink-0 p-2 rounded-lg text-muted-foreground hover:bg-red-50 hover:text-red-600 disabled:opacity-40">
+                      <Sym name="delete" size={15} />
+                    </button>
+                  </div>
                 ))}
               </div>
             )}
 
+            {/* Add a missing punch — saved by "Save changes" below (not a separate action). */}
             <div className="flex items-center gap-2 mt-2">
               <input type="time" className={ic} value={addTime} onChange={e => setAddTime(e.target.value)} />
-              <button type="button" onClick={addPunch} disabled={!addTime || busy}
-                className="shrink-0 flex items-center gap-1 px-3 py-2 text-xs font-medium border border-border rounded-lg hover:bg-[#F8FAFC] disabled:opacity-50">
-                <Sym name="add" size={13} /> Add
-              </button>
+              {addTime && (
+                <button type="button" title="Clear" onClick={() => setAddTime('')}
+                  className="shrink-0 p-2 rounded-lg text-muted-foreground hover:bg-[#F8FAFC]">
+                  <Sym name="close" size={15} />
+                </button>
+              )}
             </div>
+            <p className="text-[10px] text-muted-foreground mt-1">Edit a time, delete, or add one — all applied by “Save changes”.</p>
           </div>
 
-          {/* ── Force status (for no-punch days or overrides) ── */}
-          <form onSubmit={submitStatus} className="space-y-4 border-t border-border pt-4">
+          {/* ── Force status (optional override) ── */}
+          <div className="space-y-4 border-t border-border pt-4">
             <div>
               <label className="block text-xs font-medium text-brand-950 mb-1">Force status <span className="font-normal text-muted-foreground">(overrides the computed value)</span></label>
-              <select className={ic} value={status} onChange={e => setStatus(e.target.value as AttendanceStatus)}>
+              <select className={ic} value={status} onChange={e => setStatus(e.target.value as AttendanceStatus | '')}>
+                <option value="">Keep computed (no override)</option>
                 {STATUS_OPTIONS.map(s => <option key={s} value={s} className="capitalize">{s.replace('_', ' ')}</option>)}
               </select>
             </div>
@@ -390,43 +417,17 @@ function CorrectionModal({ employeeId, workDate, hr, correctedBy, onClose }: {
               <label className="block text-xs font-medium text-brand-950 mb-1">Reason for correction</label>
               <textarea className={ic} rows={2} value={reason} onChange={e => setReason(e.target.value)} placeholder="Audit trail note (applies to punch edits too)" />
             </div>
-          </form>
+          </div>
         </div>
 
         <div className="px-6 py-4 border-t border-border flex justify-between gap-3">
           <button onClick={onClose} type="button" className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-[#F8FAFC]">Close</button>
-          <button onClick={submitStatus} disabled={correct.isPending} className="px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 disabled:opacity-50">
-            {correct.isPending ? 'Saving…' : 'Save Status'}
+          <button onClick={saveAll} disabled={!hasChanges || saving}
+            className="px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 disabled:opacity-50">
+            {saving ? 'Saving…' : 'Save changes'}
           </button>
         </div>
       </div>
-    </div>
-  )
-}
-
-// A single editable punch row: change the time (Save) or delete it.
-function PunchRow({ punch, workDate, reason, edit, remove }: {
-  punch: RawPunch
-  workDate: string
-  reason: () => string | null
-  edit: ReturnType<typeof useAdminPunchEdit>['edit']
-  remove: ReturnType<typeof useAdminPunchEdit>['remove']
-}) {
-  const [time, setTime] = useState(toHHMM(punch.punch_at))
-  const dirty = time !== toHHMM(punch.punch_at)
-  return (
-    <div className="flex items-center gap-2">
-      <input type="time" className={ic} value={time} onChange={e => setTime(e.target.value)} />
-      <button type="button" title="Save time" disabled={!dirty || edit.isPending}
-        onClick={() => edit.mutate({ punchId: punch.id, newTimeISO: istTimestamp(workDate, time), reason: reason() })}
-        className="shrink-0 p-2 rounded-lg text-brand-700 hover:bg-brand-50 disabled:opacity-40">
-        <Sym name="check" size={15} />
-      </button>
-      <button type="button" title="Delete punch" disabled={remove.isPending}
-        onClick={() => remove.mutate({ punchId: punch.id, reason: reason() })}
-        className="shrink-0 p-2 rounded-lg text-muted-foreground hover:bg-red-50 hover:text-red-600 disabled:opacity-40">
-        <Sym name="delete" size={15} />
-      </button>
     </div>
   )
 }
