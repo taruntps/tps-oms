@@ -142,10 +142,17 @@ serve(async (req) => {
             }
           }
 
-          // Delivery/read/failed statuses for replies WE sent from the Inbox.
+          // Delivery/read/failed statuses. Applies to Inbox replies (wa_messages) AND to
+          // campaign sends (wa_campaign_recipients) so failed deliveries show the real
+          // Meta reason (e.g. 131049 engagement drop) instead of a silent "sent".
           for (const st of (value?.statuses ?? [])) {
             if (!st?.id || !st?.status) continue
             await admin.from('wa_messages').update({ status: st.status }).eq('wa_message_id', st.id)
+            const e0 = Array.isArray(st.errors) && st.errors.length ? st.errors[0] : null
+            const errMsg = e0 ? `(#${e0.code}) ${e0.title ?? e0.message ?? ''}`.trim().slice(0, 300) : null
+            const patch: Record<string, unknown> = { status: st.status }
+            if (errMsg) patch.error = errMsg
+            await admin.from('wa_campaign_recipients').update(patch).eq('message_id', st.id)
           }
         }
       }
