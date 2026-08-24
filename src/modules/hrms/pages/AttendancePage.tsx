@@ -96,7 +96,10 @@ export default function AttendancePage() {
       for (const d of iterDates) {
         const p = punchMap.get(`${emp.id}|${d}`) ?? null
         const h = hrMap.get(`${emp.id}|${d}`) ?? null
-        if (!p && !h) continue
+        // Single-date view: list EVERY employee (even with no punch/record) so any
+        // day can be marked/corrected via the row's ✏️. Whole-month view keeps only
+        // recorded days (otherwise it's a huge employee × every-day matrix).
+        if (!p && !h && !dateFilter) continue
         const status = h?.status ?? null
         if (statusFilter && status !== statusFilter) continue
         out.push({
@@ -204,6 +207,13 @@ export default function AttendancePage() {
             {STATUS_OPTIONS.map(s => <option key={s} value={s} className="capitalize">{s.replace('_', ' ')}</option>)}
           </select>
         </div>
+
+        {dateFilter && canManage && (
+          <p className="text-xs text-muted-foreground -mt-1">
+            Showing every employee for {dateFilter}. Use the ✏️ on any row to add a punch or force a status
+            (e.g. mark <span className="font-medium text-brand-950">Present</span>) — even on days with no punch.
+          </p>
+        )}
 
         {isLoading ? (
           <div className="space-y-2">{[...Array(8)].map((_, i) => <div key={i} className="h-12 bg-white rounded-lg border border-border animate-pulse" />)}</div>
