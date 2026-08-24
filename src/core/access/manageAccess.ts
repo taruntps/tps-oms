@@ -6,7 +6,7 @@
 import { supabase } from '@/lib/supabase'
 import { coreNav } from '@/core/coreNav'
 import { MODULES } from '@/core/registry'
-import { groupFor, GROUP_ORDER, type NavGroup } from '@/core/navGroups'
+import { groupFor, GROUP_ORDER, SUBGROUP_MAP, SUBGROUP_ORDER, type NavGroup } from '@/core/navGroups'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 export type AccessLevel = 'hidden' | 'view' | 'edit'
@@ -31,37 +31,10 @@ export const SENSITIVE_KEY_HINTS = ['payroll', 'salary', 'payslip', 'bank', 'med
 export const isSensitive = (key: string) =>
   key.split('.')[0] === 'finance' || SENSITIVE_KEY_HINTS.some(h => key.includes(h))
 
-// ── Sidebar grouping (Head → Sub-group). Keyed by exact route. ────────────────
-const SUBGROUP_MAP: Record<string, string> = {
-  '/clients': 'Clients and CRM', '/crm/leads': 'Clients and CRM', '/crm/referrals': 'Clients and CRM',
-  '/projects': 'Projects and operations', '/operations': 'Projects and operations', '/tasks': 'Projects and operations',
-  '/marketing/whatsapp': 'WhatsApp', '/marketing/whatsapp-inbox': 'WhatsApp',
-  '/finance/invoices': 'Billing and collections', '/finance': 'Billing and collections',
-  '/finance/payments': 'Billing and collections', '/finance/govt-fees': 'Billing and collections',
-  '/sales/deals': 'Sales', '/sales/services': 'Sales',
-  '/hrms/me': 'My — self-service', '/hrms/profile': 'My — self-service', '/hrms/attendance/me': 'My — self-service',
-  '/hrms/leave/me': 'My — self-service', '/hrms/short-leave': 'My — self-service', '/hrms/holidays': 'My — self-service',
-  '/hrms/policy': 'My — self-service', '/hrms/payroll/payslips': 'My — self-service', '/hrms/training/me': 'My — self-service',
-  '/hrms/assets/me': 'My — self-service', '/hrms/performance/me': 'My — self-service',
-  '/hrms/dashboard': 'People', '/hrms/employees': 'People', '/hrms/profile/approvals': 'People',
-  '/hrms/attendance': 'Attendance', '/hrms/attendance/approvals': 'Attendance', '/hrms/attendance/shifts': 'Attendance',
-  '/hrms/setup/attendance-status': 'Attendance',
-  '/hrms/leave': 'Leave', '/hrms/leave/approvals': 'Leave', '/hrms/short-leave/approvals': 'Leave', '/hrms/leave/setup': 'Leave',
-  '/hrms/payroll/structures': 'Payroll', '/hrms/payroll/runs': 'Payroll', '/hrms/payroll/components': 'Payroll',
-  '/hrms/payroll/statutory': 'Payroll',
-  '/hrms/recruit/requisitions': 'Recruitment', '/hrms/recruit/candidates': 'Recruitment',
-  '/hrms/lifecycle/onboarding': 'Lifecycle', '/hrms/lifecycle': 'Lifecycle', '/hrms/lifecycle/separations': 'Lifecycle',
-  '/hrms/performance': 'Performance', '/hrms/performance/cycles': 'Performance', '/hrms/performance/reports': 'Performance',
-  '/hrms/training': 'Training and assets', '/hrms/training/certifications': 'Training and assets', '/hrms/assets': 'Training and assets',
-  '/hrms/setup/org': 'Setup', '/hrms/setup/policies': 'Setup',
-  '/documents': 'Documents', '/documents/templates': 'Documents',
-  '/knowledge': 'Knowledge Base', '/knowledge/browse': 'Knowledge Base', '/knowledge/categories': 'Knowledge Base',
-}
-const SUBGROUP_ORDER: Partial<Record<NavGroup, string[]>> = {
-  Business: ['Clients and CRM', 'Projects and operations', 'WhatsApp'],
-  Finance: ['Billing and collections', 'Sales'],
-  HRMS: ['My — self-service', 'People', 'Attendance', 'Leave', 'Payroll', 'Recruitment', 'Lifecycle', 'Performance', 'Training and assets', 'Setup'],
-  Documents: ['Documents', 'Knowledge Base'],
+// Sidebar Head → Sub-group config now lives in navGroups.ts (shared with the Sidebar).
+// Report tabs + Administration get panel-only sub-group ordering here.
+const PANEL_SUBGROUP_ORDER: Partial<Record<NavGroup, string[]>> = {
+  ...SUBGROUP_ORDER,
   Reports: ['Report tabs'],
   Administration: ['General'],
 }
@@ -118,7 +91,7 @@ export function buildAccessTree(catalogKeys: Set<string>): AccessHead[] {
   for (const head of GROUP_ORDER) {
     const subs = tree.get(head)
     if (!subs || subs.size === 0) continue
-    const order = SUBGROUP_ORDER[head] ?? []
+    const order = PANEL_SUBGROUP_ORDER[head] ?? []
     const names = [...subs.keys()].sort((a, b) => {
       const ia = order.indexOf(a), ib = order.indexOf(b)
       return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib) || a.localeCompare(b)

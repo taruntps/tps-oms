@@ -11,7 +11,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { Sym } from '@/components/shared/Sym'
 import { useNotifications } from '@/hooks/useNotifications'
 import { getNavFor } from '@/core/registry'
-import { groupNav, DEFAULT_COLLAPSED, type NavGroup } from '@/core/navGroups'
+import { groupNav, subgroupNav, DEFAULT_COLLAPSED, type NavGroup } from '@/core/navGroups'
 import { useMyPermissions } from '@/core/access/useCan'
 import type { UserRole } from '@/types'
 
@@ -85,26 +85,35 @@ export function Sidebar() {
                 </button>
                 {!isCollapsed && (
                   <div className="space-y-0.5">
-                    {items.map((item) => (
-                      <NavLink
-                        key={item.to}
-                        to={item.to}
-                        end={item.to === '/dashboard'}
-                        className={({ isActive }) =>
-                          cn(
-                            'relative flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all group',
-                            isActive ? 'bg-white/20 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white',
-                          )
-                        }
-                      >
-                        {({ isActive }) => (
-                          <>
-                            {isActive && <span className="absolute right-0 top-1.5 bottom-1.5 w-1 rounded-l-full bg-white" />}
-                            <Sym name={item.icon} size={18} fill={isActive} className="shrink-0" />
-                            <span className="flex-1 truncate">{item.label}</span>
-                          </>
+                    {subgroupNav(items, group).map(({ subgroup, items: subItems }) => (
+                      <div key={subgroup ?? '_'} className="space-y-0.5">
+                        {subgroup && (
+                          <p className="px-3 pt-2 pb-1 text-[9px] font-semibold uppercase tracking-wider text-white/30">
+                            {subgroup}
+                          </p>
                         )}
-                      </NavLink>
+                        {subItems.map((item) => (
+                          <NavLink
+                            key={item.to}
+                            to={item.to}
+                            end={item.to === '/dashboard'}
+                            className={({ isActive }) =>
+                              cn(
+                                'relative flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all group',
+                                isActive ? 'bg-white/20 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white',
+                              )
+                            }
+                          >
+                            {({ isActive }) => (
+                              <>
+                                {isActive && <span className="absolute right-0 top-1.5 bottom-1.5 w-1 rounded-l-full bg-white" />}
+                                <Sym name={item.icon} size={18} fill={isActive} className="shrink-0" />
+                                <span className="flex-1 truncate">{item.label}</span>
+                              </>
+                            )}
+                          </NavLink>
+                        ))}
+                      </div>
                     ))}
                   </div>
                 )}
