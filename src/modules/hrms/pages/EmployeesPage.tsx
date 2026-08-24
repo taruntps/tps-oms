@@ -12,6 +12,8 @@ import { useEmployees } from '../hooks/useEmployees'
 import { useDepartments, useDesignations } from '../hooks/useMasters'
 import { EmployeeForm } from './EmployeeForm'
 
+type SortKey = 'code' | 'name' | 'joined'
+
 export default function EmployeesPage() {
   const navigate = useNavigate()
   const canManage = useCan('hrms.employee.manage')
@@ -23,6 +25,9 @@ export default function EmployeesPage() {
   const [deptFilter, setDeptFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [showForm, setShowForm] = useState(false)
+  const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' }>({ key: 'name', dir: 'asc' })
+  const toggleSort = (k: SortKey) =>
+    setSort(s => (s.key === k ? { key: k, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key: k, dir: 'asc' }))
 
   const deptName = useMemo(() => {
     const m = new Map<string, string>()
@@ -55,6 +60,18 @@ export default function EmployeesPage() {
       )
     })
   }, [employees, search, deptFilter, statusFilter])
+
+  // Client-side sort for the Code / Name / Joined columns (numeric-aware so T2 < T10;
+  // ISO joining dates sort chronologically).
+  const sorted = useMemo(() => {
+    const dir = sort.dir === 'asc' ? 1 : -1
+    const val = (e: (typeof filtered)[number]) =>
+      sort.key === 'code' ? (e.employee_code ?? '')
+      : sort.key === 'joined' ? (e.date_of_joining ?? '')
+      : (e.name ?? '')
+    return [...filtered].sort((a, b) =>
+      val(a).localeCompare(val(b), undefined, { numeric: true, sensitivity: 'base' }) * dir)
+  }, [filtered, sort])
 
   return (
     <div>
@@ -105,16 +122,16 @@ export default function EmployeesPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-[11px] uppercase tracking-wide text-muted-foreground">
-                  <th className="px-4 py-3 font-medium">Code</th>
-                  <th className="px-4 py-3 font-medium">Name</th>
+                  <SortHeader label="Code" k="code" sort={sort} onSort={toggleSort} />
+                  <SortHeader label="Name" k="name" sort={sort} onSort={toggleSort} />
                   <th className="px-4 py-3 font-medium">Designation</th>
                   <th className="px-4 py-3 font-medium">Department</th>
                   <th className="px-4 py-3 font-medium">Status</th>
-                  <th className="px-4 py-3 font-medium">Joined</th>
+                  <SortHeader label="Joined" k="joined" sort={sort} onSort={toggleSort} />
                 </tr>
               </thead>
               <tbody>
-                {filtered.map(e => (
+                {sorted.map(e => (
                   <tr
                     key={e.id}
                     onClick={() => navigate(`/hrms/employees/${e.id}`)}
@@ -136,6 +153,32 @@ export default function EmployeesPage() {
 
       {showForm && <EmployeeForm onClose={() => setShowForm(false)} />}
     </div>
+  )
+}
+
+function SortHeader({ label, k, sort, onSort }: {
+  label: string
+  k: SortKey
+  sort: { key: SortKey; dir: 'asc' | 'desc' }
+  onSort: (k: SortKey) => void
+}) {
+  const active = sort.key === k
+  return (
+    <th className="px-4 py-3 font-medium">
+      <button
+        type="button"
+        onClick={() => onSort(k)}
+        title={`Sort by ${label}`}
+        className="inline-flex items-center gap-1 uppercase tracking-wide hover:text-brand-950 transition-colors"
+      >
+        {label}
+        <Sym
+          name={active ? (sort.dir === 'asc' ? 'arrow_upward' : 'arrow_downward') : 'unfold_more'}
+          size={13}
+          className={active ? 'text-brand-600' : 'text-muted-foreground/40'}
+        />
+      </button>
+    </th>
   )
 }
 
