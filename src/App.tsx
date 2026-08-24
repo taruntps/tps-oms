@@ -127,13 +127,15 @@ export default function App() {
                   <PerformancePage />
                 </ProtectedRoute>
               } />
+              {/* Administration: gated by permission (admin.settings.view / admin.user.manage)
+                  via RoutePermissionGuard so the Manage Access panel controls access. */}
               <Route path="settings" element={
-                <ProtectedRoute allowedRoles={['super_admin','director']}>
+                <ProtectedRoute>
                   <SettingsPage />
                 </ProtectedRoute>
               } />
               <Route path="admin/users" element={
-                <ProtectedRoute allowedRoles={['super_admin','director']}>
+                <ProtectedRoute>
                   <UserManagementPage />
                 </ProtectedRoute>
               } />
