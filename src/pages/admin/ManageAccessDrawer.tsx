@@ -1,70 +1,108 @@
-// Admin: per-employee access editor. Sets user_permission_overrides on top of the
-// employee's role — Hidden / View / Edit per page (Blocked / Allowed for action perms).
-// Empty = "Inherit" (follow the role). Writes are RLS-gated to super_admin/director.
+// Admin: per-employee access editor, organised like the sidebar.
+// Head (Hide / Show) → Sub-group (Hide group) → Page (Hidden / View / Edit).
+// Default follows the employee's role; an override is written only where you change it.
 import { useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Sym } from '@/components/shared/Sym'
 import { toast } from '@/components/shared/Toast'
 import {
-  fetchPermissions, fetchUserOverrides, saveUserOverrides,
-  buildAccessGroups, levelOf, overridesForLevel, isSensitive,
-  type AccessItem, type AccessLevel,
+  fetchPermissionCatalog, fetchUserAccessState, saveUserOverrides,
+  buildAccessTree, levelOf, roleLevelOf, overridesForLevel, isSensitive,
+  type AccessItem, type AccessLevel, type AccessState,
 } from '@/core/access/manageAccess'
 
-const MODULE_LABEL: Record<string, string> = {
-  core: 'General', hrms: 'HRMS', finance: 'Finance', crm: 'CRM', sales: 'Sales',
-  documents: 'Documents', knowledge: 'Knowledge Base', admin: 'Administration',
-}
-const labelFor = (m: string) => MODULE_LABEL[m] ?? m.charAt(0).toUpperCase() + m.slice(1)
-
-function optionsFor(item: AccessItem): { v: AccessLevel; l: string }[] {
-  if (!item.isPage) return [{ v: 'inherit', l: 'Inherit' }, { v: 'hidden', l: 'Blocked' }, { v: 'view', l: 'Allowed' }]
-  const base: { v: AccessLevel; l: string }[] = [{ v: 'inherit', l: 'Inherit' }, { v: 'hidden', l: 'Hidden' }, { v: 'view', l: 'View' }]
-  if (item.editKey) base.push({ v: 'edit', l: 'Edit' })
-  return base
+const HEAD_ICON: Record<string, string> = {
+  Dashboard: 'dashboard', Business: 'work', Finance: 'payments', HRMS: 'groups',
+  Documents: 'folder', Reports: 'bar_chart', Administration: 'settings', General: 'category',
 }
 
 export function ManageAccessDrawer({ userId, userName, onClose }: {
   userId: string; userName: string; onClose: () => void
 }) {
   const qc = useQueryClient()
-  const { data: perms = [], isLoading: lp } = useQuery({ queryKey: ['perm-catalog'], queryFn: fetchPermissions, staleTime: 10 * 60_000 })
-  const { data: overrides = {}, isLoading: lo } = useQuery({ queryKey: ['user-overrides', userId], queryFn: () => fetchUserOverrides(userId) })
+  const { data: catalog, isLoading: lc } = useQuery({ queryKey: ['perm-catalog'], queryFn: fetchPermissionCatalog, staleTime: 10 * 60_000 })
+  const { data: state, isLoading: ls } = useQuery({ queryKey: ['user-access-state', userId], queryFn: () => fetchUserAccessState(userId) })
 
-  const groups = useMemo(() => buildAccessGroups(perms), [perms])
-  // Working copy of levels, keyed by viewKey. Initialised once overrides load.
-  const [levels, setLevels] = useState<Record<string, AccessLevel> | null>(null)
+  const tree = useMemo(
+    () => (catalog ? buildAccessTree(catalog.labels, catalog.keys) : []),
+    [catalog],
+  )
+  // Every controllable item, incl. each head's section item (e.g. Reports → reports.view).
+  const sectionItems = useMemo<Record<string, AccessItem>>(() => {
+    const m: Record<string, AccessItem> = {}
+    for (const h of tree) if (h.sectionKey) m[h.head] = { label: h.head, viewKey: h.sectionKey, editKey: null }
+    return m
+  }, [tree])
+  const itemByKey = useMemo(() => {
+    const m = new Map<string, AccessItem>()
+    for (const h of tree) for (const g of h.subgroups) for (const it of g.items) m.set(it.viewKey, it)
+    for (const k of Object.keys(sectionItems)) m.set(sectionItems[k].viewKey, sectionItems[k])
+    return m
+  }, [tree, sectionItems])
+
+  const st: AccessState = state ?? {}
   const initial = useMemo(() => {
     const m: Record<string, AccessLevel> = {}
-    for (const g of groups) for (const it of g.items) m[it.viewKey] = levelOf(it, overrides)
+    for (const [key, it] of itemByKey) m[key] = levelOf(it, st)
     return m
-  }, [groups, overrides])
+  }, [itemByKey, st])
+
+  const [levels, setLevels] = useState<Record<string, AccessLevel> | null>(null)
   const cur = levels ?? initial
   const dirty = useMemo(() => Object.keys(cur).some(k => cur[k] !== initial[k]), [cur, initial])
+  const [open, setOpen] = useState<Record<string, boolean>>({})
 
-  const setLevel = (item: AccessItem, level: AccessLevel) =>
-    setLevels({ ...(levels ?? initial), [item.viewKey]: level })
+  const setMany = (updates: Record<string, AccessLevel>) => setLevels({ ...(levels ?? initial), ...updates })
+  const setBranch = (it: AccessItem, level: AccessLevel) => setMany({ [it.viewKey]: level })
 
-  const setModule = (moduleItems: AccessItem[], level: AccessLevel) => {
-    const next = { ...(levels ?? initial) }
-    for (const it of moduleItems) next[it.viewKey] = it.isPage || level === 'inherit' ? level : (level === 'hidden' ? 'hidden' : 'view')
-    setLevels(next)
+  const headItems = (head: string) => {
+    const h = tree.find(t => t.head === head)!
+    return h.subgroups.flatMap(g => g.items)
   }
+  const setHead = (head: string, show: boolean) => {
+    const sect = sectionItems[head]
+    if (show) {
+      const u: Record<string, AccessLevel> = {}
+      if (sect) u[sect.viewKey] = 'view'
+      for (const it of headItems(head)) if (cur[it.viewKey] === 'hidden') u[it.viewKey] = roleLevelOf(it, st)
+      setMany(u)
+    } else {
+      const u: Record<string, AccessLevel> = {}
+      if (sect) u[sect.viewKey] = 'hidden'
+      for (const it of headItems(head)) u[it.viewKey] = 'hidden'
+      setMany(u)
+    }
+  }
+  const setGroup = (items: AccessItem[], hide: boolean) => {
+    const u: Record<string, AccessLevel> = {}
+    for (const it of items) u[it.viewKey] = hide ? 'hidden' : roleLevelOf(it, st)
+    setMany(u)
+  }
+  const resetAll = () => {
+    const u: Record<string, AccessLevel> = {}
+    for (const [key, it] of itemByKey) u[key] = roleLevelOf(it, st)
+    setMany(u)
+  }
+
+  const headHidden = (head: string) => {
+    const sect = sectionItems[head]
+    if (sect) return cur[sect.viewKey] === 'hidden'
+    return headItems(head).every(it => cur[it.viewKey] === 'hidden')
+  }
+  const groupHidden = (items: AccessItem[]) => items.every(it => cur[it.viewKey] === 'hidden')
 
   const save = useMutation({
     mutationFn: async () => {
-      const itemByKey = new Map<string, AccessItem>()
-      for (const g of groups) for (const it of g.items) itemByKey.set(it.viewKey, it)
       const changes: { perm_key: string; granted: boolean | null }[] = []
       for (const key of Object.keys(cur)) {
         if (cur[key] === initial[key]) continue
         const it = itemByKey.get(key)!
-        changes.push(...overridesForLevel(it, cur[key]))
+        changes.push(...overridesForLevel(it, cur[key], st))
       }
       await saveUserOverrides(userId, changes)
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['user-overrides', userId] })
+      qc.invalidateQueries({ queryKey: ['user-access-state', userId] })
       qc.invalidateQueries({ queryKey: ['my-permissions'] })
       toast.success('Access updated', 'The employee sees the change on their next page load.')
       onClose()
@@ -72,13 +110,7 @@ export function ManageAccessDrawer({ userId, userName, onClose }: {
     onError: (e: Error) => toast.error('Could not save', e.message),
   })
 
-  const resetAll = () => {
-    const next: Record<string, AccessLevel> = {}
-    for (const g of groups) for (const it of g.items) next[it.viewKey] = 'inherit'
-    setLevels(next)
-  }
-
-  const loading = lp || lo
+  const loading = lc || ls
 
   return (
     <div className="fixed inset-0 z-[70] flex justify-end">
@@ -93,50 +125,73 @@ export function ManageAccessDrawer({ userId, userName, onClose }: {
         </div>
 
         <div className="px-6 py-3 border-b border-border flex items-center justify-between gap-3 shrink-0">
-          <p className="text-[11px] text-muted-foreground">Inherit = follow role. Set a page to Hidden / View / Edit to override.</p>
+          <p className="text-[11px] text-muted-foreground">Hide a section, or set any page to View / Edit. Blank = follows their role.</p>
           <button onClick={resetAll} className="text-xs text-brand-600 hover:text-brand-700 shrink-0 flex items-center gap-1">
-            <Sym name="restart_alt" size={13} /> Reset all to role
+            <Sym name="restart_alt" size={13} /> Reset to role
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-5">
+        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
           {loading ? (
-            <div className="space-y-2">{[...Array(6)].map((_, i) => <div key={i} className="h-9 bg-[#F8FAFC] rounded animate-pulse" />)}</div>
-          ) : groups.map(g => (
-            <div key={g.module}>
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-brand-950">{labelFor(g.module)}</h3>
-                <div className="flex items-center gap-2">
-                  <button onClick={() => setModule(g.items, 'hidden')} className="text-[11px] text-muted-foreground hover:text-red-600">Hide all</button>
-                  <span className="text-muted-foreground/40">·</span>
-                  <button onClick={() => setModule(g.items, 'inherit')} className="text-[11px] text-muted-foreground hover:text-brand-700">Reset</button>
+            <div className="space-y-2 px-2">{[...Array(7)].map((_, i) => <div key={i} className="h-10 bg-[#F8FAFC] rounded animate-pulse" />)}</div>
+          ) : tree.map(h => {
+            const hidden = headHidden(h.head)
+            const isOpen = open[h.head]
+            const pages = headItems(h.head).length
+            return (
+              <div key={h.head} className={`rounded-lg border ${isOpen ? 'border-brand-200' : 'border-border'}`}>
+                <div className={`flex items-center justify-between gap-2 px-3 py-2.5 ${isOpen ? 'bg-brand-50/40' : ''} rounded-t-lg`}>
+                  <button onClick={() => setOpen({ ...open, [h.head]: !isOpen })} className="flex items-center gap-2 min-w-0 flex-1 text-left">
+                    <Sym name={isOpen ? 'expand_more' : 'chevron_right'} size={16} className="text-muted-foreground shrink-0" />
+                    <Sym name={HEAD_ICON[h.head] ?? 'category'} size={16} className="text-muted-foreground shrink-0" />
+                    <span className="text-[13px] font-semibold text-brand-950 truncate">{h.head}</span>
+                    <span className="text-[11px] text-muted-foreground shrink-0">{pages} page{pages === 1 ? '' : 's'}</span>
+                  </button>
+                  <Segment
+                    options={[{ v: 'hide', l: 'Hide' }, { v: 'show', l: 'Show' }]}
+                    value={hidden ? 'hide' : 'show'}
+                    onPick={v => setHead(h.head, v === 'show')}
+                  />
                 </div>
+
+                {isOpen && (
+                  <div className="px-3 pb-3 pt-1 space-y-3">
+                    {h.subgroups.map(g => {
+                      const gh = groupHidden(g.items)
+                      return (
+                        <div key={g.label}>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{g.label}</span>
+                            <button onClick={() => setGroup(g.items, !gh)}
+                              className={`text-[11px] ${gh ? 'text-brand-600 hover:text-brand-700' : 'text-muted-foreground hover:text-red-600'}`}>
+                              {gh ? 'Show group' : 'Hide group'}
+                            </button>
+                          </div>
+                          <div className="space-y-1">
+                            {g.items.map(it => {
+                              const val = cur[it.viewKey]
+                              const overridden = val !== roleLevelOf(it, st)
+                              const opts = [{ v: 'hidden', l: 'Hide' }, { v: 'view', l: 'View' }]
+                              if (it.editKey) opts.push({ v: 'edit', l: 'Edit' })
+                              return (
+                                <div key={it.viewKey} className={`flex items-center justify-between gap-3 px-2.5 py-1.5 rounded-md border ${overridden ? 'border-brand-200 bg-brand-50/40' : 'border-border'}`}>
+                                  <span className="text-[12.5px] text-brand-950 flex items-center gap-1.5 min-w-0">
+                                    <span className="truncate">{it.label}</span>
+                                    {isSensitive(it.viewKey) && <Sym name="lock" size={11} className="text-amber-600 shrink-0" title="Sensitive — data-locked" />}
+                                  </span>
+                                  <Segment options={opts} value={val} onPick={v => setBranch(it, v as AccessLevel)} />
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
-              <div className="space-y-1.5">
-                {g.items.map(it => {
-                  const opts = optionsFor(it)
-                  const val = cur[it.viewKey]
-                  const overridden = val !== 'inherit'
-                  return (
-                    <div key={it.viewKey} className={`flex items-center justify-between gap-3 px-3 py-2 rounded-lg border ${overridden ? 'border-brand-200 bg-brand-50/40' : 'border-border'}`}>
-                      <span className="text-[13px] text-brand-950 flex items-center gap-1.5 min-w-0">
-                        <span className="truncate">{it.label}</span>
-                        {isSensitive(it.viewKey) && <Sym name="lock" size={12} className="text-amber-600 shrink-0" title="Sensitive — data-locked" />}
-                      </span>
-                      <div className="flex rounded-lg border border-border overflow-hidden shrink-0">
-                        {opts.map(o => (
-                          <button key={o.v} onClick={() => setLevel(it, o.v)}
-                            className={`text-[11px] px-2.5 py-1 border-r border-border last:border-r-0 ${val === o.v ? 'bg-brand-600 text-white' : 'text-muted-foreground hover:bg-[#F8FAFC]'}`}>
-                            {o.l}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
 
         <div className="px-6 py-4 border-t border-border flex justify-between gap-3 shrink-0">
@@ -147,6 +202,29 @@ export function ManageAccessDrawer({ userId, userName, onClose }: {
           </button>
         </div>
       </div>
+    </div>
+  )
+}
+
+function Segment({ options, value, onPick }: {
+  options: { v: string; l: string }[]; value: string; onPick: (v: string) => void
+}) {
+  return (
+    <div className="flex rounded-md border border-border overflow-hidden shrink-0">
+      {options.map(o => {
+        const active = value === o.v
+        const danger = o.v === 'hide' || o.v === 'hidden'
+        return (
+          <button key={o.v} onClick={() => onPick(o.v)}
+            className={`text-[11px] px-2.5 py-1 border-r border-border last:border-r-0 ${
+              active
+                ? danger ? 'bg-red-50 text-red-600' : 'bg-brand-600 text-white'
+                : 'text-muted-foreground hover:bg-[#F8FAFC]'
+            }`}>
+            {o.l}
+          </button>
+        )
+      })}
     </div>
   )
 }

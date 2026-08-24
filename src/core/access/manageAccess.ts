@@ -1,126 +1,196 @@
-// Admin "Manage access" — read/write per-employee permission overrides.
-// The DB already merges these: my_permissions()/has_perm() = role defaults + granted
-// overrides − denied overrides (super_admin is a hard floor). This layer just lets an
-// admin SET those rows and builds a friendly Module → Page matrix from the permission
-// catalog. Writes are RLS-gated to super_admin/director.
+// Admin "Manage access" — per-employee overrides, organised to mirror the SIDEBAR.
+// The panel is built from the nav registry (coreNav + module nav) so it lists exactly
+// the pages a user sees, grouped Head → Sub-group → Page. Each page can be set to
+// Hidden / View / Edit; default is "follow the role" (no override written). New pages
+// with a `permission` appear here automatically — nothing hard-coded per page.
 import { supabase } from '@/lib/supabase'
+import { coreNav } from '@/core/coreNav'
+import { MODULES } from '@/core/registry'
+import { groupFor, GROUP_ORDER, type NavGroup } from '@/core/navGroups'
 
-export interface PermRow { perm_key: string; module: string; label: string }
-
-/** level a page can be set to for one employee. */
-export type AccessLevel = 'inherit' | 'hidden' | 'view' | 'edit'
-/** toggle for standalone action-permissions (approve, export, …). */
-export type ToggleLevel = 'inherit' | 'blocked' | 'allowed'
+// ── Types ────────────────────────────────────────────────────────────────────
+export type AccessLevel = 'hidden' | 'view' | 'edit'
 
 export interface AccessItem {
-  /** friendly resource/page name, e.g. "Attendance". */
   label: string
-  /** the read/see permission (a `*.view` key, or the single key for toggles). */
-  viewKey: string
-  /** the edit/manage permission if the resource has one, else null. */
-  editKey: string | null
-  /** true = 4-way Hidden/View/Edit page; false = 3-way Blocked/Allowed action. */
-  isPage: boolean
+  viewKey: string          // permission that reveals the page
+  editKey: string | null   // paired *.manage permission, if any (enables "Edit")
 }
-export interface AccessGroup { module: string; items: AccessItem[] }
+export interface AccessSubgroup { label: string; items: AccessItem[] }
+export interface AccessHead {
+  head: NavGroup
+  sectionKey: string | null  // a single perm that gates the whole section (Reports), else null
+  subgroups: AccessSubgroup[]
+}
 
-const titise = (s: string) =>
-  s.replace(/[._-]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase()).trim()
+/** Per-user access state from user_access_state(): role grant + override per perm. */
+export type AccessState = Record<string, { role: boolean; ov: boolean | null }>
 
-// Modules whose data is also locked at the row level (badged 🔒 in the UI).
-export const SENSITIVE_MODULES = new Set(['finance'])
+// Sensitive pages get a lock badge (data is also RLS-locked, migration 130).
 export const SENSITIVE_KEY_HINTS = ['payroll', 'salary', 'payslip', 'bank', 'medical', 'ctc', 'compensation']
 export const isSensitive = (key: string) =>
-  SENSITIVE_MODULES.has(key.split('.')[0]) || SENSITIVE_KEY_HINTS.some(h => key.includes(h))
+  key.split('.')[0] === 'finance' || SENSITIVE_KEY_HINTS.some(h => key.includes(h))
 
-/** Group the flat permission catalog into Module → resource rows (view/edit paired). */
-export function buildAccessGroups(perms: PermRow[]): AccessGroup[] {
-  const byModule = new Map<string, PermRow[]>()
-  for (const p of perms) {
-    if (!byModule.has(p.module)) byModule.set(p.module, [])
-    byModule.get(p.module)!.push(p)
+// ── Sidebar grouping (Head → Sub-group). Keyed by exact route. ────────────────
+const SUBGROUP_MAP: Record<string, string> = {
+  '/clients': 'Clients and CRM', '/crm/leads': 'Clients and CRM', '/crm/referrals': 'Clients and CRM',
+  '/projects': 'Projects and operations', '/operations': 'Projects and operations', '/tasks': 'Projects and operations',
+  '/marketing/whatsapp': 'WhatsApp', '/marketing/whatsapp-inbox': 'WhatsApp',
+  '/finance/invoices': 'Billing and collections', '/finance': 'Billing and collections',
+  '/finance/payments': 'Billing and collections', '/finance/govt-fees': 'Billing and collections',
+  '/sales/deals': 'Sales', '/sales/services': 'Sales',
+  '/hrms/me': 'My — self-service', '/hrms/profile': 'My — self-service', '/hrms/attendance/me': 'My — self-service',
+  '/hrms/leave/me': 'My — self-service', '/hrms/short-leave': 'My — self-service', '/hrms/holidays': 'My — self-service',
+  '/hrms/policy': 'My — self-service', '/hrms/payroll/payslips': 'My — self-service', '/hrms/training/me': 'My — self-service',
+  '/hrms/assets/me': 'My — self-service', '/hrms/performance/me': 'My — self-service',
+  '/hrms/dashboard': 'People', '/hrms/employees': 'People', '/hrms/profile/approvals': 'People',
+  '/hrms/attendance': 'Attendance', '/hrms/attendance/approvals': 'Attendance', '/hrms/attendance/shifts': 'Attendance',
+  '/hrms/setup/attendance-status': 'Attendance',
+  '/hrms/leave': 'Leave', '/hrms/leave/approvals': 'Leave', '/hrms/short-leave/approvals': 'Leave', '/hrms/leave/setup': 'Leave',
+  '/hrms/payroll/structures': 'Payroll', '/hrms/payroll/runs': 'Payroll', '/hrms/payroll/components': 'Payroll',
+  '/hrms/payroll/statutory': 'Payroll',
+  '/hrms/recruit/requisitions': 'Recruitment', '/hrms/recruit/candidates': 'Recruitment',
+  '/hrms/lifecycle/onboarding': 'Lifecycle', '/hrms/lifecycle': 'Lifecycle', '/hrms/lifecycle/separations': 'Lifecycle',
+  '/hrms/performance': 'Performance', '/hrms/performance/cycles': 'Performance', '/hrms/performance/reports': 'Performance',
+  '/hrms/training': 'Training and assets', '/hrms/training/certifications': 'Training and assets', '/hrms/assets': 'Training and assets',
+  '/hrms/setup/org': 'Setup', '/hrms/setup/policies': 'Setup',
+  '/documents': 'Documents', '/documents/templates': 'Documents',
+  '/knowledge': 'Knowledge Base', '/knowledge/browse': 'Knowledge Base', '/knowledge/categories': 'Knowledge Base',
+}
+const SUBGROUP_ORDER: Partial<Record<NavGroup, string[]>> = {
+  Business: ['Clients and CRM', 'Projects and operations', 'WhatsApp'],
+  Finance: ['Billing and collections', 'Sales'],
+  HRMS: ['My — self-service', 'People', 'Attendance', 'Leave', 'Payroll', 'Recruitment', 'Lifecycle', 'Performance', 'Training and assets', 'Setup'],
+  Documents: ['Documents', 'Knowledge Base'],
+  Reports: ['Report tabs'],
+  Administration: ['General'],
+}
+const DEFAULT_SUB = 'Other'
+
+// Reports tabs are page-tabs, not nav entries — model them as branches under Reports.
+export const REPORT_TABS: { key: string; label: string }[] = [
+  { key: 'performance', label: 'Performance' },
+  { key: 'pending_payments', label: 'Pending Payments' },
+  { key: 'queries', label: 'Queries Report' },
+  { key: 'referrals', label: 'Referrals' },
+  { key: 'govt_fees', label: 'Govt Fees' },
+  { key: 'project_timeline', label: 'Project Timeline' },
+  { key: 'stage_perf', label: 'Stage Performance' },
+  { key: 'employee_timeline', label: 'Employee Timeline' },
+]
+const REPORTS_SECTION_KEY = 'reports.view'
+
+/** Build the Head → Sub-group → Page tree from the nav registry + report tabs. */
+export function buildAccessTree(catalogLabels: Map<string, string>, catalogKeys: Set<string>): AccessHead[] {
+  const navEntries = [...coreNav, ...MODULES.flatMap(m => m.nav)].filter(e => !!e.permission)
+  // head → subgroup → items (deduped by viewKey across the whole tree)
+  const tree = new Map<NavGroup, Map<string, AccessItem[]>>()
+  const seen = new Set<string>()
+  const add = (head: NavGroup, sub: string, item: AccessItem) => {
+    if (seen.has(item.viewKey)) return
+    seen.add(item.viewKey)
+    if (!tree.has(head)) tree.set(head, new Map())
+    const subs = tree.get(head)!
+    if (!subs.has(sub)) subs.set(sub, [])
+    subs.get(sub)!.push(item)
   }
-  const groups: AccessGroup[] = []
-  for (const [module, list] of byModule) {
-    // group by resource = the 2nd dotted segment (module.RESOURCE.action)
-    const byRes = new Map<string, PermRow[]>()
-    for (const p of list) {
-      const res = p.perm_key.split('.')[1] ?? p.perm_key
-      if (!byRes.has(res)) byRes.set(res, [])
-      byRes.get(res)!.push(p)
-    }
-    const items: AccessItem[] = []
-    for (const [res, rows] of byRes) {
-      const byAction = new Map<string, PermRow>()
-      for (const r of rows) byAction.set(r.perm_key.split('.')[2] ?? 'view', r)
-      const view = byAction.get('view')
-      const manage = byAction.get('manage')
-      if (view) {
-        items.push({ label: titise(res), viewKey: view.perm_key, editKey: manage?.perm_key ?? null, isPage: true })
-        byAction.delete('view'); byAction.delete('manage')
-      }
-      // remaining actions (approve, export, self, …) → standalone toggles
-      for (const [action, r] of byAction) {
-        items.push({ label: `${titise(res)} — ${titise(action)}`, viewKey: r.perm_key, editKey: null, isPage: false })
-      }
-    }
-    items.sort((a, b) => a.label.localeCompare(b.label))
-    groups.push({ module, items })
+
+  for (const e of navEntries) {
+    const key = e.permission as string
+    if (key === REPORTS_SECTION_KEY) continue // section-level control, not a branch
+    const head = groupFor(e)
+    const sub = SUBGROUP_MAP[e.to] ?? DEFAULT_SUB
+    const manage = key.endsWith('.view') ? key.slice(0, -'.view'.length) + '.manage' : null
+    add(head, sub, {
+      label: catalogLabels.get(key) ?? e.label,
+      viewKey: key,
+      editKey: manage && catalogKeys.has(manage) ? manage : null,
+    })
   }
-  groups.sort((a, b) => a.module.localeCompare(b.module))
-  return groups
+  // Report tabs → Reports / "Report tabs"
+  for (const t of REPORT_TABS) {
+    add('Reports', 'Report tabs', { label: t.label, viewKey: `reports.${t.key}.view`, editKey: null })
+  }
+
+  // Assemble ordered heads → ordered subgroups.
+  const heads: AccessHead[] = []
+  for (const head of GROUP_ORDER) {
+    const subs = tree.get(head)
+    if (!subs || subs.size === 0) continue
+    const order = SUBGROUP_ORDER[head] ?? []
+    const names = [...subs.keys()].sort((a, b) => {
+      const ia = order.indexOf(a), ib = order.indexOf(b)
+      return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib) || a.localeCompare(b)
+    })
+    heads.push({
+      head,
+      sectionKey: head === 'Reports' ? REPORTS_SECTION_KEY : null,
+      subgroups: names.map(label => ({ label, items: subs.get(label)! })),
+    })
+  }
+  return heads
 }
 
-/** current effective level of a page from the user's override map. */
-export function levelOf(item: AccessItem, ov: Record<string, boolean>): AccessLevel {
-  const v = ov[item.viewKey]
-  const e = item.editKey ? ov[item.editKey] : undefined
-  if (v === false) return 'hidden'
-  if (v === true) return item.editKey ? (e === true ? 'edit' : 'view') : 'view'
-  return 'inherit'
+// ── Level resolution (follow-role default) ───────────────────────────────────
+const resolved = (key: string, st: AccessState) => {
+  const s = st[key]
+  if (!s) return false
+  return s.ov === false ? false : s.ov === true ? true : s.role
 }
+const roleHas = (key: string, st: AccessState) => !!st[key]?.role
 
-/** override rows a chosen level implies for a page (null = delete the row / inherit). */
-export function overridesForLevel(item: AccessItem, level: AccessLevel): { perm_key: string; granted: boolean | null }[] {
+/** Current effective level shown in the panel (role + override). */
+export function levelOf(item: AccessItem, st: AccessState): AccessLevel {
+  if (!resolved(item.viewKey, st)) return 'hidden'
+  if (item.editKey && resolved(item.editKey, st)) return 'edit'
+  return 'view'
+}
+/** What the role alone grants — the target when you "reset to role" / "Show". */
+export function roleLevelOf(item: AccessItem, st: AccessState): AccessLevel {
+  if (!roleHas(item.viewKey, st)) return 'hidden'
+  if (item.editKey && roleHas(item.editKey, st)) return 'edit'
+  return 'view'
+}
+/** Minimal override rows to reach `level` (null = delete row → follow role). */
+export function overridesForLevel(item: AccessItem, level: AccessLevel, st: AccessState): { perm_key: string; granted: boolean | null }[] {
+  const targetView = level !== 'hidden'
+  const targetEdit = level === 'edit'
   const out: { perm_key: string; granted: boolean | null }[] = []
-  if (level === 'inherit') {
-    out.push({ perm_key: item.viewKey, granted: null })
-    if (item.editKey) out.push({ perm_key: item.editKey, granted: null })
-  } else if (level === 'hidden') {
-    out.push({ perm_key: item.viewKey, granted: false })
-    if (item.editKey) out.push({ perm_key: item.editKey, granted: false })
-  } else if (level === 'view') {
-    out.push({ perm_key: item.viewKey, granted: true })
-    if (item.editKey) out.push({ perm_key: item.editKey, granted: false })
-  } else if (level === 'edit') {
-    out.push({ perm_key: item.viewKey, granted: true })
-    if (item.editKey) out.push({ perm_key: item.editKey, granted: true })
+  const bView = roleHas(item.viewKey, st)
+  out.push({ perm_key: item.viewKey, granted: targetView === bView ? null : targetView })
+  if (item.editKey) {
+    const bEdit = roleHas(item.editKey, st)
+    out.push({ perm_key: item.editKey, granted: targetEdit === bEdit ? null : targetEdit })
   }
   return out
 }
 
-// ── data access ────────────────────────────────────────────────────────────
+// ── Data access ──────────────────────────────────────────────────────────────
 const db = supabase as any
 
-export async function fetchPermissions(): Promise<PermRow[]> {
-  const { data, error } = await db.from('permissions').select('perm_key, module, label').order('module')
+export async function fetchPermissionCatalog(): Promise<{ labels: Map<string, string>; keys: Set<string> }> {
+  const { data, error } = await db.from('permissions').select('perm_key, label')
   if (error) throw error
-  return (data ?? []) as PermRow[]
+  const labels = new Map<string, string>(), keys = new Set<string>()
+  for (const r of (data ?? []) as { perm_key: string; label: string | null }[]) {
+    keys.add(r.perm_key)
+    if (r.label) labels.set(r.perm_key, r.label)
+  }
+  return { labels, keys }
 }
 
-export async function fetchUserOverrides(userId: string): Promise<Record<string, boolean>> {
-  const { data, error } = await db.from('user_permission_overrides').select('perm_key, granted').eq('user_id', userId)
+export async function fetchUserAccessState(userId: string): Promise<AccessState> {
+  const { data, error } = await db.rpc('user_access_state', { p_uid: userId })
   if (error) throw error
-  const map: Record<string, boolean> = {}
-  for (const r of (data ?? []) as { perm_key: string; granted: boolean }[]) map[r.perm_key] = r.granted
-  return map
+  const st: AccessState = {}
+  for (const r of (data ?? []) as { perm_key: string; role_granted: boolean; override_granted: boolean | null }[]) {
+    st[r.perm_key] = { role: !!r.role_granted, ov: r.override_granted }
+  }
+  return st
 }
 
-/** Apply a batch of {perm_key, granted|null}. null = delete (inherit); true/false = upsert. */
-export async function saveUserOverrides(
-  userId: string,
-  changes: { perm_key: string; granted: boolean | null }[],
-): Promise<void> {
+/** Apply {perm_key, granted|null}. null = delete (follow role); true/false = upsert. */
+export async function saveUserOverrides(userId: string, changes: { perm_key: string; granted: boolean | null }[]): Promise<void> {
   const dels = changes.filter(c => c.granted === null).map(c => c.perm_key)
   const ups = changes.filter(c => c.granted !== null).map(c => ({ user_id: userId, perm_key: c.perm_key, granted: c.granted as boolean, scope: 'all' }))
   if (dels.length) {

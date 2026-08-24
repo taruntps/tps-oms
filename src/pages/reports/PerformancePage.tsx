@@ -8,6 +8,7 @@ import { formatRupees, cn } from '@/lib/utils'
 import { clockBucket } from '@/lib/projectClock'
 import { Sym } from '@/components/shared/Sym'
 import { useReferralBreakdown, useUpsertReferral, type ReferralBreakdown } from '@/hooks/useReferrals'
+import { useMyPermissions } from '@/core/access/useCan'
 
 // ── Shared helpers ───────────────────────────────────────────────────────────
 
@@ -49,31 +50,27 @@ const TABS: { key: ReportTab; label: string; icon: string }[] = [
   { key: 'employee_timeline', label: 'Employee Timeline', icon: 'person_pin_circle' },
 ]
 
-// Tabs visible only to super_admin / director / manager by default.
-// The 3 below are also grantable per-employee via report_permissions.
-const GRANTABLE_TABS = new Set(['pending_payments', 'queries', 'govt_fees'])
-
 // ── Page shell ───────────────────────────────────────────────────────────────
 
 export default function PerformancePage() {
-  const { profile } = useAuth()
   const [tab, setTab] = useState<ReportTab>('pending_payments')
 
-  const isFullAccess = ['super_admin', 'director', 'manager'].includes(profile?.role ?? '')
-  const reportPerms: string[] = (profile as any)?.report_permissions ?? []
-
-  const visibleTabs = TABS.filter(t => {
-    if (isFullAccess) return true
-    if (GRANTABLE_TABS.has(t.key)) return reportPerms.includes(t.key)
-    return false
-  })
+  // Each tab is gated by its own reports.<tab>.view permission (role default +
+  // per-employee overrides via Manage Access). Admins see all; others see only
+  // the tabs granted to them.
+  const { data: perms, isLoading: permsLoading } = useMyPermissions()
+  const visibleTabs = TABS.filter(t => !!perms?.[`reports.${t.key}.view`])
 
   // If current tab is not visible (e.g. permission revoked), jump to first available
   useEffect(() => {
     if (visibleTabs.length > 0 && !visibleTabs.find(t => t.key === tab)) {
       setTab(visibleTabs[0].key)
     }
-  }, [profile])
+  }, [perms])
+
+  if (permsLoading) {
+    return <TopBar title="Reports" subtitle="Performance, payments, queries & referrals" />
+  }
 
   if (visibleTabs.length === 0) {
     return (

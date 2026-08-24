@@ -40,5 +40,6 @@ export const administrationNav: NavEntry[] = [
     label: 'Settings',
     icon: 'settings',
     roles: ADMIN_ROLES,
+    permission: 'admin.settings.view',
   },
 ]
