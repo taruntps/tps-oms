@@ -12,7 +12,7 @@ import {
 } from '@/core/access/manageAccess'
 
 const MODULE_LABEL: Record<string, string> = {
-  hrms: 'HRMS', finance: 'Finance', crm: 'CRM', sales: 'Sales',
+  core: 'General', hrms: 'HRMS', finance: 'Finance', crm: 'CRM', sales: 'Sales',
   documents: 'Documents', knowledge: 'Knowledge Base', admin: 'Administration',
 }
 const labelFor = (m: string) => MODULE_LABEL[m] ?? m.charAt(0).toUpperCase() + m.slice(1)
