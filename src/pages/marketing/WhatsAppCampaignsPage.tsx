@@ -64,6 +64,22 @@ function useWaTemplates() {
 const headerKind = (t?: WaTemplate | null) =>
   t?.headerType === 'DOCUMENT' ? 'document' : t?.headerType === 'IMAGE' ? 'image' : 'none'
 
+// Per-template "ready" defaults (event text + PDF/image), so an admin only adds recipients.
+interface TplPreset { template_name: string; extra_vars: string; doc_url: string | null; doc_filename: string | null; image_url: string | null }
+function useTemplatePresets() {
+  return useQuery({
+    queryKey: ['wa', 'template-presets'],
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { data, error } = await db.from('wa_template_presets').select('*')
+      if (error) throw error
+      const map: Record<string, TplPreset> = {}
+      for (const p of (data ?? []) as TplPreset[]) map[p.template_name] = p
+      return map
+    },
+  })
+}
+
 export default function WhatsAppCampaignsPage() {
   const { user } = useAuth()
   const qc = useQueryClient()
@@ -151,7 +167,10 @@ export default function WhatsAppCampaignsPage() {
 }
 
 function NewCampaignModal({ createdBy, onClose, onCreated }: { createdBy: string; onClose: () => void; onCreated: () => void }) {
-  const { data: templates = [], isLoading: tplLoading, error: tplError } = useWaTemplates()
+  const { data: allTemplates = [], isLoading: tplLoading, error: tplError } = useWaTemplates()
+  const { data: presets = {} } = useTemplatePresets()
+  // Manual campaigns use MARKETING templates; Utility templates are sent automatically by the portal.
+  const templates = allTemplates.filter(t => t.category === 'MARKETING')
   const [form, setForm] = useState<Record<string, string>>({
     name: '', template_name: '', language_code: 'en', header_type: 'none',
     header_image_url: DEFAULT_BANNER, header_doc_url: DEFAULT_BROCHURE, header_doc_filename: DEFAULT_BROCHURE_NAME,
@@ -164,10 +183,21 @@ function NewCampaignModal({ createdBy, onClose, onCreated }: { createdBy: string
 
   const tpl = templates.find(t => t.name === form.template_name) ?? null
   const varCount = tpl?.varCount ?? 0
-  // Picking a template auto-configures the header, language, and default personalization.
+  // Picking a template auto-configures everything from its saved preset: language, header
+  // (+ default PDF/image), and the event text for {{2}}… — so only recipients remain.
   const pickTemplate = (name: string) => {
     const t = templates.find(x => x.name === name)
-    setForm(f => ({ ...f, template_name: name, language_code: t?.language ?? 'en', header_type: headerKind(t) }))
+    const p = presets[name]
+    setForm(f => ({
+      ...f,
+      template_name: name,
+      language_code: t?.language ?? 'en',
+      header_type: headerKind(t),
+      extra_vars: p?.extra_vars ?? '',
+      header_doc_url: p?.doc_url ?? DEFAULT_BROCHURE,
+      header_doc_filename: p?.doc_filename ?? DEFAULT_BROCHURE_NAME,
+      header_image_url: p?.image_url ?? DEFAULT_BANNER,
+    }))
     setPersonalize((t?.varCount ?? 0) >= 1) // {{1}} is the recipient name for our marketing templates
   }
 
@@ -269,9 +299,15 @@ function NewCampaignModal({ createdBy, onClose, onCreated }: { createdBy: string
             )}
           </div>
 
+          {tpl && paramsOk && headerOk && (
+            <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-[12px] text-green-800">
+              ✓ Ready to send — everything is pre-filled. Just add recipients (phone + name) below.
+            </div>
+          )}
+
           {tpl && form.header_type === 'document' && (
             <div>
-              <label className="block text-xs font-medium text-brand-950 mb-1">PDF document <span className="font-normal text-muted-foreground">(this template has a document header)</span></label>
+              <label className="block text-xs font-medium text-brand-950 mb-1">PDF document <span className="font-normal text-muted-foreground">(this template has a document header, pre-filled)</span></label>
               <div className="space-y-2">
                 <input className={ic} value={form.header_doc_url} onChange={e => set('header_doc_url', e.target.value)} placeholder="https://portal.tpsxpert.com/tps-brochure.pdf" />
                 <input className={ic} value={form.header_doc_filename} onChange={e => set('header_doc_filename', e.target.value)} placeholder="File name shown in WhatsApp, e.g. TPS Xperts Group Profile.pdf" />
