@@ -20,6 +20,7 @@ const EMAIL_TYPES = [
   'block_request', 'unblock_request', 'cancel_request',
   'block_approved', 'block_rejected', 'cancel_approved', 'cancel_rejected',
   'payment_overdue', 'license_expiring',
+  'attendance_approval',
 ]
 
 // All notification types that send a WhatsApp push
@@ -37,6 +38,7 @@ const WA_TYPES = [
   'task_assigned',
   'project_assigned',
   'project_completed',
+  'attendance_approval',
 ]
 
 type NotifRow = {
@@ -69,6 +71,7 @@ function buildParams(n: NotifRow): { template: string; params: string[] } | null
     case 'cancel_request':
     case 'cancel_approved':
     case 'cancel_rejected':
+    case 'attendance_approval':
       // All approval-flow messages reuse the generic title/body template
       return { template: 'tps_block_request', params: [n.title, n.body ?? ''] }
 

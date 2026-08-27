@@ -54,6 +54,7 @@ export interface Regularization {
   approver_id: string | null
   decided_at: string | null
   decision_note: string | null
+  created_at: string
 }
 export interface RegularizationInput {
   work_date: string
@@ -74,6 +75,7 @@ export interface OutdoorDuty {
   status: RequestStatus
   approver_id: string | null
   decided_at: string | null
+  created_at: string
 }
 export interface OutdoorDutyInput {
   mode: 'od' | 'wfh'
@@ -93,6 +95,7 @@ export interface Overtime {
   compensation: 'paid' | 'comp_off' | null
   approver_id: string | null
   decided_at: string | null
+  created_at: string
 }
 export interface OvertimeInput {
   work_date: string
@@ -344,11 +347,19 @@ export interface ApprovalItem {
   when: string
   /** Short description of what's being requested. */
   detail: string
+  /** Requested clock time(s), e.g. "In 09:00 AM · Out 06:00 PM" (regularization). */
+  times: string | null
   reason: string | null
   status: RequestStatus
+  /** ISO timestamp of when the employee submitted the request. */
+  submitted_at: string
   /** work_date used to sync hr_attendance_days on regularization approval. */
   work_date: string | null
 }
+
+/** IST clock time from an ISO timestamp, e.g. "09:00 AM". */
+const istTime = (ts: string | null): string | null =>
+  ts ? new Date(ts).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' }) : null
 
 /** Pending regularizations + OD/WFH + OT unified into one approver queue. */
 export async function fetchPendingApprovals(): Promise<ApprovalItem[]> {
@@ -363,22 +374,27 @@ export async function fetchPendingApprovals(): Promise<ApprovalItem[]> {
 
   const items: ApprovalItem[] = []
   for (const r of (regs.data ?? []) as Regularization[]) {
+    const inT = istTime(r.requested_in), outT = istTime(r.requested_out)
+    const times = inT || outT ? `${inT ? `In ${inT}` : ''}${inT && outT ? ' · ' : ''}${outT ? `Out ${outT}` : ''}` : null
     items.push({
       id: r.id, kind: 'regularization', employee_id: r.employee_id, when: r.work_date,
-      detail: `Regularization · ${r.kind.replace('_', ' ')}`, reason: r.reason, status: r.status, work_date: r.work_date,
+      detail: `Regularization · ${r.kind.replace('_', ' ')}`, times, reason: r.reason,
+      status: r.status, submitted_at: r.created_at, work_date: r.work_date,
     })
   }
   for (const o of (ods.data ?? []) as OutdoorDuty[]) {
     items.push({
       id: o.id, kind: 'od', employee_id: o.employee_id,
       when: o.from_date === o.to_date ? o.from_date : `${o.from_date} → ${o.to_date}`,
-      detail: `${o.mode.toUpperCase()}${o.location ? ` · ${o.location}` : ''}`, reason: o.purpose, status: o.status, work_date: o.from_date,
+      detail: `${o.mode.toUpperCase()}${o.location ? ` · ${o.location}` : ''}`, times: null, reason: o.purpose,
+      status: o.status, submitted_at: o.created_at, work_date: o.from_date,
     })
   }
   for (const t of (ots.data ?? []) as Overtime[]) {
     items.push({
       id: t.id, kind: 'overtime', employee_id: t.employee_id, when: t.work_date,
-      detail: `Overtime · ${t.minutes} min${t.compensation ? ` · ${t.compensation}` : ''}`, reason: t.reason, status: t.status, work_date: t.work_date,
+      detail: `Overtime · ${t.minutes} min${t.compensation ? ` · ${t.compensation}` : ''}`, times: null, reason: t.reason,
+      status: t.status, submitted_at: t.created_at, work_date: t.work_date,
     })
   }
   return items

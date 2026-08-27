@@ -1,6 +1,11 @@
 // HRMS — Attendance (M2) React Query hooks.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from '@/components/shared/Toast'
+import { supabase } from '@/lib/supabase'
+
+// Fire-and-forget: push the just-created approval-request notifications out to
+// WhatsApp/email now (the DB trigger already created the bell rows for approvers).
+const kickNotify = () => { supabase.functions.invoke('notify-dispatch', { body: {} }).catch(() => {}) }
 import {
   fetchMyAttendanceDays,
   fetchHrAttendanceDays,
@@ -83,6 +88,7 @@ export function useCreateRegularization(employeeId: string) {
     mutationFn: (input: RegularizationInput) => createRegularization(employeeId, input),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [...ATT, 'my-regs', employeeId] })
+      kickNotify()
       toast.success('Regularization requested')
     },
     onError: (e: Error) => toast.error('Request failed', e.message),
@@ -94,6 +100,7 @@ export function useCreateOutdoorDuty(employeeId: string) {
     mutationFn: (input: OutdoorDutyInput) => createOutdoorDuty(employeeId, input),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [...ATT, 'my-od', employeeId] })
+      kickNotify()
       toast.success('Request submitted')
     },
     onError: (e: Error) => toast.error('Request failed', e.message),
@@ -105,6 +112,7 @@ export function useCreateOvertime(employeeId: string) {
     mutationFn: (input: OvertimeInput) => createOvertime(employeeId, input),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [...ATT, 'my-ot', employeeId] })
+      kickNotify()
       toast.success('Overtime requested')
     },
     onError: (e: Error) => toast.error('Request failed', e.message),

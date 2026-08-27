@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { ForgotPasswordModal } from './ForgotPasswordModal'
+import { loginAtKey } from '@/core/auth/session'
 
 // Authentication is fully decoupled from Face Recognition (2026-07-22). Login is
 // standard email/User-ID + password only — no camera, no webcam, no biometric
@@ -45,13 +46,19 @@ export default function LoginPage() {
       loginEmail = resolved as string
     }
 
-    const { error: authErr } = await supabase.auth.signInWithPassword({ email: loginEmail, password })
+    const { data: authData, error: authErr } = await supabase.auth.signInWithPassword({ email: loginEmail, password })
     setLoading(false)
     if (authErr) {
       await (supabase.rpc as any)('record_login_attempt', { p_identifier: identifier, p_success: false })
       setError('Invalid user ID or password.')
     } else {
       await (supabase.rpc as any)('record_login_attempt', { p_identifier: identifier, p_success: true })
+      // Re-anchor the 6-hour session clock to THIS login, so a stale login_at from a
+      // previous (already-expired) session can't log the user straight back out after OTP.
+      // Set here (a genuine fresh login) — NOT on every auth event, so page refresh keeps
+      // the absolute 6h cap intact.
+      const uid = authData.user?.id
+      if (uid) { try { localStorage.setItem(loginAtKey(uid), String(Date.now())) } catch { /* ignore */ } }
       // Every fresh login starts with the sidebar collapsed (except Dashboard):
       // clear the persisted collapse state so the Sidebar falls back to DEFAULT_COLLAPSED.
       try { localStorage.removeItem('tps_nav_collapsed') } catch { /* ignore */ }

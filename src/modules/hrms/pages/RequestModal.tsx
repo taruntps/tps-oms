@@ -56,16 +56,22 @@ export function RequestModal({ kind, employeeId, defaultDate, onClose }: Props) 
   const [tReason, setTReason] = useState('')
 
   const pending = reg.isPending || od.isPending || ot.isPending
+  const [err, setErr] = useState('')
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setErr('')
     try {
       if (kind === 'regularization') {
+        // At least one time, and Out must be after In (both are on the work date).
+        if (!rIn && !rOut) { setErr('Enter the In and/or Out time you actually worked.'); return }
+        if (rIn && rOut && rOut <= rIn) { setErr('Out time must be later than In time.'); return }
+        const toTs = (t: string) => new Date(`${rWorkDate}T${t}:00`).toISOString()
         await reg.mutateAsync({
           work_date: rWorkDate,
           kind: rKind,
-          requested_in: rIn ? new Date(rIn).toISOString() : null,
-          requested_out: rOut ? new Date(rOut).toISOString() : null,
+          requested_in: rIn ? toTs(rIn) : null,
+          requested_out: rOut ? toTs(rOut) : null,
           reason: rReason.trim() || null,
         })
       } else if (kind === 'od') {
@@ -111,9 +117,10 @@ export function RequestModal({ kind, employeeId, defaultDate, onClose }: Props) 
                 </select>
               </Field>
               <div className="grid grid-cols-2 gap-4">
-                <Field label="Requested In"><input type="datetime-local" className={ic} value={rIn} onChange={e => setRIn(e.target.value)} /></Field>
-                <Field label="Requested Out"><input type="datetime-local" className={ic} value={rOut} onChange={e => setROut(e.target.value)} /></Field>
+                <Field label="In time"><input type="time" className={ic} value={rIn} onChange={e => setRIn(e.target.value)} /></Field>
+                <Field label="Out time"><input type="time" className={ic} value={rOut} onChange={e => setROut(e.target.value)} /></Field>
               </div>
+              <p className="text-[11px] text-muted-foreground -mt-2">Times are on the work date above. Out must be later than In.</p>
               <Field label="Reason"><textarea className={ic} rows={3} value={rReason} onChange={e => setRReason(e.target.value)} /></Field>
             </>
           )}
@@ -154,6 +161,7 @@ export function RequestModal({ kind, employeeId, defaultDate, onClose }: Props) 
           )}
         </form>
 
+        {err && <p className="px-6 -mt-1 text-xs text-red-600">{err}</p>}
         <div className="px-6 py-4 border-t border-border flex justify-end gap-3">
           <button onClick={onClose} type="button" className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-[#F8FAFC]">Cancel</button>
           <button onClick={submit} disabled={pending} className="px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 disabled:opacity-50">

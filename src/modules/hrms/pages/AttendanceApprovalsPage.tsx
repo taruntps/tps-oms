@@ -86,7 +86,23 @@ export default function AttendanceApprovalsPage() {
                       <span className="text-sm font-semibold text-brand-950">{empName.get(item.employee_id) ?? item.employee_id.slice(0, 8)}</span>
                       <span className="text-[11px] text-muted-foreground bg-[#F8FAFC] border border-border rounded px-1.5 py-0.5">{meta.label}</span>
                     </div>
-                    <p className="text-sm text-muted-foreground mt-0.5">{item.detail} · <span className="text-brand-800">{item.when.includes('-') && !item.when.includes('→') ? formatDate(item.when) : item.when}</span></p>
+                    <p className="text-sm text-muted-foreground mt-0.5">{item.detail}</p>
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-0.5 mt-1 text-xs">
+                      <span className="text-brand-800">
+                        <Sym name="event" size={12} className="inline align-[-2px] mr-1 text-muted-foreground" />
+                        For {item.when.includes('-') && !item.when.includes('→') ? formatDate(item.when) : item.when}
+                      </span>
+                      {item.times && (
+                        <span className="text-brand-800">
+                          <Sym name="schedule" size={12} className="inline align-[-2px] mr-1 text-muted-foreground" />
+                          {item.times}
+                        </span>
+                      )}
+                      <span className="text-muted-foreground">
+                        <Sym name="send" size={12} className="inline align-[-2px] mr-1" />
+                        Filed {new Date(item.submitted_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' })}
+                      </span>
+                    </div>
                     {item.reason && <p className="text-xs text-muted-foreground/80 mt-1 italic">“{item.reason}”</p>}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
