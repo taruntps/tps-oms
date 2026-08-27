@@ -70,6 +70,13 @@ export function AttendanceCalendar({ employeeId }: { employeeId: string }) {
   }, [evalDays])
 
   const catOf = (e?: EvaluatedDay): Cat => (e ? STATUS_CAT[e.status] ?? 'none' : 'none')
+  // Leave/duty remark, e.g. "½ CL" (half-leave on a present day), "CL", "OD".
+  const coveredRemark = (e?: EvaluatedDay): string | null => {
+    const c = e?.covered
+    if (!c || c === 'manual' || c === 'override') return null
+    const duty = c === 'OD' || c === 'WFH'
+    return !duty && e?.status === 'present' ? `½ ${c}` : c
+  }
 
   const counts = useMemo(() => {
     const c: Record<string, number> = {}
@@ -121,7 +128,7 @@ export function AttendanceCalendar({ employeeId }: { employeeId: string }) {
                 <button key={ds} onClick={() => setOpenDay(openDay === ds ? null : ds)}
                   className={`rounded-lg border min-h-[52px] p-1.5 text-left flex flex-col justify-between transition hover:ring-2 hover:ring-brand-600/20 ${c.cls} ${isToday ? 'ring-2 ring-brand-600' : ''}`}>
                   <span className="text-xs font-semibold">{dd}</span>
-                  {cat !== 'none' && <span className="text-[9px] leading-tight truncate">{c.label}</span>}
+                  {cat !== 'none' && <span className="text-[9px] leading-tight truncate">{c.label}{coveredRemark(e) ? ` · ${coveredRemark(e)}` : ''}</span>}
                 </button>
               )
             })}
@@ -139,7 +146,7 @@ export function AttendanceCalendar({ employeeId }: { employeeId: string }) {
                   <span className={`inline-block text-[11px] font-medium px-2 py-0.5 rounded border ${CAT[selCat].cls}`}>{CAT[selCat].label}</span>
                   {sel.penalty && <span className="text-[11px] text-amber-700">· {sel.penalty}</span>}
                   {sel.late_minutes > 0 && <span className="text-[11px] text-muted-foreground">· {sel.late_minutes}m late</span>}
-                  {sel.covered === 'leave' && <span className="text-[11px] text-indigo-600">· leave-adjusted</span>}
+                  {coveredRemark(sel) && <span className="text-[11px] font-medium text-indigo-700">· {coveredRemark(sel)}{sel.status === 'present' ? ' (leave used)' : ''}</span>}
                 </div>
                 <div className="mt-1 text-xs text-muted-foreground flex flex-wrap gap-x-4 gap-y-0.5">
                   <span>In: <span className="text-brand-950 font-medium">{fmtTime(sel.first_in)}</span></span>

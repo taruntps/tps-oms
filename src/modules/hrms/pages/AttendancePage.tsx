@@ -27,8 +27,13 @@ interface Cell {
   last_out: string | null
   worked_minutes: number | null
   status: string | null
+  covered: string | null
   hr: HrAttendanceDay | null
 }
+
+/** covered → a short human remark, e.g. "CL", "OD", or null for plain days. */
+const coveredTag = (c: string | null): string | null =>
+  !c || c === 'manual' || c === 'override' ? null : c
 
 const STATUS_OPTIONS: string[] = ['present', 'missing_punch', 'absent', 'half_day', 'on_leave', 'holiday', 'weekly_off', 'od', 'wfh', 'pending']
 
@@ -53,8 +58,8 @@ export default function AttendancePage() {
     queryFn: () => fetchAttendanceEvaluationBulk(from, to),
   })
   const evalMap = useMemo(() => {
-    const m = new Map<string, string>()
-    for (const e of evalRows) m.set(`${e.employee_id}|${e.work_date}`, e.status)
+    const m = new Map<string, { status: string; covered: string | null }>()
+    for (const e of evalRows) m.set(`${e.employee_id}|${e.work_date}`, { status: e.status, covered: e.covered })
     return m
   }, [evalRows])
 
@@ -115,7 +120,8 @@ export default function AttendancePage() {
         // recorded days (otherwise it's a huge employee × every-day matrix).
         if (!p && !h && !dateFilter) continue
         // Manual override wins; otherwise show the evaluated status (matches the Calendar).
-        const status = (h?.status as string | null) ?? evalMap.get(`${emp.id}|${d}`) ?? null
+        const ev = evalMap.get(`${emp.id}|${d}`)
+        const status = (h?.status as string | null) ?? ev?.status ?? null
         if (statusFilter && status !== statusFilter) continue
         out.push({
           emp,
@@ -124,7 +130,7 @@ export default function AttendancePage() {
             first_in: h?.first_in ?? p?.first_in ?? null,
             last_out: h?.last_out ?? p?.last_out ?? null,
             worked_minutes: h?.worked_minutes ?? p?.worked_minutes ?? null,
-            status, hr: h,
+            status, covered: h?.status ? null : ev?.covered ?? null, hr: h,
           },
         })
       }
@@ -267,6 +273,12 @@ export default function AttendancePage() {
                     <td className="px-4 py-2.5">
                       <div className="flex items-center gap-1.5">
                         <AttendanceStatusPill status={cell.status} />
+                        {coveredTag(cell.covered) && (
+                          <span title="Leave / duty applied to this day" className="text-[10px] font-medium text-indigo-700 bg-indigo-50 border border-indigo-200 rounded px-1 py-0.5">
+                            {(() => { const c = coveredTag(cell.covered)!; const duty = c === 'OD' || c === 'WFH'
+                              return !duty && cell.status === 'present' ? `½ ${c}` : c })()}
+                          </span>
+                        )}
                         {editedSet.has(`${emp.id}|${cell.work_date}`) && (
                           <span title="Timing corrected by admin" className="inline-flex items-center gap-0.5 text-[10px] font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded px-1 py-0.5">
                             <Sym name="edit" size={10} /> edited
