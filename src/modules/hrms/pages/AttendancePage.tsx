@@ -4,6 +4,7 @@
 // enforces the actual row scope. HR can open a day to correct it (writes
 // hr_attendance_corrections + updates hr_attendance_days) — gated hrms.attendance.manage.
 import { useMemo, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { TopBar } from '@/components/layout/TopBar'
 import { Sym } from '@/components/shared/Sym'
 import { useCan } from '@/core/access/useCan'
@@ -16,7 +17,7 @@ import {
 } from '../hooks/useAttendance'
 import { AttendanceStatusPill, fmtMinutes, fmtTime, monthRange, istToday } from './attendanceShared'
 import { AttendanceCalendar } from './AttendanceCalendar'
-import { istTimestamp, type AttendanceDay, type AttendanceStatus, type HrAttendanceDay, type RawPunch } from '../api/attendance'
+import { istTimestamp, fetchAttendanceEvaluationBulk, type AttendanceDay, type AttendanceStatus, type HrAttendanceDay, type RawPunch } from '../api/attendance'
 
 interface Cell {
   employee_id: string
@@ -24,11 +25,11 @@ interface Cell {
   first_in: string | null
   last_out: string | null
   worked_minutes: number | null
-  status: AttendanceStatus | null
+  status: string | null
   hr: HrAttendanceDay | null
 }
 
-const STATUS_OPTIONS: AttendanceStatus[] = ['present', 'absent', 'half_day', 'on_leave', 'holiday', 'weekly_off', 'od', 'wfh', 'pending']
+const STATUS_OPTIONS: string[] = ['present', 'missing_punch', 'absent', 'half_day', 'on_leave', 'holiday', 'weekly_off', 'od', 'wfh', 'pending']
 
 export default function AttendancePage() {
   const { user } = useAuth()
@@ -43,6 +44,18 @@ export default function AttendancePage() {
   const { data: hrDays = [], isLoading: lh } = useHrDaysRange(from, to)
   const { data: correctedKeys = [] } = useCorrectedDayKeys(from, to)
   const editedSet = useMemo(() => new Set(correctedKeys), [correctedKeys])
+
+  // Evaluated status per employee/day (present / half_day / missing_punch / on_leave …)
+  // so the muster STATUS column matches the Calendar, not just manual overrides.
+  const { data: evalRows = [] } = useQuery({
+    queryKey: ['hrms', 'muster-eval', from, to],
+    queryFn: () => fetchAttendanceEvaluationBulk(from, to),
+  })
+  const evalMap = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const e of evalRows) m.set(`${e.employee_id}|${e.work_date}`, e.status)
+    return m
+  }, [evalRows])
 
   const [deptFilter, setDeptFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
@@ -100,7 +113,8 @@ export default function AttendancePage() {
         // day can be marked/corrected via the row's ✏️. Whole-month view keeps only
         // recorded days (otherwise it's a huge employee × every-day matrix).
         if (!p && !h && !dateFilter) continue
-        const status = h?.status ?? null
+        // Manual override wins; otherwise show the evaluated status (matches the Calendar).
+        const status = (h?.status as string | null) ?? evalMap.get(`${emp.id}|${d}`) ?? null
         if (statusFilter && status !== statusFilter) continue
         out.push({
           emp,
@@ -120,7 +134,7 @@ export default function AttendancePage() {
         ? (a.emp.name ?? '').localeCompare(b.emp.name ?? '')
         : (a.cell.work_date < b.cell.work_date ? 1 : -1))
     return out
-  }, [filteredEmployees, dates, punchMap, hrMap, statusFilter, dateFilter])
+  }, [filteredEmployees, dates, punchMap, hrMap, evalMap, statusFilter, dateFilter])
 
   const monthLabel = new Intl.DateTimeFormat('en-IN', { month: 'long', year: 'numeric' }).format(new Date(ym.y, ym.m, 1))
   const shiftMonth = (delta: number) => {

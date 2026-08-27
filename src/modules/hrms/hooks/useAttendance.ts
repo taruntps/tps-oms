@@ -146,8 +146,9 @@ export function useDecideApproval() {
   return useMutation({
     mutationFn: (input: DecisionInput) => decideApproval(input),
     onSuccess: (_d, v) => {
-      qc.invalidateQueries({ queryKey: [...ATT, 'approvals'] })
-      qc.invalidateQueries({ queryKey: [...ATT, 'hr-days-range'] })
+      // Approving a regularization writes punches server-side → the day re-evaluates.
+      // Refresh the whole HRMS tree (muster, calendar, eval, approvals) so it flips live.
+      qc.invalidateQueries({ queryKey: ['hrms'] })
       toast.success(v.approve ? 'Approved' : 'Rejected')
     },
     onError: (e: Error) => toast.error('Decision failed', e.message),

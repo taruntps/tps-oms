@@ -9,11 +9,12 @@ import { Sym } from '@/components/shared/Sym'
 import { fmtTime, fmtMinutes, istToday } from './attendanceShared'
 import { fetchAttendanceEvaluation, fetchEmployeePunches, type EvaluatedDay } from '../api/attendance'
 
-type Cat = 'present' | 'half' | 'absent' | 'leave' | 'holiday' | 'off' | 'wfh' | 'none'
+type Cat = 'present' | 'half' | 'absent' | 'leave' | 'holiday' | 'off' | 'wfh' | 'none' | 'missing'
 
 const CAT: Record<Cat, { label: string; cls: string; sw: string }> = {
   present: { label: 'Present',    cls: 'bg-green-50 text-green-700 border-green-200',    sw: 'bg-green-200' },
   half:    { label: 'Half day',   cls: 'bg-amber-50 text-amber-700 border-amber-200',    sw: 'bg-amber-200' },
+  missing: { label: 'Missing punch', cls: 'bg-orange-50 text-orange-700 border-orange-200', sw: 'bg-orange-300' },
   absent:  { label: 'Absent',     cls: 'bg-red-50 text-red-700 border-red-200',          sw: 'bg-red-200' },
   leave:   { label: 'On leave',   cls: 'bg-indigo-50 text-indigo-700 border-indigo-200', sw: 'bg-indigo-200' },
   holiday: { label: 'Holiday',    cls: 'bg-blue-50 text-blue-700 border-blue-200',       sw: 'bg-blue-200' },
@@ -24,8 +25,9 @@ const CAT: Record<Cat, { label: string; cls: string; sw: string }> = {
 const STATUS_CAT: Record<string, Cat> = {
   present: 'present', half_day: 'half', absent: 'absent', on_leave: 'leave',
   holiday: 'holiday', weekly_off: 'off', wfh: 'wfh', od: 'wfh', none: 'none', pending: 'none',
+  missing_punch: 'missing',
 }
-const LEGEND: Cat[] = ['present', 'half', 'absent', 'leave', 'holiday', 'off']
+const LEGEND: Cat[] = ['present', 'half', 'missing', 'absent', 'leave', 'holiday', 'off']
 const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const pad = (n: number) => String(n).padStart(2, '0')
 const monShort = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']

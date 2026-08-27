@@ -28,11 +28,12 @@ const STATUS_TONE: Record<string, string> = {
   weekly_off: 'bg-slate-50 border-slate-200 text-slate-600',
   holiday: 'bg-slate-50 border-slate-200 text-slate-600',
   pending: 'bg-slate-50 border-slate-200 text-slate-500',
+  missing_punch: 'bg-orange-50 border-orange-200 text-orange-700',
   absent: 'bg-red-50 border-red-200 text-red-700',
 }
 
 export function AttendanceStatusPill({ status }: { status: AttendanceStatus | string | null | undefined }) {
-  if (!status) return <span className="text-muted-foreground text-xs">—</span>
+  if (!status || status === 'none') return <span className="text-muted-foreground text-xs">—</span>
   const tone = STATUS_TONE[status] ?? 'bg-slate-50 border-slate-200 text-slate-600'
   return (
     <span className={`text-[11px] font-medium px-2 py-0.5 rounded border capitalize ${tone}`}>

@@ -357,6 +357,14 @@ export interface ApprovalItem {
   work_date: string | null
 }
 
+export interface BulkEval { employee_id: string; work_date: string; status: string; worked_units: number; lop_units: number; penalty: string | null; covered: string | null }
+/** Evaluated status for ALL active employees over a range (muster) — one round-trip. */
+export async function fetchAttendanceEvaluationBulk(from: string, to: string): Promise<BulkEval[]> {
+  const { data, error } = await db.rpc('evaluate_attendance_bulk', { p_from: from, p_to: to })
+  if (error) throw error
+  return (data ?? []) as BulkEval[]
+}
+
 /** IST clock time from an ISO timestamp, e.g. "09:00 AM". */
 const istTime = (ts: string | null): string | null =>
   ts ? new Date(ts).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' }) : null
