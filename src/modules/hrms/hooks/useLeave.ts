@@ -10,6 +10,7 @@ import {
   fetchMyLeaveRequests,
   fetchLeaveRequests,
   createLeaveRequest,
+  adminAdjustLeave,
   cancelLeaveRequest,
   decideLeaveRequest,
   reverseApprovedLeave,
@@ -22,6 +23,7 @@ import {
   decideEncashment,
   fetchLeavePolicy,
   type LeaveRequestInput,
+  type AdminAdjustLeaveInput,
   type LeaveRequest,
   type LeaveDecisionInput,
   type LedgerEntryInput,
@@ -36,6 +38,19 @@ export function useLeavePolicy(employeeId?: string | null) {
     queryKey: [...LV, 'policy', employeeId ?? 'company'],
     queryFn: () => fetchLeavePolicy(employeeId),
     staleTime: 5 * 60_000,
+  })
+}
+
+// Admin: book an approved leave for an employee (from the attendance correction modal).
+export function useAdminAdjustLeave() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (v: { input: AdminAdjustLeaveInput; approverId: string }) => adminAdjustLeave(v.input, v.approverId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['hrms'] })
+      toast.success('Leave applied', 'The day is updated and the balance debited.')
+    },
+    onError: (e: Error) => toast.error('Could not apply leave', e.message),
   })
 }
 

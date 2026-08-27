@@ -1,0 +1,10 @@
+-- 136 — Half-day leave + worked half = full paid PRESENT day (label + payroll).
+-- Applied via CREATE OR REPLACE of evaluate_attendance (same signature as mig 135).
+-- Only the tail of the both-punches branch changed:
+--   if leave_half then cat := 'present'; pen := null; cov := leave_code; wu := 1; lop := 0;
+--   elsif cat = 'half_day' then wu := 0.5; lop := 0.5;
+--   else wu := 1; lop := 0; end if;
+-- So a half-day paid leave (CL/SL/EL…) covering the missing session makes the day
+-- Present (full pay), covered=<type>, with no false late/early penalty for the covered
+-- half. Admin books such a leave from the Correct Attendance modal (adminAdjustLeave:
+-- approved hr_leave_requests row + hr_leave_ledger 'applied' -days debit).

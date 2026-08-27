@@ -15,6 +15,7 @@ import {
   useAttendanceDaysRange, useHrDaysRange, useCorrectAttendanceDay,
   useCorrectedDayKeys, useEmployeeDayPunches, useAdminPunchEdit,
 } from '../hooks/useAttendance'
+import { useActiveLeaveTypes, useAdminAdjustLeave } from '../hooks/useLeave'
 import { AttendanceStatusPill, fmtMinutes, fmtTime, monthRange, istToday } from './attendanceShared'
 import { AttendanceCalendar } from './AttendanceCalendar'
 import { istTimestamp, fetchAttendanceEvaluationBulk, type AttendanceDay, type AttendanceStatus, type HrAttendanceDay, type RawPunch } from '../api/attendance'
@@ -316,6 +317,18 @@ function CorrectionModal({ employeeId, workDate, hr, correctedBy, onClose }: {
   const correct = useCorrectAttendanceDay()
   const { data: punches = [], isLoading: lpunch } = useEmployeeDayPunches(employeeId, workDate)
   const punchEdit = useAdminPunchEdit()
+  const { data: leaveTypes = [] } = useActiveLeaveTypes()
+  const adjustLeave = useAdminAdjustLeave()
+  const [lvType, setLvType] = useState('')
+  const [lvHalf, setLvHalf] = useState(true)
+  const [lvSession, setLvSession] = useState<'first' | 'second'>('first')
+  const applyLeave = () => {
+    if (!lvType) return
+    adjustLeave.mutate(
+      { input: { employeeId, date: workDate, leaveTypeId: lvType, halfDay: lvHalf, halfSession: lvHalf ? lvSession : null, reason: reason.trim() || null }, approverId: correctedBy },
+      { onSuccess: onClose },
+    )
+  }
   // '' = keep the computed status (no manual override). Any real status = force it.
   const initialStatus = (hr?.status as AttendanceStatus | undefined) ?? ''
   const [status, setStatus] = useState<AttendanceStatus | ''>(initialStatus)
@@ -431,6 +444,34 @@ function CorrectionModal({ employeeId, workDate, hr, correctedBy, onClose }: {
               <label className="block text-xs font-medium text-brand-950 mb-1">Reason for correction</label>
               <textarea className={ic} rows={2} value={reason} onChange={e => setReason(e.target.value)} placeholder="Audit trail note (applies to punch edits too)" />
             </div>
+          </div>
+
+          {/* ── Adjust leave (books an approved leave + debits balance) ── */}
+          <div className="space-y-3 border-t border-border pt-4">
+            <div>
+              <label className="block text-xs font-medium text-brand-950">Adjust leave <span className="font-normal text-muted-foreground">(books an approved leave for this day and debits the balance)</span></label>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <select className={ic} value={lvType} onChange={e => setLvType(e.target.value)}>
+                <option value="">Select leave type…</option>
+                {leaveTypes.map((lt: any) => <option key={lt.id} value={lt.id}>{lt.code} — {lt.name}</option>)}
+              </select>
+              <select className={ic} value={lvHalf ? 'half' : 'full'} onChange={e => setLvHalf(e.target.value === 'half')}>
+                <option value="full">Full day</option>
+                <option value="half">Half day</option>
+              </select>
+            </div>
+            {lvHalf && (
+              <select className={ic} value={lvSession} onChange={e => setLvSession(e.target.value as 'first' | 'second')}>
+                <option value="first">First half (morning)</option>
+                <option value="second">Second half (afternoon)</option>
+              </select>
+            )}
+            <p className="text-[10px] text-muted-foreground">A half-day leave plus a worked half counts as a full paid day.</p>
+            <button onClick={applyLeave} disabled={!lvType || adjustLeave.isPending}
+              className="w-full px-4 py-2 text-sm font-medium border border-brand-300 text-brand-700 rounded-lg hover:bg-brand-50 disabled:opacity-50">
+              {adjustLeave.isPending ? 'Applying…' : 'Apply leave'}
+            </button>
           </div>
         </div>
 

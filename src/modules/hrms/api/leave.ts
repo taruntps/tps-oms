@@ -169,6 +169,34 @@ export async function createLeaveRequest(employeeId: string, input: LeaveRequest
   if (error) throw error
 }
 
+export interface AdminAdjustLeaveInput {
+  employeeId: string
+  date: string
+  leaveTypeId: string
+  halfDay: boolean
+  halfSession: 'first' | 'second' | null
+  reason?: string | null
+}
+/** Admin books an APPROVED leave for one day + debits the balance ledger (−days).
+ *  The evaluator then shows the type (CL/SL/EL…); a half-day leave + a worked half = full day. */
+export async function adminAdjustLeave(input: AdminAdjustLeaveInput, approverId: string): Promise<void> {
+  const days = input.halfDay ? 0.5 : 1
+  const { data, error } = await db.from('hr_leave_requests').insert({
+    employee_id: input.employeeId, leave_type_id: input.leaveTypeId,
+    from_date: input.date, to_date: input.date, days,
+    is_half_day: input.halfDay, half_session: input.halfDay ? input.halfSession : null,
+    reason: input.reason?.trim() || 'Admin adjustment', status: 'approved',
+    approver_id: approverId, decided_at: new Date().toISOString(), created_by: approverId,
+  }).select('id').single()
+  if (error) throw error
+  const { error: lErr } = await db.from('hr_leave_ledger').insert({
+    employee_id: input.employeeId, leave_type_id: input.leaveTypeId, entry_type: 'applied',
+    quantity: -days, entry_date: input.date, ref_type: 'leave_request', ref_id: data.id,
+    note: 'Leave applied (admin adjust)', created_by: approverId,
+  })
+  if (lErr) throw lErr
+}
+
 export async function cancelLeaveRequest(id: string): Promise<void> {
   const { error } = await db.from('hr_leave_requests').update({ status: 'cancelled' }).eq('id', id)
   if (error) throw error
