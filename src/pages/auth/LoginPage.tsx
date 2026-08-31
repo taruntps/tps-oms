@@ -33,6 +33,15 @@ export default function LoginPage() {
       return
     }
 
+    // Login access hours: some users are restricted to a time window / working days.
+    const { data: winRows } = await (supabase.rpc as any)('check_login_allowed', { p_identifier: identifier })
+    const win = Array.isArray(winRows) ? winRows[0] : winRows
+    if (win && win.allowed === false) {
+      setError(win.reason || 'Login is not allowed at this time.')
+      setLoading(false)
+      return
+    }
+
     // Resolve employee code → email if needed
     let loginEmail = identifier
     if (!loginEmail.includes('@')) {

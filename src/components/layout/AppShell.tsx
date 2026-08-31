@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
 import { RoutePermissionGuard } from './RoutePermissionGuard'
@@ -11,10 +11,12 @@ import { useDesktopNotifications } from '@/hooks/useDesktopNotifications'
 import { useTheme } from '@/hooks/useTheme'
 import { TwoFactorGate } from '@/components/auth/TwoFactorGate'
 import { twofaDayKey, istDateStr } from '@/core/auth/session'
+import { supabase } from '@/lib/supabase'
+import { toast } from '@/components/shared/Toast'
 
 export function AppShell() {
   const [mobileOpen, setMobileOpen] = useState(false)
-  const { profile, user } = useAuth()
+  const { profile, user, signOut } = useAuth()
   const navigate = useNavigate()
   const uid = user?.id ?? ''
   // Apply the saved/default shell theme app-wide (moved here from the dashboard,
@@ -26,6 +28,23 @@ export function AppShell() {
   // Single listening instance: turns new in-app notifications into desktop pop-ups
   // (default on) and requests permission once. Clicking a pop-up opens Notifications.
   useDesktopNotifications({ listen: true, onOpen: () => navigate('/notifications') })
+
+  // Login access hours: if a restricted user's window closes while they're inside the
+  // portal, sign them out at the boundary (polled each minute). Admins are exempt server-side.
+  useEffect(() => {
+    if (!user) return
+    let active = true
+    const check = async () => {
+      const { data } = await (supabase.rpc as any)('my_login_window_ok')
+      if (active && data === false) {
+        toast.error('Access hours ended', 'Your login window has closed. Please sign in during allowed hours.')
+        await signOut()
+      }
+    }
+    check()
+    const id = setInterval(check, 60_000)
+    return () => { active = false; clearInterval(id) }
+  }, [user, signOut])
 
   // Opt-in login 2FA: require an SMS/email OTP once per IST calendar day per device.
   // Computed SYNCHRONOUSLY from localStorage (not a delayed effect) so a verified device

@@ -142,6 +142,32 @@ export function overridesForLevel(item: AccessItem, level: AccessLevel, st: Acce
 // ── Data access ──────────────────────────────────────────────────────────────
 const db = supabase as any
 
+// ── Login access hours (per employee) ────────────────────────────────────────
+export interface LoginAccess {
+  employee_id: string; login_from: string; login_to: string
+  block_holidays: boolean; block_weekly_off: boolean; override_until: string | null
+}
+export async function fetchLoginAccess(userId: string): Promise<LoginAccess | null> {
+  const { data, error } = await db.from('hr_login_access').select('*').eq('employee_id', userId).maybeSingle()
+  if (error) throw error
+  return (data ?? null) as LoginAccess | null
+}
+export async function saveLoginAccess(
+  userId: string,
+  v: { login_from: string; login_to: string; block_holidays: boolean; block_weekly_off: boolean; override_until?: string | null },
+  updatedBy: string,
+): Promise<void> {
+  const { error } = await db.from('hr_login_access').upsert(
+    { employee_id: userId, ...v, updated_by: updatedBy, updated_at: new Date().toISOString() },
+    { onConflict: 'employee_id' },
+  )
+  if (error) throw error
+}
+export async function clearLoginAccess(userId: string): Promise<void> {
+  const { error } = await db.from('hr_login_access').delete().eq('employee_id', userId)
+  if (error) throw error
+}
+
 export async function fetchPermissionCatalog(): Promise<{ labels: Map<string, string>; keys: Set<string> }> {
   const { data, error } = await db.from('permissions').select('perm_key, label')
   if (error) throw error

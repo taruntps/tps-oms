@@ -1,13 +1,15 @@
 // Admin: per-employee access editor, organised like the sidebar.
 // Head (Hide / Show) → Sub-group (Hide group) → Page (Hidden / View / Edit).
 // Default follows the employee's role; an override is written only where you change it.
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Sym } from '@/components/shared/Sym'
 import { toast } from '@/components/shared/Toast'
+import { useAuth } from '@/contexts/AuthContext'
 import {
   fetchPermissionCatalog, fetchUserAccessState, saveUserOverrides,
   buildAccessTree, levelOf, roleLevelOf, overridesForLevel, isSensitive,
+  fetchLoginAccess, saveLoginAccess, clearLoginAccess,
   type AccessItem, type AccessLevel, type AccessState,
 } from '@/core/access/manageAccess'
 
@@ -132,6 +134,7 @@ export function ManageAccessDrawer({ userId, userName, onClose }: {
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
+          <LoginHoursSection userId={userId} />
           {loading ? (
             <div className="space-y-2 px-2">{[...Array(7)].map((_, i) => <div key={i} className="h-10 bg-[#F8FAFC] rounded animate-pulse" />)}</div>
           ) : tree.map(h => {
@@ -225,6 +228,75 @@ function Segment({ options, value, onPick }: {
           </button>
         )
       })}
+    </div>
+  )
+}
+
+// Per-employee login access hours: restrict sign-in to a window + block holidays/weekly-offs,
+// with a one-time after-hours exception. No restriction (row absent) = can log in anytime.
+function LoginHoursSection({ userId }: { userId: string }) {
+  const qc = useQueryClient()
+  const { user } = useAuth()
+  const { data: la, isLoading } = useQuery({ queryKey: ['login-access', userId], queryFn: () => fetchLoginAccess(userId) })
+  const [form, setForm] = useState<{ on: boolean; from: string; to: string; hol: boolean; wo: boolean } | null>(null)
+  const [grantUntil, setGrantUntil] = useState('')
+
+  useEffect(() => {
+    if (la === undefined || form) return
+    setForm({ on: !!la, from: (la?.login_from ?? '08:30').slice(0, 5), to: (la?.login_to ?? '19:30').slice(0, 5), hol: la?.block_holidays ?? true, wo: la?.block_weekly_off ?? true })
+  }, [la, form])
+
+  const save = useMutation({
+    mutationFn: async () => {
+      if (!form) return
+      if (form.on) await saveLoginAccess(userId, { login_from: form.from, login_to: form.to, block_holidays: form.hol, block_weekly_off: form.wo }, user!.id)
+      else await clearLoginAccess(userId)
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['login-access', userId] }); toast.success('Login hours saved') },
+    onError: (e: Error) => toast.error('Could not save', e.message),
+  })
+  const grant = useMutation({
+    mutationFn: async () => {
+      if (!grantUntil || !form) return
+      await saveLoginAccess(userId, { login_from: form.from, login_to: form.to, block_holidays: form.hol, block_weekly_off: form.wo, override_until: new Date(grantUntil).toISOString() }, user!.id)
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['login-access', userId] }); setGrantUntil(''); toast.success('One-time access granted') },
+    onError: (e: Error) => toast.error('Could not grant', e.message),
+  })
+
+  if (isLoading || !form) return null
+  const set = (patch: Partial<NonNullable<typeof form>>) => setForm({ ...form, ...patch })
+  const activeOverride = la?.override_until && new Date(la.override_until) > new Date() ? la.override_until : null
+  const inp = 'w-full px-2 py-1.5 text-sm border border-border rounded-md bg-white'
+
+  return (
+    <div className="rounded-lg border border-border p-3 mb-2 space-y-3">
+      <label className="flex items-center justify-between gap-2 cursor-pointer">
+        <span className="text-[13px] font-semibold text-brand-950 flex items-center gap-1.5"><Sym name="schedule" size={15} className="text-muted-foreground" /> Login hours</span>
+        <input type="checkbox" checked={form.on} onChange={e => set({ on: e.target.checked })} />
+      </label>
+      {form.on ? (
+        <div className="space-y-2.5">
+          <div className="grid grid-cols-2 gap-2">
+            <label className="text-[11px] text-muted-foreground block">From<input type="time" value={form.from} onChange={e => set({ from: e.target.value })} className={`mt-0.5 ${inp}`} /></label>
+            <label className="text-[11px] text-muted-foreground block">To<input type="time" value={form.to} onChange={e => set({ to: e.target.value })} className={`mt-0.5 ${inp}`} /></label>
+          </div>
+          <label className="flex items-center gap-2 text-[12px] text-brand-950"><input type="checkbox" checked={form.hol} onChange={e => set({ hol: e.target.checked })} /> Block login on holidays</label>
+          <label className="flex items-center gap-2 text-[12px] text-brand-950"><input type="checkbox" checked={form.wo} onChange={e => set({ wo: e.target.checked })} /> Block login on weekly-offs (Sat/Sun)</label>
+          <div className="rounded-md bg-[#F8FAFC] border border-border p-2 space-y-1.5">
+            <p className="text-[11px] text-muted-foreground">One-time after-hours access{activeOverride && <span className="text-green-700"> · active until {new Date(activeOverride).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true })}</span>}</p>
+            <div className="flex gap-2">
+              <input type="datetime-local" value={grantUntil} onChange={e => setGrantUntil(e.target.value)} className={inp} />
+              <button onClick={() => grant.mutate()} disabled={!grantUntil || grant.isPending} className="px-2.5 py-1.5 text-xs font-medium border border-brand-300 text-brand-700 rounded-md hover:bg-brand-50 disabled:opacity-50 shrink-0">Grant</button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <p className="text-[11px] text-muted-foreground">No restriction — can log in anytime.</p>
+      )}
+      <button onClick={() => save.mutate()} disabled={save.isPending} className="w-full px-3 py-1.5 text-sm font-medium bg-brand-600 text-white rounded-lg hover:bg-brand-700 disabled:opacity-50">
+        {save.isPending ? 'Saving…' : 'Save login hours'}
+      </button>
     </div>
   )
 }
